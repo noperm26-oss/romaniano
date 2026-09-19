@@ -68,55 +68,10 @@ function propBrazier(cx,cz,big){
   addFlame(cx,y+0.7*s,cz,big?1.5:1.1);
 }
 var COL_GOLD=0xc9a227;
-/* wall with door gap; door side: 'S'(+z) or 'N'(-z); returns nothing, adds meshes+colliders */
-function buildingWalls(cx,cz,w,d,h,wallM,doorSide){
-  var y=groundH(cx,cz);
-  var t=0.35;
-  /* back wall (-z side always solid) */
-  scene.add(box(w,h,t, wallM, cx,y+h/2,cz-d/2+t/2));
-  addCollider(cx-w/2,cz-d/2,cx+w/2,cz-d/2+t);
-  /* left / right */
-  scene.add(box(t,h,d-2*t, wallM, cx-w/2+t/2,y+h/2,cz));
-  addCollider(cx-w/2,cz-d/2,cx-w/2+t,cz+d/2);
-  scene.add(box(t,h,d-2*t, wallM, cx+w/2-t/2,y+h/2,cz));
-  addCollider(cx+w/2-t,cz-d/2,cx+w/2,cz+d/2);
-  /* front wall with door gap */
-  var gap=2.0;
-  var segW=(w-gap)/2;
-  var fz, z0, z1;
-  if(doorSide==='S'){
-    fz=cz+d/2-t/2; z0=cz+d/2-t; z1=cz+d/2;
-  } else {
-    fz=cz-d/2+t/2; z0=cz-d/2; z1=cz-d/2+t;
-  }
-  scene.add(box(segW,h,t, wallM, cx-gap/2-segW/2, y+h/2, fz));
-  scene.add(box(segW,h,t, wallM, cx+gap/2+segW/2, y+h/2, fz));
-  scene.add(box(gap,1.0,t, wallM, cx, y+h-0.5, fz)); /* lintel above the door */
-  addCollider(cx-w/2, z0, cx-gap/2, z1);
-  addCollider(cx+gap/2, z0, cx+w/2, z1);
-}
-function gableRoof(cx,cz,w,d,yTop,roofM,thatch){
-  var ov=thatch?1.1:0.7;
-  var rh=d*0.38;
-  var s=Math.sqrt((d/2+ov)*(d/2+ov)+rh*rh);
-  var a=Math.atan2(rh, d/2+ov);
-  var slabW=w+ov*2+0.5;
-  var r1=box(slabW,0.18,s, roofM, cx, yTop+rh/2, cz+(d/2+ov)/2);
-  r1.rotation.x=a; scene.add(r1);
-  var r2=box(slabW,0.18,s, roofM, cx, yTop+rh/2, cz-(d/2+ov)/2);
-  r2.rotation.x=-a; scene.add(r2);
-  /* gable end caps */
-  var cap=cone(w*0.56, rh, roofM, 4);
-  cap.rotation.y=Math.PI/4; cap.scale.z=0.24;
-  cap.position.set(cx, yTop+rh/2, cz);
-  scene.add(cap);
-  if(thatch){
-    var ridge=cyl(0.09,0.09,w+ov*2+0.7, M(0x6e5a34), 6);
-    ridge.rotation.z=Math.PI/2; ridge.position.set(cx, yTop+rh+0.05, cz);
-    scene.add(ridge);
-  }
-}
-
+/*
+  Collision for detailed buildings lives in architecture.js (wallColliders);
+  the shell itself is emitted there as merged geometry.
+*/
 /*
   buildBuilding: full house with floor, walls, door, roof & interior.
   o = {x, z, w, d, h, wall, roofCol, roof:'gable'|'thatch'|'church'|'temple'|'long',

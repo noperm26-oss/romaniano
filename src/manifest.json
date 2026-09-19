@@ -9,6 +9,7 @@
   "src/world/terrain.js",
   "src/world/scenery.js",
   "src/buildings/primitives.js",
+  "src/buildings/architecture.js",
   "src/buildings/interiors.js",
   "src/world/decoration.js",
   "src/buildings/towns.js",
