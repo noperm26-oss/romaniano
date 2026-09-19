@@ -43,6 +43,7 @@
   <div id="crosshair" class="crosshair"></div>
   <div id="hint"></div>
   <div id="rally-chip" class="rally-chip ready">G — Battle Horn · READY</div>
+  <div id="fac-status" class="fac-status"></div>
   <nav id="actionbar" aria-label="Battle controls">
     <button data-action="follow" title="1">Follow · 1</button><button data-action="defend" title="2">Defend · 2</button>
     <button data-action="attack" title="3">Advance · 3</button><button data-action="halt" title="4">Halt · 4</button>
@@ -52,6 +53,7 @@
     <button data-action="rally">Rally · G</button><button data-action="afk">AI ruler · K</button>
     <button data-action="pause">Pause · Esc</button><button data-action="hide">Hide · F2</button>
   </nav>
+  <nav id="ability-bar" aria-label="Faction abilities"></nav>
   <div id="cmdbar" class="cmdbar"></div>
 </div>
 
@@ -92,10 +94,25 @@
 <!-- faction select -->
 <div id="faction" class="overlay hidden">
   <div class="panel roles-panel">
-    <h2>Choose your kingdom <span>— each rules its own homeland on the vast map</span></h2>
+    <h2>Choose your kingdom <span>— six nations, six ways to win. Pick the campaign you want to live.</span></h2>
     <div id="faction-grid" class="fac-grid"></div>
     <div class="row">
       <button id="btn-back-fac">← Back</button>
+      <button id="btn-codex-open">📖 Faction codex</button>
+    </div>
+  </div>
+</div>
+
+<!-- faction codex: the detailed identity panel (spec §17/§18) -->
+<div id="codex" class="overlay hidden">
+  <div class="panel roles-panel codex-panel">
+    <p class="pretitle">Faction Codex</p>
+    <h2 id="codex-title">—</h2>
+    <div id="codex-tabs" class="codex-tabs"></div>
+    <div id="codex-body" class="codex-body"></div>
+    <div class="row sticky-row">
+      <button id="btn-codex-close">← Back to kingdoms</button>
+      <button id="btn-codex-choose" class="primary hidden">Take this crown</button>
     </div>
   </div>
 </div>
@@ -261,6 +278,10 @@
         <button id="btn-preset-off" title="5% guard / 20% defend / 75% attack">Offensive</button>
         <button id="btn-preset-em" title="15% guard / 20% defend / 65% attack — emergency">Emergency</button>
       </div>
+    </div>
+    <div class="set-row set-wide" id="set-fac-doctrine-row">
+      <label>🏛 Faction doctrines <i>each doctrine reshapes how this kingdom fights (spec §12)</i></label>
+      <div class="row" id="set-fac-doctrines" style="margin:0;gap:6px;flex-wrap:wrap"></div>
     </div>
     <div class="row center">
       <button id="btn-set-apply" class="primary">Apply</button>

@@ -20,6 +20,7 @@ Choose a kingdom, then a character, then spawn. The optional button panel runs t
 | B / T | Recruit / campaign map |
 | Map click / Shift-click | Order the scoped army / march the player to owned territory |
 | H / G / K | Mount / rally / AI ruler |
+| F | Kingdom signature ability (unlocks at Kingdom Level 5) |
 | Escape / F2 / M | Pause or close overlay / toggle buttons / music |
 
 ## Editable source
@@ -38,6 +39,19 @@ Choose a kingdom, then a character, then spawn. The optional button panel runs t
 | `src/ui/` | HTML/CSS, menus, recruitment, maps, settings and optional controls |
 
 **Start with [docs/EDITING.md](docs/EDITING.md)** before handing characters or weapons to another agent. Do not edit the generated HTML as source.
+
+## Faction identity system
+
+The six kingdoms — **ROME, SPARTA, MOLDOVA, NORRØN, KEMET, NIPPON** — are six distinct playstyles, not six skins. Each faction carries a complete data-driven identity (passives, signature ability, doctrines, terrain affinity, territory priorities, morale traits, AI Brain personality) defined in one place:
+
+| File | Owns |
+|---|---|
+| `src/system/faction-identity.js` | `FACTION_IDENTITY` — the master table: stats, strengths/weaknesses, 5-level progression passives, signature ability, doctrines, terrain mods, territory weights, morale, brain config |
+| `src/system/faction-battle.js` | Battlefield mechanics: Battle Momentum (Norrøn), legion/phalanx formation geometry (Rome/Sparta), Last Stand, frontier & precision bonuses, capture resistance, HUD battle status |
+| `src/system/faction-abilities.js` | Signature ability engine (activation, cooldown, strain) and the AI Brain's faction-specific decisions |
+| `src/ui/codex.js`, `src/ui/abilities.js` | The faction codex panel and the HUD ability bar (signature ability + doctrines) |
+
+Systems (economy, capture, combat, unit AI, AFK brain, UI) consult `FACTION_IDENTITY` at runtime — **a new faction is a new table entry plus a character file, not new gameplay code**. Progression: each kingdom unlocks one passive per level (0 / 4 / 12 / 24 / 40 zones); Level 5 unlocks the signature ability. Signature abilities are risk/reward: a burst with a price paid afterwards. Balance rules enforced by `tests/factions.test.mjs`: no faction is objectively strongest (every identity has a major strength *and* a real weakness), counters are soft, and nothing is a flat "+20%".
 
 ### Build and test (authoring only)
 

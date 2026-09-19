@@ -43,15 +43,18 @@ function updatePlayer(dt){
     p.dodgeT-=dt;
     moveWithCollision(p.group.position,p.dodgeDir.x*13*dt,p.dodgeDir.z*13*dt,0.46);
   } else if(moving){
-    var terrCost=1;
+    var terrCost=1, terrNow='plains';
     if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
       var zi=zoneIdxAt(p.group.position.x, p.group.position.z);
-      terrCost=terrainMoveCost(zoneTerrain(zi));
+      terrNow=zoneTerrain(zi);
+      terrCost=terrainMoveCost(terrNow);
     }
     var moveMod=1;
     if(typeof kingdomMod!=='undefined' && playerTeam){
       var km=kingdomMod(playerTeam);
       if(km) moveMod=km.move||1;
+      if(typeof factionTerrainMoveCost==='function') terrCost*=factionTerrainMoveCost(playerTeam, terrNow);
+      if(typeof factionMoveMod==='function') moveMod*=factionMoveMod(playerTeam);
     }
     var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1) / terrCost * moveMod;
     moveWithCollision(p.group.position,mx*spd*dt,mz*spd*dt,0.46);

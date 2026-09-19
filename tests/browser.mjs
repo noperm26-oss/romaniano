@@ -112,6 +112,61 @@ try{
     await page.evaluate(()=>__game.doom());await step(1);assert.equal(await page.evaluate(()=>__game.state()),5);await page.click('#role-grid-rd [data-role="lancier"]:not(.random)');await page.click('#btn-rd-spawn');assert.equal(await page.evaluate(()=>__game.state()),3);
     await page.evaluate(()=>__game.flipUntilWin());assert.equal(await page.evaluate(()=>__game.state()),6);await page.click('#btn-new');assert.equal(await page.evaluate(()=>__game.state()),1);await page.click('[data-fac="moldavia"]');await page.click('#role-grid [data-role="voievod"]:not(.random)');await page.click('#btn-spawn');await step(2);assert.equal(await page.evaluate(()=>__game.test.members().length),17);assert.equal(await page.evaluate(()=>__game.groups().reduce((n,g)=>n+g.n,0)),17);
   });
+  await check('faction identity system: codex, doctrines, abilities, momentum, AI brain',async()=>{
+    /* the complete identity table is live in the page */
+    const id=await page.evaluate(()=>{const f=__game.test.factions();return {n:Object.keys(f.identity).length,p:f.identity.sparta.passives.length,a:f.identity.sparta.ability.id,d:f.identity.sparta.doctrines.length,s:f.identity.sparta.stats};});
+    assert.equal(id.n,6);assert.equal(id.p,5);assert.equal(id.a,'300s-resolve');assert.equal(id.d,3);assert.ok(id.s.military>=8&&id.s.economy<=5,'Sparta: elite army, thin treasury');
+    /* in-battle feedback chip + ability bar for the live Moldavian crown */
+    await step(2);
+    assert.match(await page.evaluate(()=>document.getElementById('fac-status').textContent),/FRONTIER DEFENSE/);
+    const bar=await page.evaluate(()=>Array.from(document.querySelectorAll('#ability-bar button')).map(b=>b.textContent));
+    assert.ok(bar.some(t=>/Rapid Mobilization/.test(t)),'signature ability in bar');
+    assert.ok(bar.filter(t=>/frontier|mobile|adaptive/i.test(t)).length===3,'three doctrines in bar');
+    /* doctrine switching reshapes the army config */
+    await page.click('#ability-bar button[data-doc="mobile"]');
+    const doc=await page.evaluate(()=>({d:__game.test.factions().doctrine('moldavia'),cfg:__game.doctrineCfg()}));
+    assert.equal(doc.d,'mobile');assert.equal(Math.round(doc.cfg.bg*100),5);assert.equal(Math.round(doc.cfg.def*100),25);
+    await page.click('#ability-bar button[data-doc="frontier"]');
+    assert.equal(await page.evaluate(()=>__game.test.factions().doctrine('moldavia')),'frontier');
+    /* signature ability is locked until Kingdom Level 5 */
+    let res=await page.evaluate(()=>__game.test.factions().activate('moldavia'));
+    assert.equal(res.ok,false);assert.match(res.reason,/Level 5/);
+    for(let i=0;i<40;i++)await page.evaluate(i=>__game.setZone(i,'moldavia'),i);
+    assert.equal(await page.evaluate(()=>__game.test.factions().level('moldavia')),5);
+    res=await page.evaluate(()=>__game.test.factions().activate('moldavia'));
+    assert.equal(res.ok,true,'mobilization unlocks at Kingdom Level 5');
+    assert.ok(await page.evaluate(()=>document.querySelector('#ability-bar button[data-ab="sig"]').className.includes('ab-active')));
+    await step(1860); /* 31s: 30s burst ends, strain + cooldown begin */
+    const st=await page.evaluate(()=>__game.test.factions().ability('moldavia'));
+    assert.ok(st.cd>0&&st.strain>0,'strain and cooldown follow the burst');
+    await page.keyboard.press('f');
+    assert.match((await page.evaluate(()=>__game.hint())).text,/recovering/,'F key respects the cooldown');
+    /* raider culture + momentum fire on territory flips (AI side) */
+    const m=await page.evaluate(()=>{const f=__game.test.factions();const g=__game.gold('vikings');f.capture('vikings','moldavia',100);const up=__game.gold('vikings')-g;f.lost('vikings','moldavia',101);return {loot:up,after:f.momentum('vikings')};});
+    const m2=await page.evaluate(()=>{const f=__game.test.factions();f.capture('vikings','moldavia',102);return f.momentum('vikings');});
+    assert.ok(m.loot>0,'raider culture pays war-booty');assert.equal(m.after,0,'defeat kills momentum');assert.equal(m2,1,'victory restores MOMENTUM +1');
+    /* the AFK brain thinks like a Moldovan frontier commander */
+    await page.keyboard.press('k');await step(700);
+    const dec=await page.evaluate(()=>window.__lastBrainDecision);
+    assert.ok(dec&&/FRONTIER|COUNTERATTACK|WATCH/.test(dec.decision),'brain decision follows the faction doctrine of war');
+    await page.keyboard.press('k');
+    /* selection cards teach the player; codex panel renders (from the faction screen) */
+    await act('pause');await page.click('#btn-abandon');await page.click('#btn-begin');
+    assert.ok(await page.evaluate(()=>document.querySelectorAll('#faction-grid .fcard-bar').length>=24),'stat bars on every faction card');
+    await page.click('#faction-grid .fcard-info[data-cx="sparta"]');
+    assert.ok(await page.evaluate(()=>!document.getElementById('codex').classList.contains('hidden')));
+    assert.match(await page.evaluate(()=>document.getElementById('codex-title').textContent),/SPARTA/);
+    assert.match(await page.evaluate(()=>document.getElementById('codex-body').textContent),/Warrior Culture/);
+    assert.match(await page.evaluate(()=>document.getElementById('codex-body').textContent),/Designed for/);
+    await page.click('#codex-tabs button[data-cx="nippon"]');
+    assert.match(await page.evaluate(()=>document.getElementById('codex-title').textContent),/NIPPON/);
+    assert.match(await page.evaluate(()=>document.getElementById('codex-body').textContent),/Clan Tactics/);
+    await page.click('#codex-tabs button[data-cx="moldavia"]');
+    await page.click('#btn-codex-choose');
+    assert.equal(await page.evaluate(()=>__game.state()),2,'codex hands the crown to the role screen');
+    await page.click('#role-grid [data-role="voievod"]:not(.random)');await page.click('#btn-spawn');await step(2);
+    assert.equal(await page.evaluate(()=>__game.state()),3);
+  });
   await check('rendered game screenshot and normal animation loop smoke',async()=>{
     assert.equal(await page.evaluate(()=>__game.test.cameraClear()),true);
     await page.evaluate(()=>{__game.test.step(10);__game.test.render();});await page.screenshot({path:'test-results/moldavia-game.png'});

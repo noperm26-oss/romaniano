@@ -5,14 +5,10 @@ var AI_PERSONALITIES={
   defensive:{ name:'Defensive', reserve:0.28, defBias:0.68, atkThreshold:1.45, econFocus:0.4, desc:'Prioritizes capitals & valuable territories, large defense, counterattacks weakened' },
   economic:{ name:'Economic', reserve:0.32, defBias:0.38, atkThreshold:1.35, econFocus:0.85, desc:'Prioritizes income & development, avoids unnecessary wars' }
 };
+/* The AI Brain knows which faction it rules (spec §21): the personality
+   IS the faction's brain configuration from FACTION_IDENTITY. */
 function aiPersonalityFor(team){
-  var mod=typeof kingdomMod!=='undefined'?kingdomMod(team):null;
-  if(!mod) return AI_PERSONALITIES.balanced;
-  if(mod.name==='NORRØN') return AI_PERSONALITIES.aggressive;
-  if(mod.name==='SPARTA') return AI_PERSONALITIES.defensive;
-  if(mod.name==='KEMET') return AI_PERSONALITIES.economic;
-  if(mod.name==='ROMA') return AI_PERSONALITIES.balanced;
-  if(mod.name==='NIPPON') return AI_PERSONALITIES.balanced;
+  if(typeof FACTION_IDENTITY!=='undefined' && FACTION_IDENTITY[team] && FACTION_IDENTITY[team].brain) return FACTION_IDENTITY[team].brain;
   return AI_PERSONALITIES.balanced;
 }
 function toggleAfk(v){
@@ -128,30 +124,34 @@ function brainTick(dt){
   if(capitalThreat==='HIGH' || foes>=6) threatLevel='HIGH';
   else if(capitalThreat==='Medium' || foes>=3 || highValueThreat>0) threatLevel='Medium';
 
-  /* --- economic decisions --- */
-  var wantArmy=14+territoryCount*4;
-  if(pers.name==='Aggressive') wantArmy+=8;
-  if(pers.name==='Defensive') wantArmy+=4;
-  if(pers.name==='Economic') wantArmy=Math.max(10, wantArmy-6);
+  /* --- economic decisions (each kingdom sizes and feeds its army differently) --- */
+  var wantArmy=typeof factionWantArmy!=='function'?14+territoryCount*4:factionWantArmy(playerTeam, territoryCount);
   // adjust for treasury & income
-  var reservePct=pers.reserve;
+  var reservePct=pers.reserve||0.18;
   var canSpend=treasury*(1-reservePct);
-  var rich=treasury > 180 + income* (pers.econFocus>0.6?12:8) && netIncome>0;
+  var rich=treasury > 180 + income*(pers.econFocus>0.6?12:8) && netIncome>0;
   if(armySize<wantArmy || rich){
     var defs=RECRUIT_DEFS[playerTeam], best=null;
-    // prefer balanced cost based on personality
-    Object.keys(defs).forEach(function(k){
-      var d2=defs[k];
-      if(EC[playerTeam].gold>=d2.cost){
-        if(!best) best={k:k,d:d2};
-        else {
-          if(pers.name==='Economic' && d2.cost<best.d.cost) best={k:k,d:d2};
-          else if(pers.name!=='Economic' && d2.cost>best.d.cost) best={k:k,d:d2};
-        }
+    var buyOrder=(typeof FACTION_UNIT_PREFS!=='undefined'&&FACTION_UNIT_PREFS[playerTeam])?FACTION_UNIT_PREFS[playerTeam]:Object.keys(defs);
+    // the brain musters its own kind of soldier, priced by faction identity
+    for(var bi=0;bi<buyOrder.length;bi++){
+      var bk=buyOrder[bi];
+      if(!defs[bk]) continue;
+      var bc=musterCost(playerTeam, bk);
+      if(canSpend>=bc && (pers.econFocus||0)<=0.6){
+        best={k:bk,cost:bc}; break;
       }
-    });
-    if(best && canSpend>=best.d.cost){
-      EC[playerTeam].gold-=best.d.cost;
+      if(pers.econFocus>0.6 && EC[playerTeam].gold>=bc && (!best || bc<best.cost)) best={k:bk,cost:bc};
+    }
+    if(!best){
+      var bkeys=Object.keys(defs);
+      for(var bj=0;bj<bkeys.length;bj++){
+        var bcost=musterCost(playerTeam, bkeys[bj]);
+        if(canSpend>=bcost){ best={k:bkeys[bj],cost:bcost}; break; }
+      }
+    }
+    if(best && canSpend>=best.cost){
+      EC[playerTeam].gold-=best.cost;
       doMuster(playerTeam, best.k, false);
     }
   }
@@ -166,43 +166,57 @@ function brainTick(dt){
     } else player.blocking=!player.ranged && nd<4.6;
   } else if(player.blocking && !keysShiftHeld()) player.blocking=false;
 
-  /* --- strategic commands --- */
+  /* --- strategic commands: the brain thinks like its own faction (spec §9/§21/§22) --- */
   var roles={bg:0,def:0,atk:0};
   army.forEach(function(e){ if(e.role==='bodyguard')roles.bg++; if(e.role==='defender')roles.def++; if(e.role==='attacker')roles.atk++; });
   brainCmdT-=dt;
   if(brainCmdT<=0){
-    brainCmdT=6 + Math.random()*3;
-    // Decide doctrine based on threat & personality
-    var decision='BALANCED';
-    var deploy={bg:5, def:40, atk:55};
-    if(threatLevel==='HIGH' || capitalThreat==='HIGH'){
-      decision='DEFEND CAPITAL';
-      deploy={bg:10, def:65, atk:25};
-      issueOrder('defend');
-      // set doctrine to defensive
-      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
-    } else if(armySize>maxEnemyArmy*pers.atkThreshold && treasury>100 && threatLevel==='Low'){
-      decision='COUNTERATTACK';
-      deploy={bg:5, def:20, atk:75};
-      if(pers.name==='Aggressive') deploy={bg:3, def:15, atk:82};
-      issueOrder('attack');
-      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
-    } else if(foes>=1 && armySize>=8 && nd<45){
-      decision='ENGAGE';
-      issueOrder('attack');
-    } else if(roles.bg+roles.def===0 && territoryCount>0){
-      decision='SECURE';
-      issueOrder('defend');
-    } else if(armySize>=16+territoryCount*2 && Math.random()< (pers.name==='Aggressive'?0.75:0.45)){
-      decision='ADVANCE';
-      issueOrder('attack');
+    /* Moldova — Adaptive Command (L4): the council meets more often */
+    brainCmdT=(6 + Math.random()*3)*(pers.adaptive||1);
+    var ziHere=player?zoneIdxAt(player.group.position.x,player.group.position.z):-1;
+    var tHere=ziHere>=0?(typeof zoneTerrain!=='function'?'plains':zoneTerrain(ziHere)):'plains';
+    var tbHere=(typeof terrainDefenseBonus==='function')?terrainDefenseBonus(tHere):0;
+    var tbdHere=(typeof factionTerrainDefense==='function')?factionTerrainDefense(playerTeam,tHere):0;
+    var intel={
+      threat:threatLevel, army:armySize, foeMax:maxEnemyArmy, foeNear:foes,
+      foeInOwn: capitalThreat==='HIGH'?6:(capitalThreat==='Medium'?3:0),
+      treasury:treasury, income:income, upkeep:upkeep,
+      territory:territoryCount,
+      momentum:typeof momentumOf==='function'?momentumOf(playerTeam):0,
+      terrainFavor:tbHere+tbdHere>=15,
+      raidTarget:(playerTeam==='vikings' && maxEnemyArmy>0 && maxEnemyArmy<armySize && threatLevel!=='HIGH'),
+      targetName:'the border',
+      outnumbered:maxEnemyArmy>armySize*1.5
+    };
+    var dec=(typeof factionAIDecision==='function')?factionAIDecision(playerTeam, intel):null;
+    var decision=dec?dec.decision:'BALANCED';
+    var deploy=dec&&dec.deploy?dec.deploy:{bg:5,def:40,atk:55};
+    if(dec&&dec.order) issueOrder(dec.order);
+    if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
+    /* the situation decides the doctrine — Moldova switches it fastest (spec §4) */
+    if(playerTeam==='moldavia' && typeof factionHasPassive==='function' && factionHasPassive('moldavia','adaptive-command')){
+      var wantDoc=intel.foeInOwn>0?'frontier':'mobile';
+      if(FAC_DOCTRINE.moldavia!==wantDoc) setFactionDoctrine('moldavia', wantDoc);
     }
-    // log decision for debug
+    /* signature ability — the brain uses it exactly when the faction calls for it (spec §22) */
+    if(dec&&dec.ability&&typeof tryActivateAbility==='function') tryActivateAbility(playerTeam, dec.mode||null);
     if(typeof window!=='undefined') window.__lastBrainDecision={decision:decision, threat:threatLevel, enemy:maxEnemyArmy, ours:armySize, treasury:Math.floor(treasury), capitalThreat:capitalThreat, deploy:deploy};
   }
 
-  /* --- movement: pursue / regroup / retreat --- */
-  var flee=kingHpFrac<0.35 || (foes>=3 && nd<18) || (capitalThreat==='HIGH' && territoryCount<20);
+  /* --- movement: pursue / regroup / retreat (each faction runs under different rules) --- */
+  var flee;
+  if(playerTeam==='sparta'){
+    /* the Lion does not run — it buys time, then falls with the position */
+    flee=kingHpFrac<0.25 && capitalThreat==='HIGH';
+  } else if(playerTeam==='vikings'){
+    /* a raid that can no longer succeed is abandoned without sentiment */
+    flee=kingHpFrac<0.4 || ((typeof momentumOf==='function'?momentumOf('vikings'):0)===0 && foes>=4 && nd<20) || (capitalThreat==='HIGH' && territoryCount<12);
+  } else if(playerTeam==='egypt'){
+    /* the Pharaoh retreats to rebuild, not to fight */
+    flee=kingHpFrac<0.35 || (capitalThreat==='HIGH' && territoryCount<15);
+  } else {
+    flee=kingHpFrac<0.35 || (foes>=3 && nd<18) || (capitalThreat==='HIGH' && territoryCount<20);
+  }
   var gx=null, gz=null;
   if(flee){
     brainSetIntent('RETREAT (HP '+Math.round(kingHpFrac*100)+'%)');

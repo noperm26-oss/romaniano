@@ -12,6 +12,7 @@ function toMenu(){
   clearEntities();
   resetInput();
   afkMode=false; AUTOBUY.on=false; brainGoal=null; brainPath=null;
+  if(typeof resetFactionSystems!=='undefined') resetFactionSystems();
   if(kingHorse) {scene.remove(kingHorse);kingHorse=null;}
   settingsOpen=false; hide($('settings'));
   hide(overlayFaction); hide(overlayRoles); hide(overlayPause); hide(overlayRedeploy); hide(overlayResult);
@@ -47,8 +48,21 @@ function beginCampaign(){
   curFaction=selectedFaction;
   resetEconomy();
   resetZones();
+  if(typeof resetFactionSystems!=='undefined') resetFactionSystems();
   kills=0; score=0;
   var F=FACS[playerTeam];
+  /* adopt the kingdom's opening doctrine (spec §12) — unless a save restored one */
+  if(typeof setFactionDoctrine==='function'){
+    var c0=factionCfg(playerTeam);
+    var wantDoc=null;
+    var pending=(typeof window!=='undefined'&&window._pendingSaveDoc&&window._pendingSaveDoc.team===playerTeam)?window._pendingSaveDoc.doc:null;
+    window._pendingSaveDoc=null;
+    var current=(typeof FAC_DOCTRINE!=='undefined')?FAC_DOCTRINE[playerTeam]:null;
+    if(pending&&c0.doctrines.some(function(d){ return d.id===pending; })) wantDoc=pending;
+    else if(current&&c0.doctrines.some(function(d){ return d.id===current; })) wantDoc=current;
+    else wantDoc=c0.doctrines[0].id;
+    setFactionDoctrine(playerTeam, wantDoc);
+  }
   hudEls.roleName.textContent=F.classes[selectedRole].name+' — '+F.classes[selectedRole].en;
   hudEls.roleIcon.innerHTML=ICONS[F.classes[selectedRole].icon];
   hudEls.fac.textContent=F.name+' — rule the world';
@@ -91,8 +105,9 @@ function beginCampaign(){
   Snd.setFactionMusic(F.drone, F.mode);
   Snd.startMusic();
   Snd.startDrums();
-  showBanner('The Campaign Begins', F.name+' musters — hold territory, grow rich, conquer', 3);
-  showHint('B = muster troops (spend gold) • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 8);
+  var FID=typeof factionCfg==='function'?factionCfg(playerTeam):null;
+  showBanner('The Campaign Begins — '+F.name, FID?(FID.title+' · '+FID.playstyle):'hold territory, grow rich, conquer', 4);
+  showHint('F = signature ability (unlocks at Kingdom Level 5) • B = muster troops • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 9);
 }
 var kingDeathPenaltyT=0;
 function playerDied(){
@@ -102,12 +117,12 @@ function playerDied(){
   state=ST.REDEPLOY;
   kingDeathPenaltyT=45; // 45s penalty after fall: reduced morale/command
   if(document.pointerLockElement) document.exitPointerLock();
-  // apply morale penalty to army
+  // apply morale penalty to army — scaled by faction morale identity (spec §13)
   for(var i=0;i<entities.length;i++){
     var e=entities[i];
     if(!e.dead && e.team===playerTeam && !e.isPlayer){
-      e.moralePenaltyT=30;
-      e.dmgMult=0.78;
+      if(typeof applyMoralePenalty!=='undefined') applyMoralePenalty(e, 30, 0.78);
+      else { e.moralePenaltyT=30; e.dmgMult=0.78; }
     }
   }
   killFeedMsg('King Fallen', 'Morale -22% · Command efficiency -30% for 45s · Treasury ransom', '#e06666');

@@ -60,10 +60,24 @@ function groupNextAttackTarget(g){
   var occupied=new Map();
   GROUPS.forEach(function(o){if(o!==g&&o.task==='attack')occupied.set(o.atkTarget,(occupied.get(o.atkTarget)||0)+1);});
   var lead=g.members[0],p=lead?lead.group.position:{x:0,z:0};
+  /* the army hunts the ground its kingdom wants (spec §10): proximity
+     still matters, but faction territory preference steers the pick */
+  var maxD=1, fs=null, cache={};
+  if(typeof factionTargetScore==='function'&&playerTeam){
+    fs=function(zi){ if(!(zi in cache)) cache[zi]=factionTargetScore(playerTeam,zi); return cache[zi]; };
+    for(var ci=0;ci<candidates.length;ci++){
+      var cc=zoneCenter(candidates[ci]);
+      var dd=Math.hypot(cc.x-p.x,cc.z-p.z);
+      if(dd>maxD)maxD=dd;
+      fs(candidates[ci]);
+    }
+  }
   candidates.sort(function(a,b){
     var diff=(occupied.get(a)||0)-(occupied.get(b)||0);if(diff)return diff;
     var ca=zoneCenter(a),cb=zoneCenter(b);
-    return Math.hypot(ca.x-p.x,ca.z-p.z)-Math.hypot(cb.x-p.x,cb.z-p.z);
+    var da=Math.hypot(ca.x-p.x,ca.z-p.z), db=Math.hypot(cb.x-p.x,cb.z-p.z);
+    if(fs) return (db/maxD*0.55+fs(b)*0.45)-(da/maxD*0.55+fs(a)*0.45);
+    return da-db;
   });return candidates[0];
 }
 function assignTasks(mode,areaPt,scopeSel){
@@ -92,7 +106,11 @@ function assignTasks(mode,areaPt,scopeSel){
   }
 }
 function groupThink(dt){
-  groupT-=dt;if(groupT>0)return;groupT=2.2;formGroups();
+  groupT-=dt;if(groupT>0)return;
+  var reformT=2.2;
+  /* Nippon Rapid Deployment (L3): the army transitions between states faster */
+  if(typeof factionHasPassive==='function'&&typeof playerTeam!=='undefined'&&playerTeam==='nippon'&&factionHasPassive('nippon','rapid-deployment')) reformT*=0.65;
+  groupT=reformT;formGroups();
   var ids=new Map(),kingThreat=0,maxPower=0;
   GROUPS.forEach(function(g){ids.set(g.id,g);maxPower=Math.max(maxPower,g.power);var lead=g.members[0];g.seen=0;
     eqNear(lead.group.position.x,lead.group.position.z,80,function(t){if(!t.dead&&!t.passive&&!t.civ&&t.kind!=='worker'&&hostileF(t.team,playerTeam))g.seen++;});});

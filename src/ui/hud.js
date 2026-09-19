@@ -138,19 +138,37 @@ function updateHUD(dt){
       +(destStr?'<span class="cmd-n">'+stateLabel+destStr+'</span>':'<span class="cmd-n">'+stateLabel+'</span>')
       +(AUTOBUY.on?'<span class="cmd-n">🤖 '+AUTOBUY.mode+'</span>':'');
   }
-  /* king aura: morale bonus around king */
+  /* king aura: morale bonus around the king — scaled by faction morale identity (spec §13) */
   kingAuraT=Math.max(0, kingAuraT-dt);
   if(kingAuraT>0 && player && !player.dead){
+    var aura=(typeof factionKingAura!=='undefined')?factionKingAura(playerTeam):1;
+    var auraR=28*(1+(aura-1)*0.5);
+    var auraFx=0.95+aura*0.17;
+    if(typeof doctrineMod!=='undefined'){
+      var dP=doctrineMod(playerTeam);
+      if(dP.command){ auraR*=1.2; auraFx*=dP.command; }  /* Nippon Command doctrine */
+    }
     for(var ki=0;ki<entities.length;ki++){
       var ke=entities[ki];
       if(ke.dead||ke.team!==playerTeam||ke.isPlayer) continue;
       var dx=ke.group.position.x-player.group.position.x, dz=ke.group.position.z-player.group.position.z;
-      if(dx*dx+dz*dz<28*28){
+      if(dx*dx+dz*dz<auraR*auraR){
         ke.moraleBonusT=Math.max(ke.moraleBonusT||0, 0.6);
         // small combat buff
-        if(ke.rallyT<=0) ke.dmgMult=1.12;
+        if(ke.rallyT<=0) ke.dmgMult=Math.max(ke.dmgMult||1, auraFx);
       }
     }
+  }
+  /* faction battle feedback chip (spec §19) */
+  if(playerTeam && state===ST.PLAY){
+    var stt=(typeof factionBattleStatus!=='function')?null:factionBattleStatus(playerTeam);
+    var fsEl=$('fac-status');
+    if(stt && fsEl){
+      var docN=(typeof factionDoctrineData!=='function')?null:factionDoctrineData(playerTeam);
+      fsEl.textContent=stt.title+' — '+stt.value+(docN?' · '+docN.name+' doctrine':'');
+      fsEl.className='fac-status'+(stt.good?' good':'');
+    }
+    if(typeof updateAbilityBar==='function') updateAbilityBar(false);
   }
   /* battle horn chip */
   rallyCd=Math.max(0, rallyCd-dt);

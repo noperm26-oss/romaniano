@@ -15,6 +15,7 @@ function saveCampaign(){
       kills:kills,
       score:score,
       doctrine:{bg:DOCTRINE.bg, def:DOCTRINE.def, scopes:SCOPES.slice()},
+      facDoc:(typeof FAC_DOCTRINE!=='undefined'&&FAC_DOCTRINE[playerTeam])?FAC_DOCTRINE[playerTeam]:null,
       autobuy:{on:AUTOBUY.on, key:AUTOBUY.key, mode:AUTOBUY.mode},
       afk:afkMode,
       time:Date.now()
@@ -51,6 +52,9 @@ function tryRestoreSave(){
       if(data.inf && data.inf[i]) zones[i].inf=data.inf[i];
     }
     if(data.doctrine) applyDoctrineCfg(data.doctrine.bg, data.doctrine.def, data.doctrine.scopes);
+    if(data.facDoc && typeof FAC_DOCTRINE!=='undefined') FAC_DOCTRINE[data.team]=data.facDoc;
+    /* doctrine survives toMenu()/resetFactionSystems via the pending state */
+    window._pendingSaveDoc=(data.team&&data.facDoc)?{team:data.team, doc:data.facDoc}:null;
     if(data.autobuy){
       AUTOBUY.on=!!data.autobuy.on;
       AUTOBUY.key=data.autobuy.key;

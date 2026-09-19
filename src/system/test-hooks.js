@@ -27,6 +27,27 @@ if(manualSimulation){
     arrows:function(){return arrows.filter(function(a){return a.active;}).length;},
     catalog:function(){return {factions:FACS,weapons:WEAPONS};},
     kill:function(e){killEntity(e,null);},
-    animation:function(e){return {walk:e.walk,hip:e.parts.legL.hip.rotation.x,knee:e.parts.legL.knee.rotation.x,shoulder:e.parts.armR.sh.rotation.x,elbow:e.parts.armR.el.rotation.x,body:e.body.position.y};}
+    animation:function(e){return {walk:e.walk,hip:e.parts.legL.hip.rotation.x,knee:e.parts.legL.knee.rotation.x,shoulder:e.parts.armR.sh.rotation.x,elbow:e.parts.armR.el.rotation.x,body:e.body.position.y};},
+    factions:function(){
+      return {
+        identity:FACTION_IDENTITY,
+        level:factionLevel,
+        passive:factionHasPassive,
+        momentum:function(f){return momentumOf(f);},
+        ability:function(f){return FAC_ABIL[f]?{t:FAC_ABIL[f].t,cd:FAC_ABIL[f].cd,strain:FAC_ABIL[f].strain,mode:FAC_ABIL[f].mode}:null;},
+        activate:tryActivateAbility,
+        doctrine:function(f){return FAC_DOCTRINE[f];},
+        setDoctrine:setFactionDoctrine,
+        targetScore:function(f,z){return factionTargetScore(f,z);},
+        terrainMove:function(f,t){return factionTerrainMoveCost(f,t);},
+        terrainDef:function(f,t){return factionTerrainDefense(f,t);},
+        musterCost:musterCost,
+        decision:function(f,i){return factionAIDecision(f,i);},
+        status:function(f){return factionBattleStatus(f);},
+        capture:function(w,l,z){onZoneCaptured(w,l,z);},
+        lost:function(l,w,z){onZoneLost(l,w,z);},
+        codex:function(f){openCodex(f);}
+      };
+    }
   };
 }

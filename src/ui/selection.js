@@ -61,24 +61,45 @@ function buildRoleCards(redeploy){
   });
 }
 
-/* ---------------- faction cards ---------------- */
+/* ---------------- faction cards (identity-aware, spec §17/§18) ---------------- */
 (function buildFactionCards(){
   var grid=$('faction-grid');
   var html='';
   FAC_KEYS.forEach(function(k){
     var F=FACS[k];
-    var cls=Object.keys(F.classes).map(function(ck){ return F.classes[ck].name; }).join(' · ');
+    var c=factionCfg(k);
+    var s=c?c.stats:{military:5,economy:5,mobility:5,defense:5};
+    var fc=c?c.color:'#6e1414';
+    function fbar(label, n){
+      var pct=Math.round(n/10*100);
+      return '<div class="fcard-bar"><label>'+label+'</label><div class="track"><i style="width:'+pct+'%;background:linear-gradient(90deg,'+fc+',#6e1414)"></i></div></div>';
+    }
+    var sig=c?c.passives[c.passives.length-1].name:'';
     html+='<div class="card faction-card" data-fac="'+k+'">'
       +'<div class="card-icon" style="color:'+F.bannerBorder+'">'+FAC_ICONS[F.emblem]+'</div>'
-      +'<h3 style="color:'+F.bannerBg+'">'+F.name+' <span>'+F.sub+'</span></h3>'
-      +'<p class="tag">Kingdom economy · territory war</p>'
-      +'<p class="desc">'+F.desc+'</p>'
-      +'<p class="classes">'+cls+'</p>'
+      +'<h3 style="color:'+fc+'">'+F.name+' <span>'+(c?c.title:'')+' · '+F.sub+'</span></h3>'
+      +'<p class="tag">'+(c?c.playstyle:'Kingdom economy · territory war')+'</p>'
+      +'<div class="fcard-bars">'
+      +fbar('Military', s.military)
+      +fbar('Economy', s.economy)
+      +fbar('Mobility', s.mobility)
+      +fbar('Defense', s.defense)
+      +'</div>'
+      +'<p class="desc">'+(c?('For '+c.designedFor):F.desc)+'</p>'
+      +'<p class="classes">Signature: '+(c?sig:'')+'</p>'
+      +'<button class="fcard-info" data-cx="'+k+'">📖 Full codex</button>'
       +'</div>';
   });
   grid.innerHTML=html;
+  Array.prototype.forEach.call(grid.querySelectorAll('.fcard-info'), function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openCodex(btn.getAttribute('data-cx'));
+    });
+  });
   Array.prototype.forEach.call(grid.querySelectorAll('.faction-card'), function(card){
-    card.addEventListener('click', function(){
+    card.addEventListener('click', function(ev){
+      if(ev.target.classList && ev.target.classList.contains('fcard-info')) return;
       Snd.init(); Snd.click();
       selectedFaction=card.getAttribute('data-fac');
       toRoles();

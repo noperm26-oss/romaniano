@@ -27,6 +27,9 @@ function damageEntity(target, dmg, fromX, fromZ, killer){
       if(target.isPlayer) target.stamina=Math.max(0, target.stamina-8);
     }
   }
+  /* faction identity: phalanx front, legion formation, last stand,
+     Great Raid risk, deflection tactics (spec §2-§7) */
+  if(typeof factionIncomingMod!=='undefined') dmg*=factionIncomingMod(target, fromX, fromZ);
   target.hp-=dmg;
   target.flashT=0.12;
   var chest=target.group.position.clone(); chest.y+=1.3;
@@ -81,8 +84,11 @@ function beginAttack(e, shotPos){
 function doStrike(e){
   var targets=coneTargets(e, e.range);
   var bash=e.atkKind==='bash';
+  var fmod=typeof factionOutgoingMod!=='undefined'?factionOutgoingMod(e):1;
+  var crit=typeof factionCritChance!=='function'?0:factionCritChance(e);
   for(var i=0;i<targets.length;i++){
-    var dmg=e.dmg*rand(0.9,1.1)*(bash?0.7:1)*(e.rallyT>0?1.2:1);
+    var dmg=e.dmg*rand(0.9,1.1)*(bash?0.7:1)*(e.rallyT>0?1.2:1)*fmod;
+    if(crit>0 && Math.random()<crit) dmg*=1.8;   /* Nippon Precision Training: the blade finds the gap */
     damageEntity(targets[i], dmg, e.group.position.x, e.group.position.z, e);
     if(bash && !targets[i].dead) targets[i].staggerT=0.55;   /* shield bash staggers */
   }
@@ -107,7 +113,7 @@ function advanceCombat(e,dt){
     if(!e.sndDone&&phase>=release){
       e.sndDone=true;
       if(e.ranged&&e.shotPos){
-        e.shotDone=true;shootArrowFrom(e,e.shotPos,e.isPlayer?(e.aiming?0.005:0.02):0.045);e.shotPos=null;
+        e.shotDone=true;shootArrowFrom(e,e.shotPos,e.isPlayer?(e.aiming?0.005:0.02):(typeof factionArrowInacc!=='undefined'?factionArrowInacc(e,0.045):0.045));e.shotPos=null;
         if(e.isPlayer)Snd.shoot();
       } else if(!e.ranged&&e.group.visible){Snd.swing();spawnSlash(e);}
     }

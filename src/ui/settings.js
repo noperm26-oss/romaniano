@@ -45,11 +45,32 @@ function updSettingsLabels(){
   if(elAtkN) elAtkN.textContent=atkN;
   if(elTot) elTot.textContent=total;
 }
+function renderFacDoctrines(){
+  var row=$('set-fac-doctrines');
+  if(!row||!playerTeam) return;
+  var c=(typeof factionCfg!=='undefined')?factionCfg(playerTeam):null;
+  if(!c) return;
+  row.innerHTML='';
+  c.doctrines.forEach(function(d){
+    var b=document.createElement('button');
+    b.textContent=d.name;
+    b.title=d.bg+'% guard / '+d.def+'% defend — '+d.desc;
+    if(typeof FAC_DOCTRINE!=='undefined' && FAC_DOCTRINE[playerTeam]===d.id) b.className='primary';
+    b.addEventListener('click', function(){
+      Snd.click();
+      setFactionDoctrine(playerTeam, d.id);
+      renderFacDoctrines();
+      syncSettingsUI();
+    });
+    row.appendChild(b);
+  });
+}
 function syncSettingsUI(){
   $('set-bg').value=Math.round(DOCTRINE.bg*100);
   $('set-def').value=Math.round(DOCTRINE.def*100);
   $('set-scopes').value=SCOPES.map(function(s){ return Math.round(s*100); }).join(', ');
   updSettingsLabels();
+  renderFacDoctrines();
 }
 function toggleSettings(open){
   if(!overlaySettings) overlaySettings=$('settings');

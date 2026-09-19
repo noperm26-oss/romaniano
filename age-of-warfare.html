@@ -44,7 +44,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 /* killfeed */
 #killfeed{position:absolute;top:150px;right:16px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
 .feed-item{background:rgba(20,13,6,0.78);border:1px solid #8a6a2f;border-radius:6px;
-  padding:5px 12px;font-size:12.5px;color:#e6d5a8;transition:opacity 0.6s;display:flex;gap:8px;}
+  padding:5px 12px;font-size:12.5px;color:#e6d5a8;transition:opacity 0.6s;display:flex;gap:8px;
+  max-width:min(560px,calc(100vw - 32px));}
 .feed-item .x{color:#e9c458;}
 .feed-item.fade{opacity:0;}
 
@@ -249,6 +250,67 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   #actionbar{right:8px;top:108px;width:150px;}
 }
 
+/* ---- faction identity system: status chip, ability bar, codex ---- */
+.fac-status{position:fixed;left:16px;bottom:58px;padding:6px 14px;border-radius:8px;
+  font-size:11.5px;letter-spacing:1.5px;font-weight:bold;z-index:35;
+  border:2px solid #6b5232;font-family:Georgia,serif;background:rgba(30,26,18,0.75);color:#b9a06a;
+  pointer-events:none;transition:all .25s ease;}
+.fac-status.good{color:#e9c458;border-color:#a8842f;box-shadow:0 0 10px rgba(233,196,88,0.25);}
+#ability-bar{position:fixed;left:16px;bottom:94px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+  z-index:35;pointer-events:auto;max-width:min(70vw,880px);}
+#ability-bar button{font:11px Georgia,serif;padding:7px 10px;margin:0;min-width:0;background:#352a1b;
+  color:#e9dbb7;border:1px solid #6e5731;border-radius:4px;cursor:pointer;letter-spacing:0.4px;}
+#ability-bar button:hover{background:#594326;}
+#ability-bar button.ab-ready{background:linear-gradient(180deg,#4a3a1c,#332812);color:#e9c458;
+  border-color:#a8842f;box-shadow:0 0 10px rgba(233,196,88,0.3);}
+#ability-bar button.ab-active{background:linear-gradient(180deg,#274a2c,#1c3320);color:#9fd8a5;border-color:#4a8a55;}
+#ability-bar button.ab-cd{opacity:0.6;}
+#ability-bar .ab-sep{width:1px;align-self:stretch;background:#6e5731;margin:2px 3px;}
+#ability-bar .ab-doc.on{border-color:#a8842f;color:#e9c458;background:#3d3018;}
+.codex-panel{max-width:920px;text-align:left;}
+.codex-tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:12px 0 4px;}
+.codex-tabs button{font-size:13px;padding:7px 14px;}
+.codex-tabs button.sel{background:linear-gradient(#a8271f,#6e1414);color:#f7ecd0;border-color:#3f0c0a;font-weight:bold;}
+.codex-body{max-height:56vh;overflow-y:auto;background:linear-gradient(#fbf3dc,#ecd9ab);border:2px solid #8a6a2f;
+  border-radius:8px;padding:16px 20px;margin-top:10px;text-align:left;font-size:13.5px;color:#3a2a1a;line-height:1.5;}
+.codex-body::-webkit-scrollbar{width:9px;}
+.codex-body::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:4px;}
+.codex-body::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:4px;}
+.codex-body h4{margin:16px 0 6px;font-size:12.5px;letter-spacing:2.5px;text-transform:uppercase;color:#8a6a2f;
+  border-bottom:1px solid #d8c491;padding-bottom:3px;}
+.codex-body h4:first-child{margin-top:0;}
+.codex-body ul{margin:4px 0 8px 18px;padding:0;}
+.codex-body li{margin:3px 0;}
+.codex-body .cx-strengths{color:#2e5c38;}
+.codex-body .cx-weaknesses{color:#8a271f;}
+.codex-body .cx-line{margin:4px 0;}
+.codex-body .cx-line b{color:#6e1414;}
+.cx-bars{display:grid;grid-template-columns:1fr 1fr;gap:5px 28px;margin:10px 0;}
+.cx-bar{display:flex;align-items:center;gap:8px;font-size:12px;}
+.cx-bar label{flex:0 0 84px;color:#7a6238;letter-spacing:1.5px;font-size:10px;text-transform:uppercase;}
+.cx-bar .track{flex:1;height:10px;background:#d8c491;border:1px solid #a08a55;border-radius:4px;overflow:hidden;}
+.cx-bar .track i{display:block;height:100%;}
+.cx-level{font-size:11px;color:#8a6a2f;font-style:italic;}
+.cx-doctrine{display:inline-block;background:#5a3d1e;color:#f4e8c8;border-radius:4px;padding:1.5px 9px;
+  font-size:11.5px;margin:3px 5px 3px 0;}
+.cx-terr{display:inline-block;background:rgba(90,61,30,0.12);border:1px solid #b8a37a;color:#4a3418;
+  border-radius:4px;padding:1.5px 9px;font-size:11.5px;margin:3px 5px 3px 0;}
+.fcard-info{display:block;margin:10px auto 0;font-size:11.5px;padding:5px 14px;min-width:0;letter-spacing:0.5px;}
+.fcard-bars{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:9px 0 2px;}
+.fcard-bar{display:flex;align-items:center;gap:6px;}
+.fcard-bar label{flex:0 0 58px;font-size:8.5px;letter-spacing:1.2px;color:#7a6238;text-transform:uppercase;}
+.fcard-bar .track{flex:1;height:7px;background:#d8c491;border:1px solid #a08a55;border-radius:3px;overflow:hidden;}
+.fcard-bar .track i{display:block;height:100%;}
+@media(max-width:1250px){
+  .fac-status{bottom:56px;}
+  #ability-bar{bottom:90px;}
+}
+@media(max-width:700px){
+  .fac-status{left:8px;bottom:52px;font-size:9px;padding:4px 8px;}
+  #ability-bar{left:8px;bottom:84px;max-width:calc(100vw - 140px);}
+  .cx-bars{grid-template-columns:1fr;}
+}
+
 </style>
 </head>
 <body>
@@ -286,6 +348,7 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   <div id="crosshair" class="crosshair"></div>
   <div id="hint"></div>
   <div id="rally-chip" class="rally-chip ready">G — Battle Horn · READY</div>
+  <div id="fac-status" class="fac-status"></div>
   <nav id="actionbar" aria-label="Battle controls">
     <button data-action="follow" title="1">Follow · 1</button><button data-action="defend" title="2">Defend · 2</button>
     <button data-action="attack" title="3">Advance · 3</button><button data-action="halt" title="4">Halt · 4</button>
@@ -295,6 +358,7 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
     <button data-action="rally">Rally · G</button><button data-action="afk">AI ruler · K</button>
     <button data-action="pause">Pause · Esc</button><button data-action="hide">Hide · F2</button>
   </nav>
+  <nav id="ability-bar" aria-label="Faction abilities"></nav>
   <div id="cmdbar" class="cmdbar"></div>
 </div>
 
@@ -335,10 +399,25 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 <!-- faction select -->
 <div id="faction" class="overlay hidden">
   <div class="panel roles-panel">
-    <h2>Choose your kingdom <span>— each rules its own homeland on the vast map</span></h2>
+    <h2>Choose your kingdom <span>— six nations, six ways to win. Pick the campaign you want to live.</span></h2>
     <div id="faction-grid" class="fac-grid"></div>
     <div class="row">
       <button id="btn-back-fac">← Back</button>
+      <button id="btn-codex-open">📖 Faction codex</button>
+    </div>
+  </div>
+</div>
+
+<!-- faction codex: the detailed identity panel (spec §17/§18) -->
+<div id="codex" class="overlay hidden">
+  <div class="panel roles-panel codex-panel">
+    <p class="pretitle">Faction Codex</p>
+    <h2 id="codex-title">—</h2>
+    <div id="codex-tabs" class="codex-tabs"></div>
+    <div id="codex-body" class="codex-body"></div>
+    <div class="row sticky-row">
+      <button id="btn-codex-close">← Back to kingdoms</button>
+      <button id="btn-codex-choose" class="primary hidden">Take this crown</button>
     </div>
   </div>
 </div>
@@ -504,6 +583,10 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
         <button id="btn-preset-off" title="5% guard / 20% defend / 75% attack">Offensive</button>
         <button id="btn-preset-em" title="15% guard / 20% defend / 65% attack — emergency">Emergency</button>
       </div>
+    </div>
+    <div class="set-row set-wide" id="set-fac-doctrine-row">
+      <label>🏛 Faction doctrines <i>each doctrine reshapes how this kingdom fights (spec §12)</i></label>
+      <div class="row" id="set-fac-doctrines" style="margin:0;gap:6px;flex-wrap:wrap"></div>
     </div>
     <div class="row center">
       <button id="btn-set-apply" class="primary">Apply</button>
@@ -723,14 +806,17 @@ function zonePopulation(zi){
   return Math.round(pop);
 }
 
-/* Kingdom gameplay differences — not just visual */
+/* Kingdom gameplay differences — the base layer of faction identity
+   (full identity, passives, doctrines & AI behavior live in
+   src/system/faction-identity.js). Balance rule: every kingdom keeps
+   a real weakness — none of these rows is uniformly strong. */
 var KINGDOM_MODS={
-  sparta:{ name:'Sparta', infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, desc:'Strong infantry & defense, weaker economy' },
-  rome:{ name:'Roma', infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, desc:'Organized defense & infrastructure, higher upkeep' },
-  moldavia:{ name:'Moldova', infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, desc:'Balanced economy & regional defense' },
-  vikings:{ name:'Norrøn', infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, desc:'Aggressive warfare & mobility' },
-  egypt:{ name:'Kemet', infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, desc:'Economy & ranged/support' },
-  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, desc:'Disciplined specialists & mobility' }
+  sparta:{ name:'Sparta', infantry:1.10, defense:1.16, economy:0.84, upkeep:1.12, move:0.97, desc:'Elite infantry & phalanx defense; expensive, slow to replace' },
+  rome:{ name:'Roma', infantry:1.05, defense:1.12, economy:1.04, upkeep:0.93, move:0.98, desc:'Logistics & fortification: big armies stay affordable, elite units cost extra' },
+  moldavia:{ name:'Moldova', infantry:1.02, defense:1.06, economy:1.08, upkeep:1.0, move:1.06, desc:'Frontier flexibility: fast response, strong on home ground' },
+  vikings:{ name:'Norrøn', infantry:1.12, defense:0.90, economy:0.92, upkeep:0.90, move:1.14, desc:'Raiding host: devastating on the move, weak on the wall' },
+  egypt:{ name:'Kemet', infantry:0.96, defense:1.0, economy:1.24, upkeep:0.92, move:1.0, desc:'The granary: income, population and infrastructure outlast rivals' },
+  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.96, upkeep:0.90, move:1.10, desc:'Clan specialists: precision over raw size' }
 };
 function kingdomMod(f){ return KINGDOM_MODS[f]||KINGDOM_MODS.moldavia; }
 
@@ -751,6 +837,11 @@ function zoneBuildingBonus(zi){
       default: break;
     }
   }
+  /* Kemet — Royal Infrastructure (L2): the state makes every building work harder */
+  if(typeof factionHasPassive==='function' && factionHasPassive('egypt','royal-infrastructure')){
+    var zOwner=zones[zi]?zones[zi].owner:null;
+    if(zOwner==='egypt'){ bonus.treasury*=1.3; bonus.manpower*=1.3; bonus.recruit*=1.3; }
+  }
   var z=zones[zi];
   if(z && z.core){
     bonus.recruit+=0.25; bonus.morale+=0.2; bonus.treasury+=0.15;
@@ -761,7 +852,9 @@ function zoneBuildingBonus(zi){
   return bonus;
 }
 
-/* Anti-snowball: upkeep, supply penalty, defensive bonus for threatened */
+/* Anti-snowball: upkeep, supply penalty, defensive bonus for threatened.
+   Faction identity layers on top (spec §11): Rome's logistics make big
+   armies cheaper, ability strain raises upkeep, doctrines tweak it. */
 function armyUpkeepCost(team){
   var count=0;
   if(typeof entities!=='undefined'){
@@ -776,6 +869,10 @@ function armyUpkeepCost(team){
   // Large army penalty: beyond 80, cost grows 1.5x
   if(count>80) base+= (count-80)*0.015*mod.upkeep;
   if(count>150) base+= (count-150)*0.02;
+  // Roman Military Logistics (L2): the state feeds the legions
+  if(typeof factionHasPassive==='function' && factionHasPassive('rome','military-logistics') && team==='rome') base*=0.92;
+  // Faction upkeep identity (ability strain, doctrine, kingdom upkeepMod)
+  if(typeof factionUpkeepMod==='function') base*=factionUpkeepMod(team);
   return base;
 }
 function supplyPenalty(team){
@@ -783,10 +880,15 @@ function supplyPenalty(team){
   if(!oc) return 1;
   var owned=oc[team]||0;
   // Long-distance penalty: owning >80 zones makes distant zones less efficient
-  if(owned<60) return 1;
-  if(owned<100) return 0.92;
-  if(owned<140) return 0.85;
-  return 0.78;
+  var p=1;
+  if(owned>=60) p=0.92;
+  if(owned>=100) p=0.85;
+  if(owned>=140) p=0.78;
+  // Rome — Imperial Administration (L4): distant provinces still pay
+  if(p<1 && typeof factionHasPassive==='function' && factionHasPassive('rome','imperial-administration') && team==='rome'){
+    p=1-(1-p)*0.35;   /* penalty reduced by two thirds */
+  }
+  return p;
 }
 function defensiveBonus(zi){
   var oc=typeof ownedCounts!=='undefined'?ownedCounts():null;
@@ -4005,6 +4107,984 @@ FACS.nippon.classes.sohei={name:'Sōhei', en:'Warrior Monk', hp:120, dmg:28, spe
 var FAC_KEYS=Object.keys(FACS);
 
 
+// SOURCE: src/system/faction-identity.js
+/* ============================================================
+   faction-identity.js — AGE OF WARFARE: complete faction
+   benefits & identity system (design spec, 26 sections).
+
+   This is the single data-driven table behind all faction
+   gameplay: passives, signature abilities, doctrines, terrain
+   affinity, territory priorities, morale traits and the AI
+   Brain's personality. Systems elsewhere (economy, capture,
+   combat, unit AI, AFK brain, UI) consult FACTION_IDENTITY
+   instead of hard-coding per-faction behavior, so a future
+   faction is added by writing one entry here (spec §24).
+   ============================================================ */
+
+var FACTION_IDENTITY={
+
+/* ---------------- 1. ROME — THE IMPERIAL LEGION ---------------- */
+rome:{
+  id:'rome', name:'ROME', title:'The Imperial Legion',
+  color:'#a8321f',
+  playstyle:'Organization · Defense · Logistics',
+  designedFor:'players who prefer organized armies, strong infrastructure, stable economics and long campaigns.',
+  militaryIdentity:'Sustained warfare — large, well-fed armies that hold ground and grind wars down.',
+  economicIdentity:'Sustain large armies: administration and logistics make size affordable.',
+  strategicIdentity:'Expand slowly, hold everything, win the long war.',
+  aiIdentity:'Imperial — wins wars slowly and safely; never gambles the treasury.',
+  stats:{military:8, economy:7, mobility:5, defense:9},
+  specialization:'Large armies and sustained warfare',
+  strengths:['Logistics & army upkeep','Legionary formation discipline','Defensive infrastructure','Empire administration','Recovery from losses'],
+  weaknesses:['Slower tactical movement','Expensive elite units','Low burst damage','Weak when formations fragment'],
+  passives:[
+    {level:1, id:'legionary-discipline', name:'Legionary Discipline', desc:'Roman infantry fight better beside their comrades: bonus damage and up to −10% damage taken while in formation. FORMATION = POWER.'},
+    {level:2, id:'military-logistics', name:'Military Logistics', desc:'Roman armies are cheaper to keep fed and marching: −8% upkeep and faster long-distance movement.'},
+    {level:3, id:'roman-engineering', name:'Roman Engineering', desc:'Roman-held zones resist capture far longer (fortification bonus); defenders near their own strongpoints gain organization.'},
+    {level:4, id:'imperial-administration', name:'Imperial Administration', desc:'Distant provinces still pay: the large-empire supply penalty is reduced by two thirds.'},
+    {level:5, id:'imperial-mobilization', name:'Imperial Mobilization', desc:'Signature: emergency taxation. Musters 20% cheaper and earns +15% for 45s — then the treasury strains for a while.'}
+  ],
+  terrain:{plains:{def:4}, city:{def:8}, mountains:{move:-8}},
+  territoryWeights:{value:2.2, roads:1.5, strategic:1.8, weak:0.4, distance:0.6},
+  morale:{penaltyResist:0.30, kingAura:1.10, winBoost:0.5, supplySensitive:false, note:'Stable morale — the legion holds its line.'},
+  brain:{name:'Imperial', reserve:0.22, defBias:0.55, atkThreshold:1.35, econFocus:0.45, wantFactor:4, cap:1, adaptive:1,
+    priorities:'Economy → Logistics → Defense → Expansion',
+    desc:'Checks logistics before every war. Advances only when the army is sustainable; defends everything else. Prefers winning slowly and safely.'},
+  doctrines:[
+    {id:'imperial', name:'Imperial', bg:5, def:35, desc:'Expansion & administration: +4% income.', mod:{income:1.04}},
+    {id:'legion', name:'Legion', bg:10, def:40, desc:'Military organization: formation bonus +25%.', mod:{formation:1.25}},
+    {id:'fortress', name:'Fortress', bg:10, def:60, desc:'Defensive warfare: fortifications +20% harder to take.', mod:{fort:1.2}}
+  ],
+  ability:{id:'imperial-mobilization', name:'Imperial Mobilization', key:'F', duration:45, cooldown:180,
+    desc:'Emergency taxation: −20% recruit cost, +15% income, +6% movement (45s). Afterwards: +25% upkeep, −10% income (45s).',
+    fx:{recruitCost:0.8, income:1.15, speed:1.06},
+    strain:{duration:45, upkeep:1.25, income:0.9, desc:'Emergency taxation rebounds: +25% upkeep, −10% income (45s)'}},
+  upkeepMod:0.92, incomeMod:1.0, recruitCostMod:1.0, recruitStrengthMod:1.0
+},
+
+/* ---------------- 2. SPARTA — THE WARRIOR KINGDOM ---------------- */
+sparta:{
+  id:'sparta', name:'SPARTA', title:'The Warrior Kingdom',
+  color:'#d35454',
+  playstyle:'Elite Infantry · Defense · Quality',
+  designedFor:'players who prefer elite infantry, defensive warfare and high-value battles.',
+  militaryIdentity:'Quality over quantity — fewer soldiers, better soldiers, one shield wall.',
+  economicIdentity:'Fund elite forces: every drachma buys a full hoplite, not a levy.',
+  strategicIdentity:'Hold the passes, choose the battles, never fight where the ground is bad.',
+  aiIdentity:'Lion — protects elite armies, fights from terrain, avoids attrition at all costs.',
+  stats:{military:9, economy:4, mobility:4, defense:10},
+  specialization:'Elite infantry and defensive battles',
+  strengths:['Elite melee soldiers','Phalanx front armor','Last-stand resolve','Morale that never breaks'],
+  weaknesses:['Expensive military','Slow economic growth','Low replacement speed','Punished by encirclement & attrition'],
+  passives:[
+    {level:1, id:'warrior-culture', name:'Warrior Culture', desc:'Spartan elite infantry deal +10% melee damage and resist fear far better.'},
+    {level:2, id:'phalanx', name:'Phalanx', desc:'In a dense formation the front takes 35% less damage — but flanks and the rear are exposed (+15%).'},
+    {level:3, id:'elite-training', name:'Elite Training', desc:'Recruits cost +18% but arrive +12% stronger. Fewer soldiers. Better soldiers.'},
+    {level:4, id:'last-stand', name:'Last Stand', desc:'Defending an important Spartan zone while outnumbered 3:1: +12% damage, −18% damage taken, no rout.'},
+    {level:5, id:'300s-resolve', name:"300's Resolve", desc:'Signature: morale locked high, retreat disabled, infantry defense +15% for 25s. After: fatigue (−15% speed, +15% recruit cost, 30s).'}
+  ],
+  terrain:{mountains:{def:12, move:-6}, hills:{def:8}, river:{def:-4}},
+  territoryWeights:{choke:1.8, def:1.5, value:1.2, weak:0.2, distance:0.2},
+  morale:{penaltyResist:0.55, kingAura:1.0, winBoost:0.4, supplySensitive:false, note:'Extremely resistant to morale collapse.'},
+  brain:{name:'Lion', reserve:0.20, defBias:0.72, atkThreshold:1.5, econFocus:0.35, wantFactor:2.5, cap:0.8, adaptive:1,
+    priorities:'Army Quality → Defense → Strategic Battles → Expansion',
+    desc:'Cares about UNIT QUALITY, not unit quantity. Defends chokepoints aggressively, attacks only from terrain advantage, and never bleeds its elites.'},
+  doctrines:[
+    {id:'phalanx', name:'Phalanx', bg:8, def:50, desc:'Maximum infantry defense: phalanx front armor −45%.', mod:{phalanx:1.45}},
+    {id:'warrior', name:'Warrior', bg:5, def:30, desc:'Maximum elite combat: elite units +10% damage.', mod:{elite:1.10}},
+    {id:'laststand', name:'Last Stand', bg:12, def:65, desc:'Maximum defense under pressure: last stand triggers earlier.', mod:{laststand:0.7}}
+  ],
+  ability:{id:'300s-resolve', name:"300's Resolve", key:'F', duration:25, cooldown:150,
+    desc:'Morale locked high, retreat disabled, infantry damage taken −15% (25s). After: fatigue −15% speed, +15% recruit cost (30s).',
+    fx:{meleeDef:0.85, moraleLock:true},
+    strain:{duration:30, speed:0.85, recruitCost:1.15, desc:'Fatigue: −15% speed, +15% recruit cost (30s)'}},
+  upkeepMod:1.0, incomeMod:1.0, recruitCostMod:1.18, recruitStrengthMod:1.12
+},
+
+/* ---------------- 3. MOLDOVA — THE FRONTIER KINGDOM ---------------- */
+moldavia:{
+  id:'moldavia', name:'MOLDOVA', title:'The Frontier Kingdom',
+  color:'#3f8a5e',
+  playstyle:'Adaptability · Mobility · Homeland Defense',
+  designedFor:'players who prefer adaptability, mobility and reacting to enemy attacks.',
+  militaryIdentity:'The responsive army — fast repositioning, strong on home ground, always in counterattack position.',
+  economicIdentity:'Maintain flexibility: a balanced treasury that can mobilize at a moment’s notice.',
+  strategicIdentity:'Let them come. Meet every border crisis, then strike the weakened enemy.',
+  aiIdentity:'Frontier — constantly reads the threat map and repositions; defends the homeland, then counterattacks.',
+  stats:{military:5, economy:7, mobility:8, defense:6},
+  specialization:'Homeland defense and rapid response',
+  strengths:['Homeland defense bonus','Fast strategic movement','Threat detection & reaction','Doctrines that switch fast'],
+  weaknesses:['No extreme specialization','Weaker than Sparta in a static wall','Weaker economy than Kemet','Weaker momentum than Norrøn'],
+  passives:[
+    {level:1, id:'mobile-army', name:'Mobile Army', desc:'Moldovan armies move 6% faster and respond to orders more quickly on the strategic map.'},
+    {level:2, id:'frontier-warfare', name:'Frontier Warfare', desc:'Fighting on Moldovan ground: +8% damage for its army — enemies invading deep pay for it. The deeper they dig in, the more dangerous Moldova becomes.'},
+    {level:3, id:'local-knowledge', name:'Local Knowledge', desc:'Defenders hear raiders coming earlier: faster backup response, improved ambush detection.'},
+    {level:4, id:'adaptive-command', name:'Adaptive Command', desc:'Doctrine changes take effect 50% faster; the AI switches offensive/defensive instantly when the situation flips.'},
+    {level:5, id:'rapid-mobilization', name:'Rapid Mobilization', desc:'Signature: the army moves +30% faster and reinforcements surge (30s). After: +15% upkeep (30s).'}
+  ],
+  terrain:{plains:{move:6}, forest:{move:4}, hills:{def:5}, river:{def:5}},
+  territoryWeights:{border:1.6, home:1.3, roads:1.2, value:0.8, weak:0.6},
+  morale:{penaltyResist:0.20, kingAura:1.15, winBoost:0.6, supplySensitive:false, note:'Strong morale while defending the homeland.'},
+  brain:{name:'Frontier', reserve:0.18, defBias:0.50, atkThreshold:1.15, econFocus:0.5, wantFactor:3.5, cap:1, adaptive:0.6,
+    priorities:'Threat Detection → Mobility → Defense → Counterattack',
+    desc:'Never leaves armies stationary. Evaluates threat, distance and territory value every few seconds; defends the border, then counterattacks the weakened invader.'},
+  doctrines:[
+    {id:'frontier', name:'Frontier', bg:8, def:55, desc:'Maximum homeland defense: frontier bonus +25%.', mod:{frontier:1.25}},
+    {id:'mobile', name:'Mobile', bg:5, def:25, desc:'Maximum strategic movement: +8% army speed.', mod:{speed:1.08}},
+    {id:'adaptive', name:'Adaptive', bg:5, def:40, desc:'Maximum flexibility: faster doctrine switching, +5% speed.', mod:{adaptive:1.05}}
+  ],
+  ability:{id:'rapid-mobilization', name:'Rapid Mobilization', key:'F', duration:30, cooldown:150,
+    desc:'The whole army moves +30% faster, reinforcements surge (30s). After: +15% upkeep (30s).',
+    fx:{speed:1.3},
+    strain:{duration:30, upkeep:1.15, desc:'Strain: +15% upkeep (30s)'}},
+  upkeepMod:1.0, incomeMod:1.0, recruitCostMod:1.0, recruitStrengthMod:1.0
+},
+
+/* ---------------- 4. NORRØN — THE RAIDING HOST ---------------- */
+vikings:{
+  id:'vikings', name:'NORRØN', title:'The Raiding Host',
+  color:'#4a6a8a',
+  playstyle:'Aggression · Raiding · Momentum',
+  designedFor:'players who prefer aggressive warfare, raids and constant offensive pressure.',
+  militaryIdentity:'The storm that never stops — victories feed victories; momentum is the weapon.',
+  economicIdentity:'Turn victories into resources: loot, tribute and war-booty pay for the next raid.',
+  strategicIdentity:'Hit what is weak, take what is rich, never sit still, always pressure.',
+  aiIdentity:'Raider — hunts weak ground and exposed armies; retreats a raid only when it becomes impossible.',
+  stats:{military:8, economy:5, mobility:10, defense:4},
+  specialization:'Raiding and sustained offensive pressure',
+  strengths:['Battle Momentum after victories','Raider loot on capture','Water & open-terrain speed','Fear of the North (enemy morale)'],
+  weaknesses:['Weak long-term fortification','Unstable economy','Collapses when momentum dies','Overextends past the supply line'],
+  passives:[
+    {level:1, id:'raider-culture', name:'Raider Culture', desc:'Capturing enemy territory yields war-booty (+150% loot), a short rally and a burst of movement.'},
+    {level:2, id:'battle-momentum', name:'Battle Momentum', desc:'Consecutive victories stack MOMENTUM (+1…+4): +3% damage and +2% speed per point. Momentum decays after 90s of peace or on defeat.'},
+    {level:3, id:'fear-of-the-north', name:'Fear of the North', desc:'Enemies who lose territory to Norrøn waver: −12% damage for 14s. Rapid offensives become psychologically dangerous.'},
+    {level:4, id:'norron-mobility', name:'Norrøn Mobility', desc:'Coastal routes, rivers and open terrain: +25% movement on water routes, +12% on open ground.'},
+    {level:5, id:'great-raid', name:'Great Raid', desc:'Signature: a high-risk raid — +40% speed, +20% damage, +50% capture rewards (45s). If outnumbered 2:1 the raiding army is 20% more vulnerable and cannot break off cleanly.'}
+  ],
+  terrain:{river:{move:25, def:5}, plains:{move:12}, city:{income:8}},
+  territoryWeights:{weak:2.0, income:1.6, coast:1.3, isolated:1.2, value:0.5, distance:0.1},
+  morale:{penaltyResist:0.15, kingAura:0.95, winBoost:1.0, supplySensitive:false, note:'Strong morale after victories — and none without them.'},
+  brain:{name:'Raider', reserve:0.10, defBias:0.30, atkThreshold:0.8, econFocus:0.25, wantFactor:3.5, cap:1.05, adaptive:1,
+    priorities:'Weak Targets → Raid → Momentum → Expansion',
+    desc:'Constantly asks “where can I hurt the enemy next?” Attacks exposed armies and rich, poorly defended ground; retreats only when a raid is strategically impossible.'},
+  doctrines:[
+    {id:'raider', name:'Raider', bg:3, def:20, desc:'Maximum territory raiding: raid loot +25%.', mod:{raid:1.25}},
+    {id:'berserker', name:'Berserker', bg:5, def:25, desc:'Maximum offensive combat: +12% damage, −8% defense.', mod:{berserk:1.12, berserkDef:1.08}},
+    {id:'conqueror', name:'Conqueror', bg:8, def:40, desc:'Maximum sustained expansion: −8% upkeep, +10% capture rewards.', mod:{conquer:1.10, upkeep:0.92}}
+  ],
+  ability:{id:'great-raid', name:'Great Raid', key:'F', duration:45, cooldown:200,
+    desc:'The host goes over the ridge: +40% speed, +20% damage, +50% capture rewards, +25% raid loot (45s). Outnumbered 2:1: +20% damage taken and harder to break off.',
+    fx:{speed:1.4, dmg:1.2, loot:1.5, aggro:1.4, risk:1.2}},
+  upkeepMod:0.96, incomeMod:1.0, recruitCostMod:1.0, recruitStrengthMod:1.0
+},
+
+/* ---------------- 5. KEMET — KINGDOM OF THE NILE ---------------- */
+egypt:{
+  id:'egypt', name:'KEMET', title:'Kingdom of the Nile',
+  color:'#c9a227',
+  playstyle:'Economy · Population · Infrastructure',
+  designedFor:'players who prefer economic development, manpower and infrastructure.',
+  militaryIdentity:'The deep state at war — wealth converts to manpower, manpower converts to victory.',
+  economicIdentity:'Build economic dominance: income, population and infrastructure compound over the campaign.',
+  strategicIdentity:'Grow the granary, defend the harvest, and outlast every rival in a long war of replacement.',
+  aiIdentity:'Pharaoh — weighs every war in gold; avoids any fight whose economic payoff is poor.',
+  stats:{military:5, economy:10, mobility:5, defense:6},
+  specialization:'Income, population and infrastructure',
+  strengths:['Highest income & building value','Granary: faster replacement & recovery','Desert adaptation','Recover from any defeat with time'],
+  weaknesses:['Weaker heavy infantry','Economically valuable territories are prime targets','Economic centers lost have real consequences','Slow to react without planning'],
+  passives:[
+    {level:1, id:'nile-economy', name:'Nile Economy', desc:'Rich territories (towns, river lands, sites) pay +12% more income.'},
+    {level:2, id:'royal-infrastructure', name:'Royal Infrastructure', desc:'Buildings work harder: +30% building bonuses, and Kemet capitals are harder to take.'},
+    {level:3, id:'granary', name:'Granary of the Kingdom', desc:'A larger population pool: armies recover out of combat and the AI replaces losses faster.'},
+    {level:4, id:'desert-adaptation', name:'Desert Adaptation', desc:'Harsh lands stop punishing Kemet: +25% movement and +8 defense in the desert.'},
+    {level:5, id:'flood-of-the-nile', name:'Flood of the Nile', desc:'Signature: the river gives. +50% income, army recovery and −10% recruit cost for 60s. No direct combat power — Kemet wins through the treasury. (240s cooldown)'}
+  ],
+  terrain:{desert:{move:25, def:8}, plains:{income:5}, city:{income:10}},
+  territoryWeights:{income:2.0, village:1.4, pop:1.3, value:0.8, weak:0.3, distance:0.3},
+  morale:{penaltyResist:0.10, kingAura:1.0, winBoost:0.3, supplySensitive:true, note:'Stable morale only while supplied and economically secure.'},
+  brain:{name:'Pharaoh', reserve:0.30, defBias:0.45, atkThreshold:1.4, econFocus:0.9, wantFactor:4.5, cap:1.25, adaptive:1,
+    priorities:'Economy → Infrastructure → Population → Military Expansion',
+    desc:'Evaluates the economic value of every target. Expands only when a territory is worth its military cost; otherwise builds, taxes and outlasts.'},
+  doctrines:[
+    {id:'economic', name:'Economic', bg:5, def:35, desc:'Maximum income: +8% territory income.', mod:{income:1.08}},
+    {id:'military', name:'Military', bg:8, def:45, desc:'Convert economy into military power: core infantry +8%, −4% income.', mod:{infantry:1.08, income:0.96}},
+    {id:'population', name:'Population', bg:5, def:30, desc:'Maximum manpower: −12% recruit cost, faster recovery.', mod:{recruit:0.88, regen:1.3}}
+  ],
+  ability:{id:'flood-of-the-nile', name:'Flood of the Nile', key:'F', duration:60, cooldown:240,
+    desc:'The river gives: +50% income, +2 army recovery, −10% recruit cost (60s). Pure economy — no combat bonus.',
+    fx:{income:1.5, regen:2, recruitCost:0.9}},
+  upkeepMod:1.0, incomeMod:1.0, recruitCostMod:1.0, recruitStrengthMod:1.0
+},
+
+/* ---------------- 6. NIPPON — THE WARRING CLANS ---------------- */
+nippon:{
+  id:'nippon', name:'NIPPON', title:'The Warring Clans',
+  color:'#8a5a9a',
+  playstyle:'Precision · Specialists · Tactical Command',
+  designedFor:'players who prefer precision, specialists and tactical command.',
+  militaryIdentity:'Fewer but more effective — disciplined specialists who win skirmishes, not melees.',
+  economicIdentity:'Fund specialist forces: every soldier is a trained professional worth protecting.',
+  strategicIdentity:'See the battle before it happens: position, spot the weak flank, and strike precisely.',
+  aiIdentity:'Shogun — analyzes enemy formations, avoids frontal assaults, repositions constantly, punishes the weak flank.',
+  stats:{military:7, economy:5, mobility:8, defense:6},
+  specialization:'Specialists, precision and tactical advantage',
+  strengths:['Precision strikes & crits','Clan discipline under command','Fast tactical transitions','Terrain of forests and hills'],
+  weaknesses:['Smaller, costlier armies','Painfully punished for losing specialists','Less forgiving of strategic errors','No raw economic or defensive edge'],
+  passives:[
+    {level:1, id:'clan-discipline', name:'Clan Discipline', desc:'Clan units answer the standard faster: wider, stronger king aura and quicker response to orders.'},
+    {level:2, id:'precision-training', name:'Precision Training', desc:'Specialists are more accurate: arrows fly truer, and strikes land critical hits (+80% damage).'},
+    {level:3, id:'rapid-deployment', name:'Rapid Deployment', desc:'The army changes state faster: formations reform 35% quicker, defenders swing to counterattack without lag.'},
+    {level:4, id:'specialist-warfare', name:'Specialist Warfare', desc:'Scouts and specialists: +25% threat detection range, ranged specialists +8% effectiveness.'},
+    {level:5, id:'clan-tactics', name:'Clan Tactics', desc:'Signature: choose a temporary tactic — PRECISION, DEFLECTION, AMBUSH or MOBILITY — each with its own tradeoff (30s, 45s cooldown).'}
+  ],
+  terrain:{forest:{def:10, move:4}, hills:{def:8, move:6}, plains:{def:-4}},
+  territoryWeights:{tactical:1.6, highground:1.4, choke:1.3, value:0.7, weak:0.5, distance:0.2},
+  morale:{penaltyResist:0.25, kingAura:1.30, winBoost:0.5, supplySensitive:false, note:'Strong morale while under effective command.'},
+  brain:{name:'Shogun', reserve:0.20, defBias:0.48, atkThreshold:1.2, econFocus:0.4, wantFactor:3, cap:0.9, adaptive:1,
+    priorities:'Intelligence → Positioning → Specialists → Precision Attacks',
+    desc:'Never fights a fair fight it does not want. Prefers favorable engagements, exploits weak flanks and specialists, and repositions more than any other brain.'},
+  doctrines:[
+    {id:'precision', name:'Precision', bg:5, def:35, desc:'Maximum specialist effectiveness: +15% crit chance & accuracy.', mod:{precision:1.15}},
+    {id:'mobility', name:'Mobility', bg:5, def:30, desc:'Maximum tactical movement: +10% speed.', mod:{speed:1.10}},
+    {id:'command', name:'Command', bg:12, def:45, desc:'Maximum order & formation: +30% king aura, +10% damage under the standard.', mod:{command:1.30, order:1.10}}
+  ],
+  ability:{id:'clan-tactics', name:'Clan Tactics', key:'F', duration:30, cooldown:45, needsMode:true,
+    modes:['precision','deflection','ambush','mobility'],
+    desc:'Set a temporary clan tactic (30s): PRECISION (dmg +18%, crits up, speed −10%) · DEFLECTION (damage taken −18%, dealt −8%) · AMBUSH (first 8s: +35% damage, then −5%) · MOBILITY (speed +30%, defense −10%).',
+    modeFx:{
+      precision:{dmg:1.18, crit:1.5, speed:0.9},
+      deflection:{incoming:0.82, dmg:0.92},
+      ambush:{firstStrike:1.35, ambushT:8, then:0.95},
+      mobility:{speed:1.3, incoming:1.1}
+    }},
+  upkeepMod:1.0, incomeMod:1.0, recruitCostMod:1.0, recruitStrengthMod:1.0
+}
+};
+
+/* ================= shared faction state ================= */
+var FAC_LEVELS={}, FAC_DOCTRINE={};   /* ability & momentum state live in faction-abilities.js / faction-battle.js */
+
+function factionCfg(f){ return FACTION_IDENTITY[f]||null; }
+function factionKnown(f){ return !!FACTION_IDENTITY[f]; }
+
+/* ---------- progression (spec §16): 5 kingdom levels by territory ---------- */
+function factionZoneThresholds(){ return [0,4,12,24,40]; }
+function factionLevel(f){
+  var oc=(typeof ownedCounts==='function')?ownedCounts():null;
+  var n=oc?(oc[f]||0):0;
+  var th=factionZoneThresholds();
+  for(var i=th.length-1;i>=0;i--){ if(n>=th[i]) return i+1; }
+  return 1;
+}
+function factionHasPassive(f, id){
+  var c=factionCfg(f); if(!c) return false;
+  var lv=factionLevel(f);
+  for(var i=0;i<c.passives.length;i++) if(c.passives[i].id===id && c.passives[i].level<=lv) return true;
+  return false;
+}
+function factionProgressionCheck(){
+  if(typeof playerTeam==='undefined'||!playerTeam) return;
+  FAC_KEYS.forEach(function(f){
+    var lv=factionLevel(f);
+    if((FAC_LEVELS[f]||1)<lv){
+      FAC_LEVELS[f]=lv;
+      var c=FACTION_IDENTITY[f];
+      var p=null;
+      for(var i=0;i<c.passives.length;i++) if(c.passives[i].level===lv) p=c.passives[i];
+      if(p && f===playerTeam){
+        showBanner('KINGDOM LEVEL '+lv, c.name+' — '+c.title+' unlocks '+p.name, 3.5);
+        killFeedMsg('Progression', p.name+' unlocked — see the codex for the full ability', '#e9c458');
+      }
+    }
+  });
+}
+function resetFactionSystems(){
+  FAC_LEVELS={}; FAC_DOCTRINE={};
+  if(typeof FAC_ABIL!=='undefined') FAC_ABIL={};
+  if(typeof FAC_MOMENTUM!=='undefined') FAC_MOMENTUM={};
+  FAC_KEYS.forEach(function(f){
+    FAC_LEVELS[f]=1;
+    var c=FACTION_IDENTITY[f];
+    FAC_DOCTRINE[f]=c?c.doctrines[0].id:null;
+    if(typeof FAC_ABIL!=='undefined') FAC_ABIL[f]={t:0, cd:0, strain:0, mode:null, ambushT:0, decayAt:0};
+    if(typeof FAC_MOMENTUM!=='undefined') FAC_MOMENTUM[f]={value:0, streak:0, lastWin:0};
+  });
+}
+
+/* ---------- terrain interaction (spec §14) ---------- */
+function factionTerrainMoveCost(f, t){
+  var c=factionCfg(f); if(!c) return 1;
+  var mod=c.terrain[t];
+  return (mod&&mod.move)?(1+mod.move/100):1;
+}
+function factionTerrainDefense(f, t){
+  var c=factionCfg(f); if(!c) return 0;
+  var mod=c.terrain[t];
+  return (mod&&mod.def)?mod.def:0;
+}
+function factionTerrainIncome(f, t){
+  var c=factionCfg(f); if(!c) return 1;
+  var mod=c.terrain[t];
+  return (mod&&mod.income)?(1+mod.income/100):1;
+}
+
+/* ---------- territory priorities (spec §10) ---------- */
+function factionTargetScore(f, zi){
+  var c=factionCfg(f); if(!c) return 0;
+  if(typeof zones==='undefined'||!zones[zi]) return 0;
+  var z=zones[zi], w=c.territoryWeights||{};
+  var t=(typeof zoneTerrain==='function')?zoneTerrain(zi):'plains';
+  var inc=(typeof zoneIncomeBase==='function')?zoneIncomeBase(zi):2.2;
+  var pop=(typeof zonePopulation==='function')?zonePopulation(zi):6000;
+  var score=0;
+  var value=(z.core?3:z.bonus?2:0)+Math.max(0,inc-2.2)*0.5;
+  score+=value*(w.value||0.5);
+  if(w.roads) score+=((t==='city')?1.5:(t==='plains')?1.1:0)*w.roads;
+  if(w.choke) score+=((t==='mountains')?1.8:(t==='hills')?1.4:(t==='river')?1.2:0)*w.choke;
+  if(w.coast) score+=((t==='river')?1.5:(t==='city')?1.2:0)*w.coast;
+  if(w.tactical) score+=((t==='hills')?1.6:(t==='forest')?1.4:0)*w.tactical;
+  if(w.highground) score+=((t==='mountains')?1.5:(t==='hills')?1.2:0)*w.highground;
+  if(w.village) score+=(z.bonus?1.6:0)*w.village;
+  if(w.pop) score+=(pop>9000?1.3:0.4)*w.pop;
+  if(w.income) score+=Math.max(0,inc-2.2)*w.income;
+  if(w.strategic){
+    var sv=(typeof zoneStrategicValue==='function')?zoneStrategicValue(zi):'Low';
+    if(sv==='Capital') score+=2*w.strategic; else if(sv==='High') score+=1.4*w.strategic; else if(sv==='Medium') score+=0.7*w.strategic;
+  }
+  if(t==='desert') score*=0.75;  /* harsh ground — every host avoids it unless adapted */
+  if(w.avoidPlains && t==='plains') score*=0.85;
+  var pos=(typeof zoneCenter==='function')?zoneCenter(zi):{x:0,z:0,gx:0,gz:0};
+  var home=(typeof TOWNS!=='undefined'&&TOWNS[f])?TOWNS[f]:{x:0,z:0};
+  var dist=Math.hypot(pos.x-home.x, pos.z-home.z);
+  if(w.home) score+=Math.max(0,1-dist/2400)*w.home;
+  if(w.distance) score+=Math.max(0,1.2-dist/3000)*w.distance;
+  if(w.border){
+    var border=false;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(d){
+      var zx=pos.gx+d[0], zz=pos.gz+d[1];
+      if(zx<0||zz<0||zx>=ZN||zz>=ZN) return;
+      var id2=zz*ZN+zx;
+      if(zones[id2]&&zones[id2].owner===f) border=true;
+    });
+    if(border) score+=w.border;
+  }
+  if(w.weak && typeof entities!=='undefined'){
+    var defN=0, atkN=0;
+    for(var i=0;i<entities.length;i++){
+      var e=entities[i];
+      if(e.dead||e.passive) continue;
+      if(zoneIdxAt(e.group.position.x, e.group.position.z)===zi){
+        if(e.team===z.owner) defN++; else atkN++;
+      }
+    }
+    var weak=(z.owner?(defN===0?1.7:(defN<4?1.4:0.4+Math.max(0,4-defN)*0.3)):1.0);
+    if(atkN>defN*2) weak*=0.6;
+    score+=weak*w.weak;
+  }
+  if(w.isolated && z.owner){
+    var adj=false;
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(function(d){
+      var zx=pos.gx+d[0], zz=pos.gz+d[1];
+      if(zx<0||zz<0||zx>=ZN||zz>=ZN) return;
+      if(zones[zz*ZN+zx]&&zones[zz*ZN+zx].owner===z.owner) adj=true;
+    });
+    if(!adj) score+=w.isolated;
+  }
+  return score;
+}
+
+/* ---------- doctrines (spec §12) ---------- */
+function factionDoctrineData(f){
+  var c=factionCfg(f); if(!c) return null;
+  var id=(typeof FAC_DOCTRINE!=='undefined')?FAC_DOCTRINE[f]:null;
+  for(var i=0;i<c.doctrines.length;i++) if(c.doctrines[i].id===id) return c.doctrines[i];
+  return c.doctrines[0];
+}
+function setFactionDoctrine(f, id){
+  var c=factionCfg(f); if(!c) return false;
+  var d=null;
+  for(var i=0;i<c.doctrines.length;i++) if(c.doctrines[i].id===id){ d=c.doctrines[i]; break; }
+  if(!d) return false;
+  FAC_DOCTRINE[f]=d.id;
+  if(typeof playerTeam!=='undefined' && f===playerTeam){
+    if(typeof applyDoctrineCfg==='function') applyDoctrineCfg(d.bg/100, d.def/100);
+    if(typeof updSettingsLabels==='function') updSettingsLabels();
+    if(typeof updateAbilityBar==='function') updateAbilityBar(true);
+    if(typeof killFeedMsg==='function') killFeedMsg('Doctrine', c.name+' adopts the '+d.name+' doctrine — '+d.desc, '#8ab8e0');
+  }
+  return true;
+}
+function doctrineMod(f){
+  var d=factionDoctrineData(f);
+  return (d&&d.mod)?d.mod:{};
+}
+
+/* ---------- economic system (spec §11) ---------- */
+function factionWantArmy(f, territoryCount){
+  var c=factionCfg(f); if(!c) return 14+(territoryCount||0)*4;
+  var b=c.brain||{};
+  var base=10+(territoryCount||0)*(b.wantFactor||3.5);
+  if(b.name==='Raider') base+=4;
+  if(b.name==='Pharaoh' && typeof EC!=='undefined' && EC[f] && EC[f].gold>260) base+=8;
+  return Math.max(8, Math.round(base));
+}
+function factionUpkeepMod(f){
+  var m=1, c=factionCfg(f);
+  if(!c) return m;
+  m*=(c.upkeepMod||1);
+  var st=(typeof abilityStrain==='function')?abilityStrain(f):null;
+  if(st&&st.upkeep) m*=st.upkeep;
+  var d=doctrineMod(f);
+  if(d.upkeep) m*=d.upkeep;
+  return m;
+}
+function factionIncomeMod(f){
+  var m=1, c=factionCfg(f);
+  if(!c) return m;
+  var fx=(typeof abilityFx==='function')?abilityFx(f):null;
+  if(fx&&fx.income) m*=fx.income;
+  var st=(typeof abilityStrain==='function')?abilityStrain(f):null;
+  if(st&&st.income) m*=st.income;
+  var d=doctrineMod(f);
+  if(d.income) m*=d.income;
+  return m;
+}
+function factionRecruitCostMod(f){
+  var m=1, c=factionCfg(f);
+  if(!c) return m;
+  m*=(c.recruitCostMod||1);
+  var fx=(typeof abilityFx==='function')?abilityFx(f):null;
+  if(fx&&fx.recruitCost) m*=fx.recruitCost;
+  var st=(typeof abilityStrain==='function')?abilityStrain(f):null;
+  if(st&&st.recruitCost) m*=st.recruitCost;
+  var d=doctrineMod(f);
+  if(d.recruit) m*=d.recruit;
+  return m;
+}
+function factionRecruitStrengthMod(f, kind){
+  var m=1, c=factionCfg(f);
+  if(!c) return m;
+  m*=(c.recruitStrengthMod||1);
+  var d=doctrineMod(f);
+  if(f==='sparta'&&d.elite) m*=(/spartiatis|champion/.test(kind||''))?d.elite:1;
+  if(f==='egypt'&&d.infantry) m*=(kind==='warru'||kind==='menfyt')?d.infantry:1;
+  if(f==='nippon'&&d.order) m*=d.order;
+  return m;
+}
+function factionMoveMod(f){
+  var m=1, c=factionCfg(f);
+  if(!c) return m;
+  var fx=(typeof abilityFx==='function')?abilityFx(f):null;
+  if(fx&&fx.speed) m*=fx.speed;
+  var st=(typeof abilityStrain==='function')?abilityStrain(f):null;
+  if(st&&st.speed) m*=st.speed;
+  if(f==='vikings'&&typeof FAC_MOMENTUM!=='undefined'&&FAC_MOMENTUM[f]&&FAC_MOMENTUM[f].value) m*=(1+0.02*Math.min(4,FAC_MOMENTUM[f].value));
+  var d=doctrineMod(f);
+  if(d.speed) m*=d.speed;
+  return m;
+}
+
+/* ---------- morale (spec §13) ---------- */
+function factionMoraleResist(f){ var c=factionCfg(f); return c?(c.morale.penaltyResist||0):0; }
+function factionKingAura(f){ var c=factionCfg(f); return c?(c.morale.kingAura||1):1; }
+function applyMoralePenalty(e, t, dmgMult){
+  if(!e) return;
+  var resist=factionMoraleResist(e.team);
+  e.moralePenaltyT=Math.max(e.moralePenaltyT||0, t);
+  e.dmgMult=1-(1-dmgMult)*(1-resist);
+}
+
+
+// SOURCE: src/system/faction-battle.js
+/* ============================================================
+   faction-battle.js — the battlefield expression of faction
+   identity: Battle Momentum (Norrøn), legion & phalanx
+   formation mechanics (Rome/Sparta), frontier punishment
+   (Moldova), precision & crits (Nippon), zone-capture
+   resistance, and the per-faction battle status the HUD
+   shows (spec §19).
+   ============================================================ */
+
+var FAC_MOMENTUM={};
+
+function momentumOf(f){ var m=(typeof FAC_MOMENTUM!=='undefined')?FAC_MOMENTUM[f]:null; return m?m.value:0; }
+
+/* ---------- Norrøn: Battle Momentum (spec §5) ---------- */
+function onZoneCaptured(winner, loser, zi){
+  if(winner!=='vikings') return;
+  var m=FAC_MOMENTUM.vikings;
+  if(!m) return;
+  var now=(typeof gameTime!=='undefined')?gameTime:0;
+  m.streak=(m.lastWin&&now-m.lastWin<120)?Math.min(4,m.streak+1):1;
+  m.value=Math.max(m.value,m.streak);
+  m.lastWin=now;
+  /* Raider Culture: war-booty, short rally, movement burst */
+  if(typeof EC!=='undefined'&&EC.vikings){
+    var inc=(typeof zoneIncomeBase==='function')?zoneIncomeBase(zi):2.2;
+    var lootMod=1.5;
+    var fx=(typeof abilityFx==='function')?abilityFx('vikings'):null;
+    if(fx&&fx.loot) lootMod*=fx.loot;
+    var d=doctrineMod('vikings');
+    if(d.raid) lootMod*=d.raid;
+    if(d.conquer) lootMod*=d.conquer;
+    var loot=Math.round(inc*12*lootMod);
+    EC.vikings.gold+=loot;
+    if(winner===playerTeam) killFeedMsg('Raider Culture', 'War-booty +'+loot+' gold · momentum +'+m.value, '#d08a3e');
+  }
+  var c=(typeof zoneCenter==='function')?zoneCenter(zi):null;
+  if(c && typeof entities!=='undefined'){
+    for(var i=0;i<entities.length;i++){
+      var e=entities[i];
+      if(e.dead||e.isPlayer||e.team!=='vikings') continue;
+      var dx=e.group.position.x-c.x, dz=e.group.position.z-c.z;
+      if(dx*dx+dz*dz<150*150) e.rallyT=Math.max(e.rallyT||0,5);
+    }
+    /* Fear of the North (L3): the losing army wavers */
+    if(loser && factionHasPassive('vikings','fear-of-the-north')){
+      for(var j=0;j<entities.length;j++){
+        var f2=entities[j];
+        if(f2.dead||f2.isPlayer||f2.team!==loser) continue;
+        var ex=f2.group.position.x-c.x, ez=f2.group.position.z-c.z;
+        if(ex*ex+ez*ez<180*180) applyMoralePenalty(f2, 14, 0.88);
+      }
+    }
+  }
+  if(winner===playerTeam){
+    showBanner('MOMENTUM +'+m.value, 'The North grows fearful — '+m.value+' victory point'+(m.value>1?'s':'')+' (decays without blood)', 2.6);
+  }
+}
+function onZoneLost(loser, winner, zi){
+  var m=(typeof FAC_MOMENTUM!=='undefined')?FAC_MOMENTUM[loser]:null;
+  if(m){ m.value=0; m.streak=0; m.lastWin=0; }
+  /* Kemet: losing an economic heart has real consequences (spec §6) */
+  if(loser==='egypt' && (typeof zoneIncomeBase!=='undefined') && zoneIncomeBase(zi)>=5){
+    if(typeof EC!=='undefined' && EC.egypt){
+      EC.egypt.gold=Math.max(0, EC.egypt.gold-30);
+      if(playerTeam===loser) showBanner('The Granary Burns', 'An economic heart is lost — treasury −30 gold. Rebuild it, or starve for it.', 3);
+    }
+  }
+}
+function updateMomentum(dt){
+  if(typeof FAC_MOMENTUM==='undefined' || !Object.keys(FAC_MOMENTUM).length) return;
+  var now=(typeof gameTime!=='undefined')?gameTime:0;
+  FAC_KEYS.forEach(function(f){
+    var m=FAC_MOMENTUM[f];
+    if(!m||m.value<=0) return;
+    if(now-m.lastWin>90){
+      m.decayAt=m.decayAt||now+30;
+      if(now>=m.decayAt){
+        m.value--; m.streak=m.value; m.decayAt=now+30;
+        if(m.value<=0){ m.streak=0; m.lastWin=0; m.decayAt=0; }
+      }
+    } else m.decayAt=0;
+  });
+}
+
+/* ---------- formation cohesion (Rome & Sparta) ---------- */
+function legionCohesion(e){
+  if(!e||e.dead||typeof eqNear!=='function') return 0;
+  var allies=0;
+  eqNear(e.group.position.x, e.group.position.z, 14, function(o){
+    if(o===e||o.dead||o.passive||o.team!==e.team||o.ranged) return;
+    allies++;
+  });
+  return Math.min(1, allies/6);
+}
+function phalanxFormed(e){
+  if(!e||e.dead||e.ranged||typeof eqNear!=='function') return false;
+  var allies=0;
+  eqNear(e.group.position.x, e.group.position.z, 11, function(o){
+    if(o===e||o.dead||o.passive||o.team!==e.team||o.ranged) return;
+    allies++;
+  });
+  return allies>=4;
+}
+function lastStandActive(e){
+  if(!e||e.team!=='sparta'||e.dead||typeof zones==='undefined') return false;
+  if(!factionHasPassive('sparta','last-stand')) return false;
+  var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
+  var z=zones[zi];
+  if(!z||z.owner!=='sparta'||!(z.core||z.bonus)) return false;
+  var own=0, foe=0;
+  eqNear(e.group.position.x, e.group.position.z, 60, function(o){
+    if(o.dead||o.passive||o.civ) return;
+    if(o.team==='sparta') own++; else foe++;
+  });
+  var mult=(doctrineMod('sparta').laststand)||1;   /* Last Stand doctrine: triggers earlier */
+  return foe>=Math.max(4, own*3*mult);
+}
+
+/* ---------- combat modifiers (hooked into combat.js) ---------- */
+function factionIncomingMod(target, fromX, fromZ){
+  var m=1;
+  var f=target.team;
+  if(!f) return m;
+  var c=factionCfg(f);
+  if(!c) return m;
+  var fx=(typeof abilityFx==='function')?abilityFx(f):null;
+  if(fx&&fx.incoming) m*=fx.incoming;
+  if(f==='sparta'){
+    if(fx&&fx.meleeDef) m*=fx.meleeDef;                 /* 300's Resolve */
+    if(factionHasPassive('sparta','phalanx') && phalanxFormed(target)){
+      var dx=fromX-target.group.position.x, dz=fromZ-target.group.position.z;
+      var front=Math.abs(angDiff(target.yaw, Math.atan2(dx,dz)));
+      if(front<1.1) m*=(doctrineMod('sparta').phalanx===1.45?0.55:0.65);  /* shield wall front */
+      else if(front>2.2) m*=1.15;                                       /* flank/rear exposed */
+    }
+    if(lastStandActive(target)) m*=0.82;
+  }
+  if(f==='rome' && factionHasPassive('rome','legionary-discipline')){
+    var coh=legionCohesion(target);
+    if(coh>0.3) m*=(1-0.10*coh);
+  }
+  if(f==='moldavia' && factionHasPassive('moldavia','frontier-warfare')){
+    var zi=zoneIdxAt(target.group.position.x, target.group.position.z);
+    if(zones[zi] && zones[zi].owner==='moldavia') m*=0.95;   /* homeland footing */
+  }
+  if(f==='vikings' && fx && fx.risk){
+    var own=1, foe=0;
+    eqNear(target.group.position.x, target.group.position.z, 40, function(o){
+      if(o.dead||o.passive||o.civ) return;
+      if(o.team==='vikings') own++; else foe++;
+    });
+    if(foe>=own*2) m*=fx.risk;   /* a raid caught in a trap */
+  }
+  var d=doctrineMod(f);
+  if(d.berserkDef) m*=d.berserkDef;
+  return m;
+}
+function factionOutgoingMod(e){
+  var m=1;
+  var f=e.team;
+  if(!f) return m;
+  var c=factionCfg(f);
+  if(!c) return m;
+  var fx=(typeof abilityFx==='function')?abilityFx(f):null;
+  if(fx){
+    if(fx.dmg) m*=fx.dmg;
+    if(fx.mode==='ambush'||fx.firstStrike){
+      var st=(typeof FAC_ABIL!=='undefined')?FAC_ABIL[f]:null;
+      m*=(st&&st.ambushT>0)?fx.firstStrike:fx.then;
+    }
+  }
+  var d=doctrineMod(f);
+  if(f==='sparta'){
+    if(factionHasPassive('sparta','warrior-culture') && !e.ranged && (e.kind==='spartiatis'||e.kind==='hoplites'||e.kind==='champion')) m*=1.10;
+    if(lastStandActive(e)) m*=1.12;
+    if(d.berserk) m*=d.berserk;
+  }
+  if(f==='rome' && factionHasPassive('rome','legionary-discipline')){
+    var coh=legionCohesion(e);
+    m*=(1+0.10*coh*(d.formation||1));
+  }
+  if(f==='vikings'){
+    var mo=momentumOf('vikings');
+    if(mo>0) m*=(1+0.03*mo);
+  }
+  if(f==='moldavia' && factionHasPassive('moldavia','frontier-warfare')){
+    var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
+    if(zones[zi] && zones[zi].owner==='moldavia') m*=(1+0.08*(d.frontier||1));
+  }
+  if(f==='nippon'){
+    if(factionHasPassive('nippon','precision-training') && e.ranged) m*=1.06;
+    if(factionHasPassive('nippon','specialist-warfare') && (e.kind==='yumi'||e.kind==='sohei')) m*=1.08;
+  }
+  return m;
+}
+function factionCritChance(e){
+  if(!e||e.team!=='nippon') return 0;
+  if(!factionHasPassive('nippon','precision-training')) return 0;
+  var ch=e.ranged?0.12:0.08;
+  var d=doctrineMod('nippon');
+  if(d.precision) ch*=d.precision;
+  var fx=(typeof abilityFx==='function')?abilityFx('nippon'):null;
+  if(fx&&fx.crit) ch*=fx.crit;
+  return ch;
+}
+function factionArrowInacc(e, base){
+  if(e && e.team==='nippon'){
+    if(factionHasPassive('nippon','precision-training')) base*=0.7;
+    var fx=(typeof abilityFx==='function')?abilityFx('nippon'):null;
+    if(fx&&fx.crit) base*=0.6;
+  }
+  return base;
+}
+
+/* ---------- capture resistance (hooked into captureTick) ---------- */
+function factionZoneNeedMod(owner, zi, defenderCount, attackerCount){
+  var m=0;
+  if(!owner||typeof zones==='undefined'||!zones[zi]) return m;
+  var z=zones[zi];
+  if(owner==='rome' && factionHasPassive('rome','roman-engineering')){
+    m+= z.core?8:(z.bonus?4:1);
+    var d=doctrineMod('rome');
+    if(d.fort) m*=d.fort;
+  }
+  if(owner==='sparta' && factionHasPassive('sparta','last-stand') && z.core){
+    if(attackerCount>=Math.max(4, defenderCount*2.1)) m+=10;
+  }
+  if(owner==='moldavia' && factionHasPassive('moldavia','frontier-warfare') && (z.core||z.bonus)) m+=4;
+  if(owner==='egypt' && factionHasPassive('egypt','royal-infrastructure') && z.core) m+=5;
+  if(owner==='nippon'){
+    var t=(typeof zoneTerrain==='function')?zoneTerrain(zi):'plains';
+    if(t==='hills'||t==='forest') m+=4;
+  }
+  if(owner==='vikings') m-=4;   /* the raiding host does not hold stone walls (spec weakness) */
+  return m;
+}
+
+/* ---------- Kemet supply (spec §6) & battle status (spec §19) ---------- */
+function kemetSupplyEfficiency(f){
+  if(typeof incomeRate!=='undefined' && typeof armyUpkeepCost!=='undefined'){
+    var inc=incomeRate(f), up=armyUpkeepCost(f);
+    if(inc>up) return Math.min(100, Math.round(88+Math.min(12,(inc-up)/Math.max(1,inc)*100)));
+    return Math.max(0, Math.round(inc/Math.max(1,up)*70));
+  }
+  return 70;
+}
+function factionBattleStatus(f){
+  if(typeof playerTeam==='undefined' || f!==playerTeam) return null;
+  var c=factionCfg(f);
+  if(!c) return null;
+  var army=(typeof playerUnits==='function')?playerUnits():[];
+  if(f==='rome'){
+    var sum=0, n=0;
+    army.forEach(function(e){ if(!e.ranged){ sum+=legionCohesion(e); n++; } });
+    var pct=n?Math.round(sum/n*100):0;
+    return {title:'LEGION FORMATION', value:'Integrity: '+pct+'%', good:pct>=60};
+  }
+  if(f==='sparta'){
+    var a=(typeof FAC_ABIL!=='undefined')?FAC_ABIL.sparta:null;
+    var label='STEADY';
+    if(a&&a.t>0) label='RESOLVED';
+    else if(player && lastStandActive(player)) label='EXTREME';
+    return {title:'WARRIOR MORALE', value:'Morale: '+label, good:label!=='STEADY'};
+  }
+  if(f==='moldavia'){
+    var active=false;
+    if(player){
+      var zi=zoneIdxAt(player.group.position.x, player.group.position.z);
+      active=!!(zones[zi]&&zones[zi].owner==='moldavia');
+    }
+    return {title:'FRONTIER DEFENSE', value:'Homeland Bonus: '+(active?'ACTIVE':'—'), good:active};
+  }
+  if(f==='vikings'){
+    var m=momentumOf('vikings');
+    return {title:'BATTLE MOMENTUM', value:'Momentum: '+(m>0?'+'+m:'—'), good:m>0};
+  }
+  if(f==='egypt'){
+    var eff=kemetSupplyEfficiency('egypt');
+    return {title:'SUPPLY NETWORK', value:'Supply Efficiency: '+eff+'%', good:eff>=60};
+  }
+  if(f==='nippon'){
+    var a2=(typeof FAC_ABIL!=='undefined')?FAC_ABIL.nippon:null;
+    if(a2&&a2.t>0) return {title:'TACTICAL ADVANTAGE', value:(a2.mode||'tactic').toUpperCase()+' Tactic: ACTIVE', good:true};
+    return {title:'TACTICAL ADVANTAGE', value:'Precision Bonus: READY (F)', good:false};
+  }
+  return null;
+}
+
+
+// SOURCE: src/system/faction-abilities.js
+/* ============================================================
+   faction-abilities.js — signature abilities (spec §2):
+   the active heart of each faction. Each is a risk/reward
+   decision: a burst with a price paid afterwards, gated
+   behind Kingdom Level 5 progression (spec §16).
+   The AI Brain also uses them (spec §21-22).
+   ============================================================ */
+
+var FAC_ABIL={};
+
+function abilityData(f){ var c=factionCfg(f); return c?c.ability:null; }
+function abilityFx(f){
+  var st=(typeof FAC_ABIL!=='undefined'&&FAC_ABIL)?FAC_ABIL[f]:null;
+  var c=factionCfg(f);
+  if(!st||!c||st.t<=0) return null;
+  var ab=c.ability;
+  return (ab.modeFx&&st.mode&&ab.modeFx[st.mode])?ab.modeFx[st.mode]:(ab.fx||null);
+}
+function abilityStrain(f){
+  var st=(typeof FAC_ABIL!=='undefined'&&FAC_ABIL)?FAC_ABIL[f]:null;
+  var c=factionCfg(f);
+  if(!st||!c||st.strain<=0) return null;
+  return c.ability.strain||null;
+}
+function canActivateAbility(f, mode){
+  var c=factionCfg(f);
+  if(!c) return {ok:false, reason:'unknown faction'};
+  var st=FAC_ABIL[f];
+  if(!st) return {ok:false, reason:'no state'};
+  var ab=c.ability;
+  if(factionLevel(f)<5) return {ok:false, reason:'unlocks at Kingdom Level 5 (40 zones)'};
+  if(ab.needsMode&&!mode) return {ok:false, reason:'choose a tactic (ability bar)'};
+  if(ab.modes&&mode&&ab.modes.indexOf(mode)<0) return {ok:false, reason:'unknown tactic'};
+  if(!ab.needsMode&&mode) return {ok:false, reason:'no tactic needed'};
+  if(st.t>0) return {ok:false, reason:'already active ('+Math.ceil(st.t)+'s left)'};
+  if(st.cd>0) return {ok:false, reason:'recovering ('+Math.ceil(st.cd)+'s)'};
+  return {ok:true};
+}
+function tryActivateAbility(f, mode){
+  var chk=canActivateAbility(f, mode);
+  if(!chk.ok) return chk;
+  var c=factionCfg(f), ab=c.ability, st=FAC_ABIL[f];
+  st.t=ab.duration; st.mode=mode||null; st.strain=0;
+  st.ambushT=(ab.modeFx&&ab.modeFx[mode]&&ab.modeFx[mode].ambushT)?ab.modeFx[mode].ambushT:0;
+  if(typeof Snd!=='undefined'){ Snd.tone(300,540,0.5,'square',0.12,0.1); Snd.horn(); }
+  if(typeof playerTeam!=='undefined' && f===playerTeam && player && !player.dead){
+    showBanner(ab.name+(mode?' — '+mode.toUpperCase():''), c.name+': '+ab.desc, 3.2);
+    if(typeof spawnRing!=='undefined') spawnRing(player.group.position.x, player.group.position.y+0.3, player.group.position.z, parseInt(c.color.slice(1),16));
+    if(typeof killFeedMsg!=='undefined') killFeedMsg('Signature', ab.name+(mode?' ('+mode+')':'')+' — '+ab.desc, '#e9c458');
+  }
+  if(typeof updateAbilityBar==='function') updateAbilityBar(true);
+  return {ok:true};
+}
+function updateFactionAbilities(dt){
+  if(typeof FAC_ABIL==='undefined') return;
+  FAC_KEYS.forEach(function(f){
+    var st=FAC_ABIL[f];
+    if(!st) return;
+    var c=factionCfg(f);
+    if(!c) return;
+    if(st.t>0){
+      st.t-=dt;
+      if(st.ambushT>0) st.ambushT-=dt;
+      if(st.t<0) st.t=0;
+      if(st.t<=0){
+        st.t=0; st.mode=null; st.ambushT=0;
+        st.strain=(c.ability.strain&&c.ability.strain.duration)?c.ability.strain.duration:0;
+        st.cd=c.ability.cooldown;
+        if(typeof playerTeam!=='undefined' && f===playerTeam && c.ability.strain){
+          killFeedMsg('Strain', c.ability.strain.desc||'The effort catches up — short-term penalty', '#e0a020');
+        }
+      }
+    } else if(st.strain>0){
+      /* strain only counts down once the burst is over */
+      st.strain=Math.max(0, st.strain-dt);
+    }
+    if(st.cd>0) st.cd=Math.max(0, st.cd-dt);
+  });
+  if(typeof updateAbilityBar!=='undefined') updateAbilityBar(false);
+}
+
+/* ---------- cheap situation intel for AI-controlled kingdoms ---------- */
+function cheapFactionIntel(f){
+  if(typeof zones==='undefined'||!zones.length) return null;
+  var oc=ownedCounts();
+  var T=(typeof TOWNS!=='undefined'&&TOWNS[f])?TOWNS[f]:{x:0,z:0};
+  var army=0, foeNear=0, foeInOwn=0, byFoe={}, i, e;
+  for(i=0;i<entities.length;i++){
+    e=entities[i];
+    if(e.dead||e.passive||e.civ) continue;
+    if(e.team===f){ army++; continue; }
+    var dx=e.group.position.x-T.x, dz=e.group.position.z-T.z;
+    if(dx*dx+dz*dz<260*260) foeNear++;
+    var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
+    if(zi>=0 && zi<zones.length && zones[zi].owner===f) foeInOwn++;
+    byFoe[e.team]=(byFoe[e.team]||0)+1;
+  }
+  var foeMax=0;
+  for(var k in byFoe) if(byFoe[k]>foeMax) foeMax=byFoe[k];
+  var treasury=(typeof EC!=='undefined'&&EC[f])?EC[f].gold:0;
+  var income=(typeof incomeRate!=='function')?0:incomeRate(f);
+  var upkeep=(typeof armyUpkeepCost!=='function')?0:armyUpkeepCost(f);
+  var zi2=zoneIdxAt(T.x,T.z);
+  var t=(typeof zoneTerrain!=='function')?'plains':zoneTerrain(zi2);
+  var tb=(typeof terrainDefenseBonus!=='function')?0:terrainDefenseBonus(t);
+  var tbd=(typeof factionTerrainDefense!=='function')?0:factionTerrainDefense(f,t);
+  return {
+    threat: foeNear>=8?'HIGH':(foeNear>=3?'Medium':'Low'),
+    army:army, foeMax:foeMax, foeNear:foeNear, foeInOwn:foeInOwn,
+    treasury:treasury, income:income, upkeep:upkeep,
+    territory:oc[f]||0,
+    momentum:momentumOf(f),
+    terrainFavor: (tb+tbd)>=15,
+    raidTarget:(foeMax<army && foeMax>0 && threat!=='HIGH')
+  };
+}
+var aiAbilityTickT=4;
+function aiAbilityTick(dt){
+  aiAbilityTickT-=dt;
+  if(aiAbilityTickT>0) return;
+  aiAbilityTickT=4;
+  if(typeof zones==='undefined'||!zones.length) return;
+  FAC_KEYS.forEach(function(f){
+    if(typeof playerTeam!=='undefined' && f===playerTeam) return;  /* the player's brain handles the crown */
+    var st=FAC_ABIL[f];
+    if(!st||st.cd>0||st.t>0) return;
+    if(factionLevel(f)<5) return;
+    var I=cheapFactionIntel(f);
+    if(!I) return;
+    var d=factionAIDecision(f, I);
+    if(d && d.ability===abilityData(f).id){
+      tryActivateAbility(f, d.mode||null);
+    }
+  });
+}
+
+/* ---------- the AI Brain's use of its faction's signature (spec §21/22) ---------- */
+function factionAIDecision(f, I){
+  var c=factionCfg(f);
+  if(!c||!I) return null;
+  var base={decision:'HOLD', deploy:{bg:5,def:40,atk:55}, order:null, ability:null, mode:null};
+  var ab=c.ability.id, threat=I.threat||'Low', army=I.army||0, foeMax=I.foeMax||0;
+  if(f==='rome'){
+    /* Economy → Logistics → Defense → Expansion */
+    if(threat==='HIGH'){
+      base.decision='DEFEND THE LEGIONS'; base.deploy={bg:10,def:65,atk:25}; base.order='defend';
+      if(army<26 && (I.treasury||0)>160) base.ability=ab;          /* need an army NOW */
+    } else if(foeMax>0 && army>foeMax*1.3 && (I.treasury||0)>120){
+      base.decision='ADVANCE (sustainable)'; base.deploy={bg:5,def:35,atk:60}; base.order='attack';
+    } else if((I.territory||0)>=40 && (I.treasury||0)<(I.income||0)*25){
+      base.decision='CONSOLIDATE (administration)';
+    } else base.decision='ORGANIZE THE CAMPAIGN';
+  } else if(f==='sparta'){
+    /* Army Quality → Defense → Strategic Battles → Expansion */
+    if(threat==='HIGH' && foeMax>army*1.5){
+      base.decision='LAST STAND'; base.deploy={bg:10,def:70,atk:20}; base.order='defend'; base.ability=ab;
+    } else if((I.terrainFavor||false) && army>foeMax*1.2 && foeMax>0){
+      base.decision='DECISIVE BATTLE (favorable ground)'; base.deploy={bg:5,def:25,atk:70}; base.order='attack';
+    } else if((I.treasury||0)<(I.income||0)*20){
+      base.decision='CONSERVE (no attrition)';
+    } else base.decision='HOLD THE LINE';
+  } else if(f==='moldavia'){
+    /* Threat Detection → Mobility → Defense → Counterattack */
+    if((I.foeInOwn||0)>0){
+      base.decision='FRONTIER DEFENSE'; base.deploy={bg:8,def:60,atk:32}; base.order='defend';
+      if(I.foeInOwn>=6) base.ability=ab;
+    } else if(threat==='Low' && army>12){
+      base.decision='COUNTERATTACK (reposition)'; base.deploy={bg:5,def:25,atk:70}; base.order='attack';
+    } else base.decision='WATCH THE BORDERS';
+  } else if(f==='vikings'){
+    /* Weak Targets → Raid → Momentum → Expansion */
+    if((I.raidTarget||false)){
+      base.decision='RAID '+((I.targetName||'weak ground')); base.deploy={bg:3,def:15,atk:82}; base.order='attack';
+      if((I.momentum||0)>=2) base.ability=ab;
+    } else if((I.momentum||0)===0 && threat==='HIGH'){
+      base.decision='RETREAT TO SEA (raid impossible)'; base.deploy={bg:8,def:55,atk:37}; base.order='defend';
+    } else { base.decision='HUNT WEAK GROUND'; base.order='attack'; }
+  } else if(f==='egypt'){
+    /* Economy → Infrastructure → Population → Military Expansion */
+    base.ability=ab;   /* the Pharaoh calls the flood whenever it can */
+    if((I.income||0)<=(I.upkeep||0)){
+      base.decision='PROTECT THE HARVEST'; base.deploy={bg:8,def:55,atk:37}; base.order='defend';
+    } else if((I.treasury||0)>260){
+      base.decision='GROW THE EMPIRE'; base.deploy={bg:5,def:40,atk:55}; base.order='attack';
+    } else base.decision='BUILD & TAX';
+  } else if(f==='nippon'){
+    /* Intelligence → Positioning → Specialists → Precision Attacks */
+    if(threat==='HIGH'){
+      base.decision='AMBUSCH THE ASSAULT'; base.deploy={bg:8,def:55,atk:37}; base.order='defend'; base.ability=ab; base.mode='ambush';
+    } else if(foeMax>0 && army>foeMax*1.1){
+      base.decision='PRECISION STRIKE (weak flank)'; base.deploy={bg:5,def:30,atk:65}; base.order='attack'; base.ability=ab; base.mode='precision';
+    } else if(army>=12 && (I.income||0)>0){
+      base.decision='ADVANCE (positioned)'; base.deploy={bg:5,def:30,atk:65}; base.order='attack'; base.ability=ab; base.mode='mobility';
+    } else { base.decision='REPOSITION'; base.ability=ab; base.mode='mobility'; }
+  }
+  return base;
+}
+
+
 // SOURCE: src/characters/custom.js
 /* Extension point, loaded after all factions and before derived textures/recruits.
    Add a class: FACS.moldavia.classes.yourId = { ...complete class definition... };
@@ -4191,12 +5271,21 @@ function incomeTick(){
     for(var i=0;i<zones.length;i++){
       if(zones[i].owner===f){
         var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+        // Kemet — Nile Economy (L1): rich territories pay more
+        if(f==='egypt' && inc>=4 && typeof factionHasPassive==='function' && factionHasPassive('egypt','nile-economy')) inc*=1.12;
+        // faction terrain income affinity (spec §14)
+        if(typeof factionTerrainIncome==='function'){
+          var ti=zoneTerrain(i);
+          inc*=factionTerrainIncome(f, ti);
+        }
         // subtract base 2.2 to avoid double counting, keep site/bonus
         baseIncome+=Math.max(0, inc-2.2);
       }
     }
     // kingdom economy modifier
     baseIncome*= (0.7 + mod.economy*0.3);
+    // faction income identity (doctrines, Flood of the Nile, ability strain)
+    if(typeof factionIncomeMod==='function') baseIncome*=factionIncomeMod(f);
     // anti-snowball supply penalty
     if(typeof supplyPenalty!=='undefined') baseIncome*=supplyPenalty(f);
     // upkeep
@@ -4221,10 +5310,13 @@ function incomeRate(f){
   for(var i=0;i<zones.length;i++){
     if(zones[i].owner===f){
       var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+      if(f==='egypt' && inc>=4 && typeof factionHasPassive==='function' && factionHasPassive('egypt','nile-economy')) inc*=1.12;
+      if(typeof factionTerrainIncome==='function') inc*=factionTerrainIncome(f, zoneTerrain(i));
       r+=Math.max(0, inc-2.2);
     }
   }
   r*= (0.7 + mod.economy*0.3);
+  if(typeof factionIncomeMod==='function') r*=factionIncomeMod(f);
   if(typeof supplyPenalty!=='undefined') r*=supplyPenalty(f);
   var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
   r-=upkeep;
@@ -4257,6 +5349,10 @@ function captureTick(){
     if(typeof terrainDefenseBonus!=='undefined'){
       defBonus+=terrainDefenseBonus(typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
     }
+    // faction terrain affinity of the DEFENDER (spec §14)
+    if(typeof factionTerrainDefense!=='undefined' && zone.owner){
+      defBonus+=factionTerrainDefense(zone.owner, typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
+    }
     if(typeof defensiveBonus!=='undefined') defBonus+=defensiveBonus(zi2)*0.18;
     if(zone.owner){
       var km=typeof kingdomMod!=='undefined'?kingdomMod(zone.owner):null;
@@ -4271,6 +5367,10 @@ function captureTick(){
     FAC_KEYS.forEach(function(f){ if(f!==best && zone.inf[f]>0) zone.inf[f]=Math.max(0,zone.inf[f]-0.5); });
     var need = zone.owner===null ? 4 : (zone.core?16:11);
     need+=defBonus;
+    // faction fortification identity: some walls hold longer than others (spec §2-§7)
+    if(typeof factionZoneNeedMod!=='undefined' && zone.owner){
+      need+=factionZoneNeedMod(zone.owner, zi2, c[zone.owner]||0, bestN);
+    }
     if(zone.owner!==best && zone.inf[best]>=need){
       var old=zone.owner;
       oldOwner=old;
@@ -4279,6 +5379,10 @@ function captureTick(){
       FAC_KEYS.forEach(function(f){ zone.inf[f]=0; });
       flipped=true;
       reassignWorkers(zi2, best, old);
+      /* faction identity events: raid loot & momentum (Norrøn),
+         fear of the north, Kemet's economic consequences */
+      if(typeof onZoneCaptured!=='undefined') onZoneCaptured(best, old, zi2);
+      if(typeof onZoneLost!=='undefined' && old) onZoneLost(old, best, zi2);
       if(old===playerTeam){
         pendingAlerts.push({zi:zi2, t:gameTime});
         killFeedMsg('City lost', (villageNameAt(zi2)?'Satul '+villageNameAt(zi2):'A territory')+' has fallen — attack forces respond once secure', '#e06666');
@@ -4344,9 +5448,18 @@ function launchRaids(){
   FAC_KEYS.forEach(function(team){
     var targets=borderTargets(team);
     if(!targets.length) return;
-    /* prefer neutral zones */
-    var neutral=targets.filter(function(z){ return !zones[z].owner; });
-    var target=choice(neutral.length?neutral:targets);
+    /* each kingdom wants different ground (spec §10): score by identity,
+       then roll among the three best so campaigns stay varied */
+    var ranked;
+    if(typeof factionTargetScore==='function'){
+      ranked=targets.map(function(z){ return {z:z, s:0.5+Math.random()}; });
+      ranked.forEach(function(r){ r.s+=factionTargetScore(team, r.z)*0.25; });
+      ranked.sort(function(a,b){ return b.s-a.s; });
+    } else {
+      ranked=targets.map(function(z){ return {z:z}; });
+    }
+    var top=ranked.slice(0, Math.min(3, ranked.length));
+    var target=choice(top).z;
     var c=zoneCenter(target);
     /* send up to 6 idle units of this team */
     var idle=entities.filter(function(e){
@@ -4362,47 +5475,76 @@ function launchRaids(){
     }
   });
 }
+/* which soldiers each kingdom musters first (spec §11/§21) */
+var FACTION_UNIT_PREFS={
+  rome:['legionarius','veles','sagittarius','princeps'],
+  sparta:['spartiatis','hoplites','champion','toxotes','perioikoi'],
+  moldavia:['viteaz','curtean','lancier','arcas','voievod'],
+  vikings:['berserkr','huscarl','ulfhednar','bogi'],
+  egypt:['warru','setjet','menfyt','medjay'],
+  nippon:['samurai','yumi','ashigaru','sohei']
+};
 function aiBuyTick(){
   FAC_KEYS.forEach(function(team){
     if(team===playerTeam) return;
     var count=0;
     entities.forEach(function(e){ if(!e.dead&&!e.isPlayer&&e.team===team) count++; });
-    if(count>=aiCap(team)) return;
-    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced'};
+    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced', cap:1};
+    if(count>=aiCap(team)*(pers.cap||1)) return;
     var defs=RECRUIT_DEFS[team];
     var keys=Object.keys(defs);
     var gold=EC[team].gold;
-    var reserve=gold*pers.reserve;
+    var reserve=gold*(pers.reserve||0.18);
     var canSpend=gold-reserve;
     if(canSpend<20) return;
-    // economic AI keeps more reserve, aggressive spends
-    var key=keys[randi(0,keys.length-1)];
-    if(pers.name==='Aggressive'){
-      // prefer expensive
+    /* the kingdom musters its own kind of soldier */
+    var prefs=(typeof FACTION_UNIT_PREFS!=='undefined'&&FACTION_UNIT_PREFS[team])?FACTION_UNIT_PREFS[team]:keys;
+    var order=[];
+    prefs.forEach(function(k){ if(defs[k]) order.push(k); });
+    keys.forEach(function(k){ if(order.indexOf(k)<0) order.push(k); });
+    var key=order[0];
+    if(pers.name==='Raider'||pers.name==='Lion'){
+      // raiding hosts & Spartans buy their most expensive effective troop they can afford
       var bestCost=-1;
-      keys.forEach(function(k){
+      order.forEach(function(k){
         var d=defs[k];
         if(d.cost>bestCost && d.cost<=canSpend){ bestCost=d.cost; key=k; }
       });
-    } else if(pers.name==='Economic'){
-      // prefer cheap, keep treasury
+    } else if(pers.name==='Pharaoh'){
+      // the granary hires for volume: the cheapest troop it can afford
       var cheapCost=1e9;
-      keys.forEach(function(k){
+      order.forEach(function(k){
         var d=defs[k];
         if(d.cost<cheapCost && d.cost<=canSpend*0.6){ cheapCost=d.cost; key=k; }
       });
-    } else if(pers.name==='Defensive'){
-      // prefer defenders / infantry
-      var pref=keys.filter(function(k){ return k.indexOf('def')>=0 || k.indexOf('guard')>=0 || k.indexOf('hopl')>=0 || k.indexOf('legion')>=0; });
-      if(pref.length && Math.random()<0.6) key=choice(pref);
+    } else if(pers.name==='Shogun'){
+      // the clans rotate through their specialists, favoring the rare
+      key=order[Math.min(order.length-1, Math.floor(Math.random()*Math.min(3,order.length)))];
+    } else {
+      key=order[randi(0, Math.min(2, order.length-1))];
     }
-    if(key==='champion'&&Math.random()<0.7) key=keys[0];
-    var def=defs[key];
-    if(EC[team].gold>=def.cost && canSpend>=def.cost){
-      EC[team].gold-=def.cost;
+    if(key==='champion'&&Math.random()<0.7) key=order[0];
+    var cost=musterCost(team, key);
+    if(EC[team].gold>=cost && canSpend>=cost){
+      EC[team].gold-=cost;
       doMuster(team, key, false);
+      /* Kemet — Granary (L3): replace losses in volume */
+      if(team==='egypt' && typeof factionHasPassive==='function' && factionHasPassive('egypt','granary')
+         && EC[team].gold>=musterCost(team, order[0]) && (battleLoss[team]||0)>0 && Math.random()<0.5){
+        EC[team].gold-=musterCost(team, order[0]);
+        doMuster(team, order[0], false);
+      }
     }
   });
+}
+/* the true price of a recruit: base cost × faction identity
+   (Sparta's elite training, abilities, doctrines, barracks discount) */
+function musterCost(team, key){
+  if(typeof RECRUIT_DEFS==='undefined'||!RECRUIT_DEFS[team]||!RECRUIT_DEFS[team][key]) return Infinity;
+  var cost=RECRUIT_DEFS[team][key].cost;
+  if(typeof factionRecruitCostMod==='function') cost*=factionRecruitCostMod(team);
+  if(typeof _barracksDiscount!=='undefined' && _barracksDiscount) cost*=Math.max(0.5, 1-_barracksDiscount);
+  return Math.ceil(cost);
 }
 function doMuster(team, key, announce){
   var td=townData[team];
@@ -4418,6 +5560,11 @@ function doMuster(team, key, announce){
       e.hp=e.maxHp;
       e.dmg*=km.infantry;
     }
+  }
+  // faction recruit identity (Sparta Elite Training, doctrines, specialists)
+  if(typeof factionRecruitStrengthMod==='function'){
+    var sm=factionRecruitStrengthMod(team, key);
+    if(sm!==1){ e.maxHp=Math.round(e.maxHp*sm); e.hp=e.maxHp; e.dmg*=sm; }
   }
   // building recruit bonus
   if(typeof zoneBuildingBonus!=='undefined'){
@@ -4461,6 +5608,7 @@ function saveCampaign(){
       kills:kills,
       score:score,
       doctrine:{bg:DOCTRINE.bg, def:DOCTRINE.def, scopes:SCOPES.slice()},
+      facDoc:(typeof FAC_DOCTRINE!=='undefined'&&FAC_DOCTRINE[playerTeam])?FAC_DOCTRINE[playerTeam]:null,
       autobuy:{on:AUTOBUY.on, key:AUTOBUY.key, mode:AUTOBUY.mode},
       afk:afkMode,
       time:Date.now()
@@ -4497,6 +5645,9 @@ function tryRestoreSave(){
       if(data.inf && data.inf[i]) zones[i].inf=data.inf[i];
     }
     if(data.doctrine) applyDoctrineCfg(data.doctrine.bg, data.doctrine.def, data.doctrine.scopes);
+    if(data.facDoc && typeof FAC_DOCTRINE!=='undefined') FAC_DOCTRINE[data.team]=data.facDoc;
+    /* doctrine survives toMenu()/resetFactionSystems via the pending state */
+    window._pendingSaveDoc=(data.team&&data.facDoc)?{team:data.team, doc:data.facDoc}:null;
     if(data.autobuy){
       AUTOBUY.on=!!data.autobuy.on;
       AUTOBUY.key=data.autobuy.key;
@@ -4766,6 +5917,9 @@ function damageEntity(target, dmg, fromX, fromZ, killer){
       if(target.isPlayer) target.stamina=Math.max(0, target.stamina-8);
     }
   }
+  /* faction identity: phalanx front, legion formation, last stand,
+     Great Raid risk, deflection tactics (spec §2-§7) */
+  if(typeof factionIncomingMod!=='undefined') dmg*=factionIncomingMod(target, fromX, fromZ);
   target.hp-=dmg;
   target.flashT=0.12;
   var chest=target.group.position.clone(); chest.y+=1.3;
@@ -4820,8 +5974,11 @@ function beginAttack(e, shotPos){
 function doStrike(e){
   var targets=coneTargets(e, e.range);
   var bash=e.atkKind==='bash';
+  var fmod=typeof factionOutgoingMod!=='undefined'?factionOutgoingMod(e):1;
+  var crit=typeof factionCritChance!=='function'?0:factionCritChance(e);
   for(var i=0;i<targets.length;i++){
-    var dmg=e.dmg*rand(0.9,1.1)*(bash?0.7:1)*(e.rallyT>0?1.2:1);
+    var dmg=e.dmg*rand(0.9,1.1)*(bash?0.7:1)*(e.rallyT>0?1.2:1)*fmod;
+    if(crit>0 && Math.random()<crit) dmg*=1.8;   /* Nippon Precision Training: the blade finds the gap */
     damageEntity(targets[i], dmg, e.group.position.x, e.group.position.z, e);
     if(bash && !targets[i].dead) targets[i].staggerT=0.55;   /* shield bash staggers */
   }
@@ -4846,7 +6003,7 @@ function advanceCombat(e,dt){
     if(!e.sndDone&&phase>=release){
       e.sndDone=true;
       if(e.ranged&&e.shotPos){
-        e.shotDone=true;shootArrowFrom(e,e.shotPos,e.isPlayer?(e.aiming?0.005:0.02):0.045);e.shotPos=null;
+        e.shotDone=true;shootArrowFrom(e,e.shotPos,e.isPlayer?(e.aiming?0.005:0.02):(typeof factionArrowInacc!=='undefined'?factionArrowInacc(e,0.045):0.045));e.shotPos=null;
         if(e.isPlayer)Snd.shoot();
       } else if(!e.ranged&&e.group.visible){Snd.swing();spawnSlash(e);}
     }
@@ -4964,15 +6121,18 @@ function updatePlayer(dt){
     p.dodgeT-=dt;
     moveWithCollision(p.group.position,p.dodgeDir.x*13*dt,p.dodgeDir.z*13*dt,0.46);
   } else if(moving){
-    var terrCost=1;
+    var terrCost=1, terrNow='plains';
     if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
       var zi=zoneIdxAt(p.group.position.x, p.group.position.z);
-      terrCost=terrainMoveCost(zoneTerrain(zi));
+      terrNow=zoneTerrain(zi);
+      terrCost=terrainMoveCost(terrNow);
     }
     var moveMod=1;
     if(typeof kingdomMod!=='undefined' && playerTeam){
       var km=kingdomMod(playerTeam);
       if(km) moveMod=km.move||1;
+      if(typeof factionTerrainMoveCost==='function') terrCost*=factionTerrainMoveCost(playerTeam, terrNow);
+      if(typeof factionMoveMod==='function') moveMod*=factionMoveMod(playerTeam);
     }
     var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1) / terrCost * moveMod;
     moveWithCollision(p.group.position,mx*spd*dt,mz*spd*dt,0.46);
@@ -5267,7 +6427,23 @@ function updateAI(e, dt){
     var tdx=t.group.position.x-ex, tdz=t.group.position.z-ez;
     var tdist=Math.sqrt(tdx*tdx+tdz*tdz)||0.001;
     var aggro=e.ranged?26 : e.order==='halt'?16 : e.order==='attack'?38 : e.order==='defend'?26 : e.order==='area'?30 : 24;
+    /* Norrøn Great Raid: once the raid is over the host cannot break off cleanly */
+    if(e.team==='vikings' && typeof abilityFx==='function'){
+      var fxRaid=abilityFx('vikings');
+      if(fxRaid&&fxRaid.aggro) aggro*=fxRaid.aggro;
+    }
+    /* Nippon Specialist Warfare (L4): scouts see the battle coming */
+    if(e.team==='nippon' && typeof factionHasPassive==='function' && factionHasPassive('nippon','specialist-warfare')) aggro*=1.2;
     if(tdist<aggro) engaged=true;
+  }
+  /* Kemet — Granary (L3): the state replaces its losses; the army recovers out of combat */
+  if(!engaged && e.hp<e.maxHp && e.team==='egypt' && !e.isPlayer
+     && typeof factionHasPassive==='function' && factionHasPassive('egypt','granary')){
+    var rg=2;
+    if(typeof abilityFx==='function'){ var fxK=abilityFx('egypt'); if(fxK&&fxK.regen) rg+=fxK.regen; }
+    var dK=doctrineMod('egypt');
+    if(dK.regen) rg*=dK.regen;
+    e.hp=Math.min(e.maxHp, e.hp+rg*dt);
   }
   var mvx=0, mvz=0, wantYaw=null, spd=e.speed;
   if(engaged && t){
@@ -5323,7 +6499,8 @@ function updateAI(e, dt){
         } else {
           e.patrolT=(e.patrolT||0)-dt;
           if(e.patrolT<=0 || !e.patrol){
-            e.patrolT=rand(6,10);
+            /* Nippon Rapid Deployment (L3): defenders swing to counterattack without lag */
+            e.patrolT=rand(6,10)*((e.team==='nippon'&&typeof factionHasPassive==='function'&&factionHasPassive('nippon','rapid-deployment'))?0.65:1);
             e.patrol=e.post?freeGoal(e.post.x+rand(-48,48),e.post.z+rand(-48,48)):freeGoal(ex+rand(-30,30),ez+rand(-30,30));
           }
           if(e.patrol){
@@ -5450,15 +6627,20 @@ function updateAI(e, dt){
   if(mvl>0.05){
     if(e.staggerT>0){ e.movingAmt=0; e.walkRate=0; return; }
     // terrain move cost + kingdom move modifier
-    var terrCost=1;
+    var terrCost=1, terrNow='plains';
     if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
       var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
-      terrCost=terrainMoveCost(zoneTerrain(zi));
+      terrNow=zoneTerrain(zi);
+      terrCost=terrainMoveCost(terrNow);
     }
     var moveMod=1;
     if(typeof kingdomMod!=='undefined' && e.team){
       var km=kingdomMod(e.team);
       if(km) moveMod=km.move||1;
+      /* faction identity: terrain affinity (spec §14) is a move COST,
+         ability/momentum/doctrine speed (spec §2/§12) is a speed BONUS */
+      if(typeof factionTerrainMoveCost==='function') terrCost*=factionTerrainMoveCost(e.team, terrNow);
+      if(typeof factionMoveMod==='function') moveMod*=factionMoveMod(e.team);
     }
     // morale bonus near king
     var morale= (e.moraleBonusT>0?1.15:1) * (e.dmgMult||1);
@@ -5975,19 +7157,37 @@ function updateHUD(dt){
       +(destStr?'<span class="cmd-n">'+stateLabel+destStr+'</span>':'<span class="cmd-n">'+stateLabel+'</span>')
       +(AUTOBUY.on?'<span class="cmd-n">🤖 '+AUTOBUY.mode+'</span>':'');
   }
-  /* king aura: morale bonus around king */
+  /* king aura: morale bonus around the king — scaled by faction morale identity (spec §13) */
   kingAuraT=Math.max(0, kingAuraT-dt);
   if(kingAuraT>0 && player && !player.dead){
+    var aura=(typeof factionKingAura!=='undefined')?factionKingAura(playerTeam):1;
+    var auraR=28*(1+(aura-1)*0.5);
+    var auraFx=0.95+aura*0.17;
+    if(typeof doctrineMod!=='undefined'){
+      var dP=doctrineMod(playerTeam);
+      if(dP.command){ auraR*=1.2; auraFx*=dP.command; }  /* Nippon Command doctrine */
+    }
     for(var ki=0;ki<entities.length;ki++){
       var ke=entities[ki];
       if(ke.dead||ke.team!==playerTeam||ke.isPlayer) continue;
       var dx=ke.group.position.x-player.group.position.x, dz=ke.group.position.z-player.group.position.z;
-      if(dx*dx+dz*dz<28*28){
+      if(dx*dx+dz*dz<auraR*auraR){
         ke.moraleBonusT=Math.max(ke.moraleBonusT||0, 0.6);
         // small combat buff
-        if(ke.rallyT<=0) ke.dmgMult=1.12;
+        if(ke.rallyT<=0) ke.dmgMult=Math.max(ke.dmgMult||1, auraFx);
       }
     }
+  }
+  /* faction battle feedback chip (spec §19) */
+  if(playerTeam && state===ST.PLAY){
+    var stt=(typeof factionBattleStatus!=='function')?null:factionBattleStatus(playerTeam);
+    var fsEl=$('fac-status');
+    if(stt && fsEl){
+      var docN=(typeof factionDoctrineData!=='function')?null:factionDoctrineData(playerTeam);
+      fsEl.textContent=stt.title+' — '+stt.value+(docN?' · '+docN.name+' doctrine':'');
+      fsEl.className='fac-status'+(stt.good?' good':'');
+    }
+    if(typeof updateAbilityBar==='function') updateAbilityBar(false);
   }
   /* battle horn chip */
   rallyCd=Math.max(0, rallyCd-dt);
@@ -6093,7 +7293,8 @@ function buildRecruitList(){
   Object.keys(defs).forEach(function(k){
     var d=defs[k];
     function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class=\"'+(i<=n?'on':'')+'\"></i>'; return s; }
-    var afford=EC[playerTeam].gold>=d.cost;
+    var price=(typeof musterCost==='function')?musterCost(playerTeam,k):d.cost;
+    var afford=EC[playerTeam].gold>=price;
     var kmBonus='';
     if(mod){
       if(k.indexOf('arch')>=0 || k.indexOf('bow')>=0 || k.indexOf('sag')>=0 || k.indexOf('tox')>=0){
@@ -6101,13 +7302,14 @@ function buildRecruitList(){
       }
       if(mod.infantry!==1) kmBonus=' | Inf ×'+mod.infantry.toFixed(2);
     }
+    if(price!==d.cost) kmBonus+=' | faction price';
     html+='<div class=\"card recruit-card'+(afford?'':' poor')+'\" data-key=\"'+k+'\">'
       +'<div class=\"card-icon\">'+ICONS[d.icon]+'</div>'
       +'<h3>'+d.name+'</h3>'
       +'<p class=\"tag\">'+d.tag+kmBonus+'</p>'
       +'<div class=\"stat\"><label>Health</label><span class=\"pips\">'+pips(d.stats.hp)+'</span></div>'
       +'<div class=\"stat\"><label>Damage</label><span class=\"pips\">'+pips(d.stats.dmg)+'</span></div>'
-      +'<p class=\"cost\">gold '+d.cost+'</p>'
+      +'<p class=\"cost\">gold '+(price!==d.cost?d.cost+' → '+price:price)+'</p>'
       +'</div>';
   });
   list.innerHTML=html;
@@ -6127,7 +7329,8 @@ function buildRecruitList(){
     selA.innerHTML='';
     Object.keys(defs).forEach(function(k){
       var o=document.createElement('option');
-      o.value=k; o.textContent=defs[k].name+' ('+defs[k].cost+'g)';
+      var pc=(typeof musterCost==='function')?musterCost(playerTeam,k):defs[k].cost;
+      o.value=k; o.textContent=defs[k].name+' ('+pc+'g)';
       if(k===AUTOBUY.key) o.selected=true;
       selA.appendChild(o);
     });
@@ -6137,8 +7340,9 @@ function buildRecruitList(){
     card.addEventListener('click', function(){
       var key=card.getAttribute('data-key');
       var d=RECRUIT_DEFS[playerTeam][key];
-      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
-      EC[playerTeam].gold-=d.cost;
+      var buyPrice=(typeof musterCost==='function')?musterCost(playerTeam,key):d.cost;
+      if(EC[playerTeam].gold < buyPrice){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
+      EC[playerTeam].gold-=buyPrice;
       doMuster(playerTeam, key, true);
       buildRecruitList();
     });
@@ -6370,6 +7574,7 @@ function toMenu(){
   clearEntities();
   resetInput();
   afkMode=false; AUTOBUY.on=false; brainGoal=null; brainPath=null;
+  if(typeof resetFactionSystems!=='undefined') resetFactionSystems();
   if(kingHorse) {scene.remove(kingHorse);kingHorse=null;}
   settingsOpen=false; hide($('settings'));
   hide(overlayFaction); hide(overlayRoles); hide(overlayPause); hide(overlayRedeploy); hide(overlayResult);
@@ -6405,8 +7610,21 @@ function beginCampaign(){
   curFaction=selectedFaction;
   resetEconomy();
   resetZones();
+  if(typeof resetFactionSystems!=='undefined') resetFactionSystems();
   kills=0; score=0;
   var F=FACS[playerTeam];
+  /* adopt the kingdom's opening doctrine (spec §12) — unless a save restored one */
+  if(typeof setFactionDoctrine==='function'){
+    var c0=factionCfg(playerTeam);
+    var wantDoc=null;
+    var pending=(typeof window!=='undefined'&&window._pendingSaveDoc&&window._pendingSaveDoc.team===playerTeam)?window._pendingSaveDoc.doc:null;
+    window._pendingSaveDoc=null;
+    var current=(typeof FAC_DOCTRINE!=='undefined')?FAC_DOCTRINE[playerTeam]:null;
+    if(pending&&c0.doctrines.some(function(d){ return d.id===pending; })) wantDoc=pending;
+    else if(current&&c0.doctrines.some(function(d){ return d.id===current; })) wantDoc=current;
+    else wantDoc=c0.doctrines[0].id;
+    setFactionDoctrine(playerTeam, wantDoc);
+  }
   hudEls.roleName.textContent=F.classes[selectedRole].name+' — '+F.classes[selectedRole].en;
   hudEls.roleIcon.innerHTML=ICONS[F.classes[selectedRole].icon];
   hudEls.fac.textContent=F.name+' — rule the world';
@@ -6449,8 +7667,9 @@ function beginCampaign(){
   Snd.setFactionMusic(F.drone, F.mode);
   Snd.startMusic();
   Snd.startDrums();
-  showBanner('The Campaign Begins', F.name+' musters — hold territory, grow rich, conquer', 3);
-  showHint('B = muster troops (spend gold) • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 8);
+  var FID=typeof factionCfg==='function'?factionCfg(playerTeam):null;
+  showBanner('The Campaign Begins — '+F.name, FID?(FID.title+' · '+FID.playstyle):'hold territory, grow rich, conquer', 4);
+  showHint('F = signature ability (unlocks at Kingdom Level 5) • B = muster troops • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 9);
 }
 var kingDeathPenaltyT=0;
 function playerDied(){
@@ -6460,12 +7679,12 @@ function playerDied(){
   state=ST.REDEPLOY;
   kingDeathPenaltyT=45; // 45s penalty after fall: reduced morale/command
   if(document.pointerLockElement) document.exitPointerLock();
-  // apply morale penalty to army
+  // apply morale penalty to army — scaled by faction morale identity (spec §13)
   for(var i=0;i<entities.length;i++){
     var e=entities[i];
     if(!e.dead && e.team===playerTeam && !e.isPlayer){
-      e.moralePenaltyT=30;
-      e.dmgMult=0.78;
+      if(typeof applyMoralePenalty!=='undefined') applyMoralePenalty(e, 30, 0.78);
+      else { e.moralePenaltyT=30; e.dmgMult=0.78; }
     }
   }
   killFeedMsg('King Fallen', 'Morale -22% · Command efficiency -30% for 45s · Treasury ransom', '#e06666');
@@ -6601,24 +7820,45 @@ function buildRoleCards(redeploy){
   });
 }
 
-/* ---------------- faction cards ---------------- */
+/* ---------------- faction cards (identity-aware, spec §17/§18) ---------------- */
 (function buildFactionCards(){
   var grid=$('faction-grid');
   var html='';
   FAC_KEYS.forEach(function(k){
     var F=FACS[k];
-    var cls=Object.keys(F.classes).map(function(ck){ return F.classes[ck].name; }).join(' · ');
+    var c=factionCfg(k);
+    var s=c?c.stats:{military:5,economy:5,mobility:5,defense:5};
+    var fc=c?c.color:'#6e1414';
+    function fbar(label, n){
+      var pct=Math.round(n/10*100);
+      return '<div class="fcard-bar"><label>'+label+'</label><div class="track"><i style="width:'+pct+'%;background:linear-gradient(90deg,'+fc+',#6e1414)"></i></div></div>';
+    }
+    var sig=c?c.passives[c.passives.length-1].name:'';
     html+='<div class="card faction-card" data-fac="'+k+'">'
       +'<div class="card-icon" style="color:'+F.bannerBorder+'">'+FAC_ICONS[F.emblem]+'</div>'
-      +'<h3 style="color:'+F.bannerBg+'">'+F.name+' <span>'+F.sub+'</span></h3>'
-      +'<p class="tag">Kingdom economy · territory war</p>'
-      +'<p class="desc">'+F.desc+'</p>'
-      +'<p class="classes">'+cls+'</p>'
+      +'<h3 style="color:'+fc+'">'+F.name+' <span>'+(c?c.title:'')+' · '+F.sub+'</span></h3>'
+      +'<p class="tag">'+(c?c.playstyle:'Kingdom economy · territory war')+'</p>'
+      +'<div class="fcard-bars">'
+      +fbar('Military', s.military)
+      +fbar('Economy', s.economy)
+      +fbar('Mobility', s.mobility)
+      +fbar('Defense', s.defense)
+      +'</div>'
+      +'<p class="desc">'+(c?('For '+c.designedFor):F.desc)+'</p>'
+      +'<p class="classes">Signature: '+(c?sig:'')+'</p>'
+      +'<button class="fcard-info" data-cx="'+k+'">📖 Full codex</button>'
       +'</div>';
   });
   grid.innerHTML=html;
+  Array.prototype.forEach.call(grid.querySelectorAll('.fcard-info'), function(btn){
+    btn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      openCodex(btn.getAttribute('data-cx'));
+    });
+  });
   Array.prototype.forEach.call(grid.querySelectorAll('.faction-card'), function(card){
-    card.addEventListener('click', function(){
+    card.addEventListener('click', function(ev){
+      if(ev.target.classList && ev.target.classList.contains('fcard-info')) return;
       Snd.init(); Snd.click();
       selectedFaction=card.getAttribute('data-fac');
       toRoles();
@@ -6669,6 +7909,219 @@ function performAction(action){
 $('actionbar').addEventListener('click',function(ev){var button=ev.target.closest('[data-action]');if(button)performAction(button.dataset.action);});
 
 
+// SOURCE: src/ui/codex.js
+/* ============================================================
+   codex.js — the faction codex: the detailed information panel
+   shown when choosing a faction (spec §17/§18). Selection must
+   teach the player what they are choosing.
+   ============================================================ */
+var codexOpen=false, codexFaction=null;
+function facBarRow(label, n, max){
+  max=max||10;
+  var pct=Math.round(n/max*100);
+  return '<div class="cx-bar"><label>'+label+'</label><div class="track"><i style="width:'+pct+'%;background:linear-gradient(90deg,#a8271f,#6e1414)"></i></div><b>'+n+'/'+max+'</b></div>';
+}
+function buildCodex(f, keepOpen){
+  var c=factionCfg(f);
+  if(!c) return;
+  codexFaction=f;
+  codexOpen=true;
+  var sub=(typeof FACS!=='undefined'&&FACS[f]&&FACS[f].sub)?FACS[f].sub:c.title;
+  $('codex-title').innerHTML=c.name+' <span>— '+c.title+' · '+sub+'</span>';
+  /* tabs for every kingdom */
+  var tabs='';
+  FAC_KEYS.forEach(function(k){
+    tabs+='<button data-cx="'+k+'" class="'+(k===f?'sel':'')+'">'+FACTION_IDENTITY[k].name+'</button>';
+  });
+  $('codex-tabs').innerHTML=tabs;
+  Array.prototype.forEach.call($('codex-tabs').querySelectorAll('button'), function(b){
+    b.addEventListener('click', function(){
+      Snd.click();
+      buildCodex(b.getAttribute('data-cx'), true);
+    });
+  });
+  var s=c.stats;
+  var html='';
+  /* designed for (spec §18) */
+  html+='<div class="cx-line" style="font-size:15px;font-style:italic;color:#4a3418">Designed for '+c.designedFor+'</div>';
+  html+='<h4>Playstyle & identity</h4>';
+  html+='<div class="cx-line"><b>Playstyle:</b> '+c.playstyle+'</div>';
+  html+='<div class="cx-bars">'
+    +facBarRow('Military', s.military)
+    +facBarRow('Economy', s.economy)
+    +facBarRow('Mobility', s.mobility)
+    +facBarRow('Defense', s.defense)
+    +'</div>';
+  html+='<div class="cx-line"><b>Specialization:</b> '+c.specialization+'</div>';
+  html+='<div class="cx-line"><b>Military:</b> '+c.militaryIdentity+'</div>';
+  html+='<div class="cx-line"><b>Economy:</b> '+c.economicIdentity+'</div>';
+  html+='<div class="cx-line"><b>Strategy:</b> '+c.strategicIdentity+'</div>';
+  html+='<div class="cx-line"><b>AI Brain:</b> '+c.aiIdentity+'</div>';
+  html+='<h4>Strengths</h4><ul class="cx-strengths">';
+  c.strengths.forEach(function(x){ html+='<li>'+x+'</li>'; });
+  html+='</ul>';
+  html+='<h4>Weaknesses</h4><ul class="cx-weaknesses">';
+  c.weaknesses.forEach(function(x){ html+='<li>'+x+'</li>'; });
+  html+='</ul>';
+  html+='<h4>Passives — Kingdom progression</h4>';
+  c.passives.forEach(function(p){
+    html+='<div class="cx-line"><b>Level '+p.level+':</b> '+p.name+' <span class="cx-level">('+(p.level===5?'unlocks the signature ability':'unlocks at '+[0,0,4,12,24,40][p.level]+' zones)')+'</span><br><span style="color:#5a4830">'+p.desc+'</span></div>';
+  });
+  html+='<h4>Signature ability — '+c.ability.name+' (key F)</h4>';
+  html+='<div class="cx-line">'+c.ability.desc+' <span class="cx-level">Duration '+c.ability.duration+'s · cooldown '+c.ability.cooldown+'s</span></div>';
+  html+='<h4>Doctrines</h4><div>';
+  c.doctrines.forEach(function(d){
+    html+='<span class="cx-doctrine">'+d.name+' — '+d.desc+'</span>';
+  });
+  html+='</div>';
+  html+='<h4>Ground affinity</h4><div>';
+  var terrs=Object.keys(c.terrain);
+  if(terrs.length){
+    terrs.forEach(function(t){
+      var m=c.terrain[t], bits=[];
+      if(m.move) bits.push((m.move>0?'+':'')+m.move+'% move');
+      if(m.def) bits.push((m.def>0?'+':'')+m.def+' defense');
+      if(m.income) bits.push((m.income>0?'+':'')+m.income+'% income');
+      html+='<span class="cx-terr">'+t+' · '+bits.join(' · ')+'</span>';
+    });
+  } else html+='<span class="cx-terr">no special affinity</span>';
+  html+='</div>';
+  html+='<h4>Throne priorities (the AI Brain)</h4>';
+  html+='<div class="cx-line"><b>Decision order:</b> '+c.brain.priorities+'</div>';
+  html+='<div class="cx-line" style="color:#5a4830">'+c.brain.desc+'</div>';
+  html+='<h4>Morale</h4>';
+  html+='<div class="cx-line">'+c.morale.note+'</div>';
+  $('codex-body').innerHTML=html;
+  $('btn-codex-choose').classList.remove('hidden');
+  $('btn-codex-choose').textContent='Take the crown of '+c.name;
+  $('btn-codex-choose').onclick=function(){
+    Snd.click();
+    selectedFaction=codexFaction;
+    hide($('codex'));
+    codexOpen=false;
+    toRoles();
+  };
+  show($('codex'));
+}
+function openCodex(f){
+  Snd.init(); Snd.click();
+  buildCodex(f||FAC_KEYS[0], false);
+}
+function closeCodex(){
+  hide($('codex'));
+  codexOpen=false;
+}
+$('btn-codex-open').addEventListener('click', function(){ openCodex(FAC_KEYS[0]); });
+$('btn-codex-close').addEventListener('click', function(){ Snd.click(); closeCodex(); });
+
+
+// SOURCE: src/ui/abilities.js
+/* ============================================================
+   abilities.js — the HUD ability bar: signature ability (F),
+   clan tactics modes (Nippon), and doctrine selection.
+   Buttons are pure UI: all logic lives in faction-abilities.js.
+   ============================================================ */
+var abilityBarBuilt=false, abilityBarFaction=null;
+function updateAbilityBar(force){
+  var bar=$('ability-bar');
+  if(!bar) return;
+  if(!playerTeam){
+    if(abilityBarBuilt){ bar.innerHTML=''; abilityBarBuilt=false; abilityBarFaction=null; }
+    return;
+  }
+  var c=factionCfg(playerTeam);
+  if(!c) return;
+  var ab=c.ability;
+  var st=(typeof FAC_ABIL!=='undefined')?FAC_ABIL[playerTeam]:null;
+  var lv=(typeof factionLevel==='function')?factionLevel(playerTeam):1;
+  if(abilityBarFaction!==playerTeam||force){
+    abilityBarFaction=playerTeam;
+    var html='';
+    /* signature ability */
+    var abState=(st&&st.t>0)?'ab-active':((st&&st.cd>0)?'ab-cd':'ab-ready');
+    if(lv<5) abState='ab-cd';
+    var abLabel=ab.name;
+    html+='<button data-ab="sig" class="'+abState+'" title="'+ab.desc.replace(/"/g,'&quot;')+'">'+abLabel+' · F</button>';
+    /* Nippon: the four clan tactics */
+    if(ab.modes){
+      html+='<span class="ab-sep"></span>';
+      ab.modes.forEach(function(m){
+        html+='<button data-ab="'+m+'" class="ab-cd" title="Set the '+m.toUpperCase()+' tactic">'+m.charAt(0).toUpperCase()+m.slice(1)+'</button>';
+      });
+    }
+    /* doctrines */
+    html+='<span class="ab-sep"></span>';
+    c.doctrines.forEach(function(d){
+      var on=(FAC_DOCTRINE[playerTeam]===d.id);
+      html+='<button data-doc="'+d.id+'" class="ab-doc'+(on?' on':'')+'" title="'+d.bg+'% guard / '+d.def+'% defend — '+d.desc.replace(/"/g,'&quot;')+'">'+d.name+'</button>';
+    });
+    bar.innerHTML=html;
+    Array.prototype.forEach.call(bar.querySelectorAll('button'), function(b){
+      b.addEventListener('click', function(){
+        Snd.init(); Snd.click();
+        var what=b.getAttribute('data-ab');
+        if(what){
+          if(what!=='sig' && FAC_ABIL[playerTeam]) FAC_ABIL[playerTeam].prepMode=what;
+          var r=tryActivateAbility(playerTeam, what==='sig'?null:what);
+          if(!r.ok && typeof showHint!=='function') return;
+          if(!r.ok) showHint(r.reason, 2.2);
+        } else {
+          var doc=b.getAttribute('data-doc');
+          if(doc) setFactionDoctrine(playerTeam, doc);
+        }
+      });
+    });
+    abilityBarBuilt=true;
+  } else {
+    /* cheap per-tick refresh: states only, no rebuild */
+    var sig=bar.querySelector('button[data-ab="sig"]');
+    if(sig){
+      var cls='ab-ready';
+      if(lv<5) cls='ab-cd';
+      else if(st&&st.t>0) cls='ab-active';
+      else if(st&&st.cd>0) cls='ab-cd';
+      sig.className=cls;
+      var cdTxt=ab.name;
+      if(st&&st.t>0) cdTxt=ab.name+' · '+Math.ceil(st.t)+'s';
+      else if(st&&st.cd>0) cdTxt=ab.name+' · '+Math.ceil(st.cd)+'s';
+      else if(lv<5) cdTxt=ab.name+' · Lv5 (40 zones)';
+      sig.textContent=cdTxt+' · F';
+    }
+    if(ab.modes){
+      ab.modes.forEach(function(m){
+        var btn=bar.querySelector('button[data-ab="'+m+'"]');
+        if(!btn) return;
+        var active=st&&st.t>0&&st.mode===m;
+        btn.className=active?'ab-active':((st&&st.cd>0&&st.t<=0)?'ab-cd':'ab-ready');
+      });
+    }
+    Array.prototype.forEach.call(bar.querySelectorAll('button[data-doc]'), function(b){
+      b.className='ab-doc'+(FAC_DOCTRINE[playerTeam]===b.getAttribute('data-doc')?' on':'');
+    });
+  }
+}
+/* F: the kingdom's signature ability (tactic chooser opens via bar for Nippon) */
+window.addEventListener('keydown', function(ev){
+  if(ev.code!=='KeyF'||ev.repeat) return;
+  if(typeof overlayActive!=='function'||overlayActive()) return;
+  if(typeof editableTarget!=='function'||editableTarget(ev.target)) return;
+  if(state!==ST.PLAY||!player||player.dead||!playerTeam) return;
+  var c=factionCfg(playerTeam);
+  if(!c) return;
+  if(c.ability.needsMode){
+    /* F fires the last chosen clan tactic (defaults to Precision) */
+    var mode=(FAC_ABIL[playerTeam]&&FAC_ABIL[playerTeam].prepMode)?FAC_ABIL[playerTeam].prepMode:c.ability.modes[0];
+    var r2=tryActivateAbility(playerTeam, mode);
+    if(!r2.ok && typeof showHint!=='function') return;
+    if(!r2.ok) showHint(r2.reason, 2.2);
+    return;
+  }
+  var r=tryActivateAbility(playerTeam, null);
+  if(!r.ok && typeof showHint!=='function') return;
+  if(!r.ok) showHint(r.reason, 2.2);
+});
+
+
 // SOURCE: src/system/autobuy.js
 /* ---------------- v9: AUTO-BUY — now with reserve modes ---------------- */
 function autobuyKey(){
@@ -6701,6 +8154,7 @@ function autobuyTick(){
   var defs=RECRUIT_DEFS[playerTeam];
   var key=autobuyKey(), d=defs[key];
   if(!d) return;
+  var cost=(typeof musterCost==='function')?musterCost(playerTeam,key):d.cost;
   var reserve=autobuyReservePct();
   var gold=EC[playerTeam].gold;
   var minKeep=0;
@@ -6710,10 +8164,10 @@ function autobuyTick(){
     minKeep=Math.max(50, inc* (AUTOBUY.mode==='conservative'?18: AUTOBUY.mode==='aggressive'?4:9));
   }
   var effective=gold*(1-reserve);
-  if(effective < d.cost) return;
-  if(gold - d.cost < minKeep && AUTOBUY.mode!=='aggressive') return;
-  if(EC[playerTeam].gold>=d.cost){
-    EC[playerTeam].gold-=d.cost;
+  if(effective < cost) return;
+  if(gold - cost < minKeep && AUTOBUY.mode!=='aggressive') return;
+  if(EC[playerTeam].gold>=cost){
+    EC[playerTeam].gold-=cost;
     doMuster(playerTeam, key, false);
     killFeedMsg('Auto-buy', d.name+' mustered — '+Math.floor(EC[playerTeam].gold)+'g left ('+AUTOBUY.mode+')', '#e9c458');
     if(recruitOpen) buildRecruitList();
@@ -6758,14 +8212,10 @@ var AI_PERSONALITIES={
   defensive:{ name:'Defensive', reserve:0.28, defBias:0.68, atkThreshold:1.45, econFocus:0.4, desc:'Prioritizes capitals & valuable territories, large defense, counterattacks weakened' },
   economic:{ name:'Economic', reserve:0.32, defBias:0.38, atkThreshold:1.35, econFocus:0.85, desc:'Prioritizes income & development, avoids unnecessary wars' }
 };
+/* The AI Brain knows which faction it rules (spec §21): the personality
+   IS the faction's brain configuration from FACTION_IDENTITY. */
 function aiPersonalityFor(team){
-  var mod=typeof kingdomMod!=='undefined'?kingdomMod(team):null;
-  if(!mod) return AI_PERSONALITIES.balanced;
-  if(mod.name==='NORRØN') return AI_PERSONALITIES.aggressive;
-  if(mod.name==='SPARTA') return AI_PERSONALITIES.defensive;
-  if(mod.name==='KEMET') return AI_PERSONALITIES.economic;
-  if(mod.name==='ROMA') return AI_PERSONALITIES.balanced;
-  if(mod.name==='NIPPON') return AI_PERSONALITIES.balanced;
+  if(typeof FACTION_IDENTITY!=='undefined' && FACTION_IDENTITY[team] && FACTION_IDENTITY[team].brain) return FACTION_IDENTITY[team].brain;
   return AI_PERSONALITIES.balanced;
 }
 function toggleAfk(v){
@@ -6881,30 +8331,34 @@ function brainTick(dt){
   if(capitalThreat==='HIGH' || foes>=6) threatLevel='HIGH';
   else if(capitalThreat==='Medium' || foes>=3 || highValueThreat>0) threatLevel='Medium';
 
-  /* --- economic decisions --- */
-  var wantArmy=14+territoryCount*4;
-  if(pers.name==='Aggressive') wantArmy+=8;
-  if(pers.name==='Defensive') wantArmy+=4;
-  if(pers.name==='Economic') wantArmy=Math.max(10, wantArmy-6);
+  /* --- economic decisions (each kingdom sizes and feeds its army differently) --- */
+  var wantArmy=typeof factionWantArmy!=='function'?14+territoryCount*4:factionWantArmy(playerTeam, territoryCount);
   // adjust for treasury & income
-  var reservePct=pers.reserve;
+  var reservePct=pers.reserve||0.18;
   var canSpend=treasury*(1-reservePct);
-  var rich=treasury > 180 + income* (pers.econFocus>0.6?12:8) && netIncome>0;
+  var rich=treasury > 180 + income*(pers.econFocus>0.6?12:8) && netIncome>0;
   if(armySize<wantArmy || rich){
     var defs=RECRUIT_DEFS[playerTeam], best=null;
-    // prefer balanced cost based on personality
-    Object.keys(defs).forEach(function(k){
-      var d2=defs[k];
-      if(EC[playerTeam].gold>=d2.cost){
-        if(!best) best={k:k,d:d2};
-        else {
-          if(pers.name==='Economic' && d2.cost<best.d.cost) best={k:k,d:d2};
-          else if(pers.name!=='Economic' && d2.cost>best.d.cost) best={k:k,d:d2};
-        }
+    var buyOrder=(typeof FACTION_UNIT_PREFS!=='undefined'&&FACTION_UNIT_PREFS[playerTeam])?FACTION_UNIT_PREFS[playerTeam]:Object.keys(defs);
+    // the brain musters its own kind of soldier, priced by faction identity
+    for(var bi=0;bi<buyOrder.length;bi++){
+      var bk=buyOrder[bi];
+      if(!defs[bk]) continue;
+      var bc=musterCost(playerTeam, bk);
+      if(canSpend>=bc && (pers.econFocus||0)<=0.6){
+        best={k:bk,cost:bc}; break;
       }
-    });
-    if(best && canSpend>=best.d.cost){
-      EC[playerTeam].gold-=best.d.cost;
+      if(pers.econFocus>0.6 && EC[playerTeam].gold>=bc && (!best || bc<best.cost)) best={k:bk,cost:bc};
+    }
+    if(!best){
+      var bkeys=Object.keys(defs);
+      for(var bj=0;bj<bkeys.length;bj++){
+        var bcost=musterCost(playerTeam, bkeys[bj]);
+        if(canSpend>=bcost){ best={k:bkeys[bj],cost:bcost}; break; }
+      }
+    }
+    if(best && canSpend>=best.cost){
+      EC[playerTeam].gold-=best.cost;
       doMuster(playerTeam, best.k, false);
     }
   }
@@ -6919,43 +8373,57 @@ function brainTick(dt){
     } else player.blocking=!player.ranged && nd<4.6;
   } else if(player.blocking && !keysShiftHeld()) player.blocking=false;
 
-  /* --- strategic commands --- */
+  /* --- strategic commands: the brain thinks like its own faction (spec §9/§21/§22) --- */
   var roles={bg:0,def:0,atk:0};
   army.forEach(function(e){ if(e.role==='bodyguard')roles.bg++; if(e.role==='defender')roles.def++; if(e.role==='attacker')roles.atk++; });
   brainCmdT-=dt;
   if(brainCmdT<=0){
-    brainCmdT=6 + Math.random()*3;
-    // Decide doctrine based on threat & personality
-    var decision='BALANCED';
-    var deploy={bg:5, def:40, atk:55};
-    if(threatLevel==='HIGH' || capitalThreat==='HIGH'){
-      decision='DEFEND CAPITAL';
-      deploy={bg:10, def:65, atk:25};
-      issueOrder('defend');
-      // set doctrine to defensive
-      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
-    } else if(armySize>maxEnemyArmy*pers.atkThreshold && treasury>100 && threatLevel==='Low'){
-      decision='COUNTERATTACK';
-      deploy={bg:5, def:20, atk:75};
-      if(pers.name==='Aggressive') deploy={bg:3, def:15, atk:82};
-      issueOrder('attack');
-      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
-    } else if(foes>=1 && armySize>=8 && nd<45){
-      decision='ENGAGE';
-      issueOrder('attack');
-    } else if(roles.bg+roles.def===0 && territoryCount>0){
-      decision='SECURE';
-      issueOrder('defend');
-    } else if(armySize>=16+territoryCount*2 && Math.random()< (pers.name==='Aggressive'?0.75:0.45)){
-      decision='ADVANCE';
-      issueOrder('attack');
+    /* Moldova — Adaptive Command (L4): the council meets more often */
+    brainCmdT=(6 + Math.random()*3)*(pers.adaptive||1);
+    var ziHere=player?zoneIdxAt(player.group.position.x,player.group.position.z):-1;
+    var tHere=ziHere>=0?(typeof zoneTerrain!=='function'?'plains':zoneTerrain(ziHere)):'plains';
+    var tbHere=(typeof terrainDefenseBonus==='function')?terrainDefenseBonus(tHere):0;
+    var tbdHere=(typeof factionTerrainDefense==='function')?factionTerrainDefense(playerTeam,tHere):0;
+    var intel={
+      threat:threatLevel, army:armySize, foeMax:maxEnemyArmy, foeNear:foes,
+      foeInOwn: capitalThreat==='HIGH'?6:(capitalThreat==='Medium'?3:0),
+      treasury:treasury, income:income, upkeep:upkeep,
+      territory:territoryCount,
+      momentum:typeof momentumOf==='function'?momentumOf(playerTeam):0,
+      terrainFavor:tbHere+tbdHere>=15,
+      raidTarget:(playerTeam==='vikings' && maxEnemyArmy>0 && maxEnemyArmy<armySize && threatLevel!=='HIGH'),
+      targetName:'the border',
+      outnumbered:maxEnemyArmy>armySize*1.5
+    };
+    var dec=(typeof factionAIDecision==='function')?factionAIDecision(playerTeam, intel):null;
+    var decision=dec?dec.decision:'BALANCED';
+    var deploy=dec&&dec.deploy?dec.deploy:{bg:5,def:40,atk:55};
+    if(dec&&dec.order) issueOrder(dec.order);
+    if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
+    /* the situation decides the doctrine — Moldova switches it fastest (spec §4) */
+    if(playerTeam==='moldavia' && typeof factionHasPassive==='function' && factionHasPassive('moldavia','adaptive-command')){
+      var wantDoc=intel.foeInOwn>0?'frontier':'mobile';
+      if(FAC_DOCTRINE.moldavia!==wantDoc) setFactionDoctrine('moldavia', wantDoc);
     }
-    // log decision for debug
+    /* signature ability — the brain uses it exactly when the faction calls for it (spec §22) */
+    if(dec&&dec.ability&&typeof tryActivateAbility==='function') tryActivateAbility(playerTeam, dec.mode||null);
     if(typeof window!=='undefined') window.__lastBrainDecision={decision:decision, threat:threatLevel, enemy:maxEnemyArmy, ours:armySize, treasury:Math.floor(treasury), capitalThreat:capitalThreat, deploy:deploy};
   }
 
-  /* --- movement: pursue / regroup / retreat --- */
-  var flee=kingHpFrac<0.35 || (foes>=3 && nd<18) || (capitalThreat==='HIGH' && territoryCount<20);
+  /* --- movement: pursue / regroup / retreat (each faction runs under different rules) --- */
+  var flee;
+  if(playerTeam==='sparta'){
+    /* the Lion does not run — it buys time, then falls with the position */
+    flee=kingHpFrac<0.25 && capitalThreat==='HIGH';
+  } else if(playerTeam==='vikings'){
+    /* a raid that can no longer succeed is abandoned without sentiment */
+    flee=kingHpFrac<0.4 || ((typeof momentumOf==='function'?momentumOf('vikings'):0)===0 && foes>=4 && nd<20) || (capitalThreat==='HIGH' && territoryCount<12);
+  } else if(playerTeam==='egypt'){
+    /* the Pharaoh retreats to rebuild, not to fight */
+    flee=kingHpFrac<0.35 || (capitalThreat==='HIGH' && territoryCount<15);
+  } else {
+    flee=kingHpFrac<0.35 || (foes>=3 && nd<18) || (capitalThreat==='HIGH' && territoryCount<20);
+  }
   var gx=null, gz=null;
   if(flee){
     brainSetIntent('RETREAT (HP '+Math.round(kingHpFrac*100)+'%)');
@@ -7080,11 +8548,32 @@ function updSettingsLabels(){
   if(elAtkN) elAtkN.textContent=atkN;
   if(elTot) elTot.textContent=total;
 }
+function renderFacDoctrines(){
+  var row=$('set-fac-doctrines');
+  if(!row||!playerTeam) return;
+  var c=(typeof factionCfg!=='undefined')?factionCfg(playerTeam):null;
+  if(!c) return;
+  row.innerHTML='';
+  c.doctrines.forEach(function(d){
+    var b=document.createElement('button');
+    b.textContent=d.name;
+    b.title=d.bg+'% guard / '+d.def+'% defend — '+d.desc;
+    if(typeof FAC_DOCTRINE!=='undefined' && FAC_DOCTRINE[playerTeam]===d.id) b.className='primary';
+    b.addEventListener('click', function(){
+      Snd.click();
+      setFactionDoctrine(playerTeam, d.id);
+      renderFacDoctrines();
+      syncSettingsUI();
+    });
+    row.appendChild(b);
+  });
+}
 function syncSettingsUI(){
   $('set-bg').value=Math.round(DOCTRINE.bg*100);
   $('set-def').value=Math.round(DOCTRINE.def*100);
   $('set-scopes').value=SCOPES.map(function(s){ return Math.round(s*100); }).join(', ');
   updSettingsLabels();
+  renderFacDoctrines();
 }
 function toggleSettings(open){
   if(!overlaySettings) overlaySettings=$('settings');
@@ -7379,6 +8868,8 @@ function backupScan(){
     if(zi>=0&&zi<zones.length&&zones[zi].owner===playerTeam) hostileZones[zi]=true;
   }
   var called=0;
+  /* Moldova — Local Knowledge (L3): defenders hear raiders from further out */
+  var watchR=(typeof playerTeam!=='undefined'&&playerTeam==='moldavia'&&typeof factionHasPassive!=='undefined'&&factionHasPassive('moldavia','local-knowledge'))?1120:900;
   for(var zi in hostileZones){
     zi=+zi;
     var c=zoneCenter(zi);
@@ -7390,7 +8881,7 @@ function backupScan(){
       var dpz=zoneIdxAt(d.post.x, d.post.z);
       if(dpz===zi) continue;
       var dd=(d.group.position.x-c.x)*(d.group.position.x-c.x)+(d.group.position.z-c.z)*(d.group.position.z-c.z);
-      if(dd<900*900){
+      if(dd<watchR*watchR){
         d.responseGoal={x:c.x+rand(-20,20), z:c.z+rand(-20,20)};
         sent++; called++;
       }
@@ -7411,10 +8902,19 @@ function updateStrategy(dt){
   aiBuyT-=dt;
   if(aiBuyT<=0){ aiBuyT=3.5; aiBuyTick(); }
   backupT-=dt;
-  if(backupT<=0){ backupT=2; backupScan(); }
+  if(backupT<=0){
+    /* Moldova — Local Knowledge (L3): the border watch is faster */
+    backupT=2*((typeof playerTeam!=='undefined'&&playerTeam==='moldavia'&&typeof factionHasPassive!=='undefined'&&factionHasPassive('moldavia','local-knowledge'))?0.7:1);
+    backupScan();
+  }
   autobuyT-=dt;
   if(autobuyT<=0){ autobuyT=1.2; autobuyTick(); }
   if(typeof kingDeathPenaltyT!=='undefined' && kingDeathPenaltyT>0) kingDeathPenaltyT-=dt;
+  /* faction identity ticks: momentum decay, signature abilities, progression */
+  if(typeof updateMomentum!=='undefined') updateMomentum(dt);
+  if(typeof updateFactionAbilities!=='undefined') updateFactionAbilities(dt);
+  if(typeof factionProgressionCheck!=='undefined') factionProgressionCheck();
+  if(typeof aiAbilityTick!=='undefined') aiAbilityTick(dt);
   if(typeof updateBuildingBonuses!=='undefined') updateBuildingBonuses(dt);
   if(typeof autoSaveTick!=='undefined') autoSaveTick(dt);
 }
@@ -7669,10 +9169,24 @@ function groupNextAttackTarget(g){
   var occupied=new Map();
   GROUPS.forEach(function(o){if(o!==g&&o.task==='attack')occupied.set(o.atkTarget,(occupied.get(o.atkTarget)||0)+1);});
   var lead=g.members[0],p=lead?lead.group.position:{x:0,z:0};
+  /* the army hunts the ground its kingdom wants (spec §10): proximity
+     still matters, but faction territory preference steers the pick */
+  var maxD=1, fs=null, cache={};
+  if(typeof factionTargetScore==='function'&&playerTeam){
+    fs=function(zi){ if(!(zi in cache)) cache[zi]=factionTargetScore(playerTeam,zi); return cache[zi]; };
+    for(var ci=0;ci<candidates.length;ci++){
+      var cc=zoneCenter(candidates[ci]);
+      var dd=Math.hypot(cc.x-p.x,cc.z-p.z);
+      if(dd>maxD)maxD=dd;
+      fs(candidates[ci]);
+    }
+  }
   candidates.sort(function(a,b){
     var diff=(occupied.get(a)||0)-(occupied.get(b)||0);if(diff)return diff;
     var ca=zoneCenter(a),cb=zoneCenter(b);
-    return Math.hypot(ca.x-p.x,ca.z-p.z)-Math.hypot(cb.x-p.x,cb.z-p.z);
+    var da=Math.hypot(ca.x-p.x,ca.z-p.z), db=Math.hypot(cb.x-p.x,cb.z-p.z);
+    if(fs) return (db/maxD*0.55+fs(b)*0.45)-(da/maxD*0.55+fs(a)*0.45);
+    return da-db;
   });return candidates[0];
 }
 function assignTasks(mode,areaPt,scopeSel){
@@ -7701,7 +9215,11 @@ function assignTasks(mode,areaPt,scopeSel){
   }
 }
 function groupThink(dt){
-  groupT-=dt;if(groupT>0)return;groupT=2.2;formGroups();
+  groupT-=dt;if(groupT>0)return;
+  var reformT=2.2;
+  /* Nippon Rapid Deployment (L3): the army transitions between states faster */
+  if(typeof factionHasPassive==='function'&&typeof playerTeam!=='undefined'&&playerTeam==='nippon'&&factionHasPassive('nippon','rapid-deployment')) reformT*=0.65;
+  groupT=reformT;formGroups();
   var ids=new Map(),kingThreat=0,maxPower=0;
   GROUPS.forEach(function(g){ids.set(g.id,g);maxPower=Math.max(maxPower,g.power);var lead=g.members[0];g.seen=0;
     eqNear(lead.group.position.x,lead.group.position.z,80,function(t){if(!t.dead&&!t.passive&&!t.civ&&t.kind!=='worker'&&hostileF(t.team,playerTeam))g.seen++;});});
@@ -8447,7 +9965,28 @@ if(manualSimulation){
     arrows:function(){return arrows.filter(function(a){return a.active;}).length;},
     catalog:function(){return {factions:FACS,weapons:WEAPONS};},
     kill:function(e){killEntity(e,null);},
-    animation:function(e){return {walk:e.walk,hip:e.parts.legL.hip.rotation.x,knee:e.parts.legL.knee.rotation.x,shoulder:e.parts.armR.sh.rotation.x,elbow:e.parts.armR.el.rotation.x,body:e.body.position.y};}
+    animation:function(e){return {walk:e.walk,hip:e.parts.legL.hip.rotation.x,knee:e.parts.legL.knee.rotation.x,shoulder:e.parts.armR.sh.rotation.x,elbow:e.parts.armR.el.rotation.x,body:e.body.position.y};},
+    factions:function(){
+      return {
+        identity:FACTION_IDENTITY,
+        level:factionLevel,
+        passive:factionHasPassive,
+        momentum:function(f){return momentumOf(f);},
+        ability:function(f){return FAC_ABIL[f]?{t:FAC_ABIL[f].t,cd:FAC_ABIL[f].cd,strain:FAC_ABIL[f].strain,mode:FAC_ABIL[f].mode}:null;},
+        activate:tryActivateAbility,
+        doctrine:function(f){return FAC_DOCTRINE[f];},
+        setDoctrine:setFactionDoctrine,
+        targetScore:function(f,z){return factionTargetScore(f,z);},
+        terrainMove:function(f,t){return factionTerrainMoveCost(f,t);},
+        terrainDef:function(f,t){return factionTerrainDefense(f,t);},
+        musterCost:musterCost,
+        decision:function(f,i){return factionAIDecision(f,i);},
+        status:function(f){return factionBattleStatus(f);},
+        capture:function(w,l,z){onZoneCaptured(w,l,z);},
+        lost:function(l,w,z){onZoneLost(l,w,z);},
+        codex:function(f){openCodex(f);}
+      };
+    }
   };
 }
 
