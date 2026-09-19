@@ -3,6 +3,7 @@
 validateCharacters();
 resetEconomy();
 resetZones();
+if(typeof resetBattleTracking!=='undefined') resetBattleTracking();
 FAC_KEYS.forEach(buildTown);
 buildLandmarks();
 buildVillages();
@@ -11,7 +12,11 @@ buildSettlements();
 placeRelics();
 snapshotStatics();
 cullTick();
-loadDoctrineCfg();   /* v8.3: must run AFTER DOCTRINE/SCOPES are initialized (end of script) */
+loadDoctrineCfg();
+// try restore save (optional persistence)
+if(typeof tryRestoreSave!=='undefined'){
+  try{ tryRestoreSave(); }catch(e){}
+}
 spawnWildlife();
 spawnChests();
 toMenu();

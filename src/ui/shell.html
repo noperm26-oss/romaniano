@@ -32,6 +32,7 @@
   </div>
   <div id="hud-right">
     <div class="statbox gold"><label>TREASURY ♛</label><b id="gold-n">0</b></div>
+    <div class="statbox"><label>ARMY ⚔</label><b id="army-n">0</b></div>
     <div class="statbox"><label>ZONES</label><b id="zones-n">0</b></div>
     <div class="statbox"><label>KILLS</label><b id="kills-n">0</b></div>
     <div class="statbox"><label>SCORE</label><b id="score-n">0</b></div>
@@ -76,6 +77,9 @@
       Your kingdom earns <b>gold</b> from the territory it holds; spend it at the muster to <b>buy troops</b>.
       Seize the neutral lands, crush the other kings, and own <b>128 of the 256 zones</b> — half the world — to rule it all.</p>
     <button id="btn-begin" class="primary">Take the Throne</button>
+    <div class="row center" style="margin-top:14px">
+      <a id="btn-bugreport" href="https://forms.gle/unx6BqouwTxsNPHu8" target="_blank" rel="noopener" class="bugreport-link">🐛 Bug Reports &amp; Suggestions</a>
+    </div>
     <div class="controls">
       <span><b>WASD</b> move</span><span><b>Mouse</b> look</span><span><b>LMB</b> attack</span>
       <span><b>RMB</b> block / aim</span><span><b>Shift</b> sprint</span><span><b>Space</b> dodge</span>
@@ -128,10 +132,16 @@
 <div id="recruit" class="overlay hidden">
   <div class="panel roles-panel">
     <p class="pretitle">The King's Muster</p>
-    <h2>Buy troops <span>— gold: <b id="recruit-treasury">0</b> · army: <b id="recruit-count">0</b> (they spawn at your hall)</span></h2>
+    <h2>Buy troops <span>— gold: <b id="recruit-treasury">0</b> · army: <b id="recruit-count">0</b> (they spawn at your hall) · upkeep: <b id="recruit-upkeep">0</b>/s</span></h2>
     <div class="row center autobuy-row">
       <button id="btn-autobuy">🤖 Auto-buy: OFF</button>
       <select id="autobuy-sel" title="Troop the auto-buyer keeps hiring"></select>
+      <select id="autobuy-mode" title="Auto-buy strategy">
+        <option value="conservative">Conservative (30% reserve)</option>
+        <option value="balanced" selected>Balanced (15% reserve)</option>
+        <option value="aggressive">Aggressive (5% reserve)</option>
+        <option value="off">Off</option>
+      </select>
     </div>
     <div id="recruit-list" class="scroll-grid"></div>
     <div class="row sticky-row">
@@ -144,13 +154,22 @@
 <div id="warmap" class="overlay hidden">
   <div class="panel warmap-panel">
     <p class="pretitle">Campaign Map</p>
-    <h2>The known world <span>— click: army holds that ground · SHIFT-click: march the king</span></h2>
+    <h2>The known world <span>— click: army holds that ground · SHIFT-click: march the king · hover for info</span></h2>
     <canvas id="warmap-canvas" width="620" height="620"></canvas>
-    <p class="redeploy-note">Click anywhere: your troops go, guard that ground and attack if pressed · SHIFT-click marches the king (your lands, no foes near) · own <b>128 zones</b> to rule it all</p>
+    <div id="warmap-info" class="warmap-info"></div>
+    <p class="redeploy-note">Click anywhere: your troops go, guard that ground and attack if pressed · SHIFT-click marches the king (your lands, no foes near) · own <b>128 zones</b> to rule it all<br>
+    <span style="font-size:11px;color:#8a744c">Terrain affects movement & defense: Forest +20% def, Mountains +35% def, Hills +15%, River +10%, Desert -5% · Roads reduce travel cost</span></p>
     <div class="row">
       <button id="btn-warmap-close">← Back to battle (T)</button>
     </div>
   </div>
+</div>
+
+<!-- battle report -->
+<div id="battle-report" class="battle-report hidden">
+  <h3 id="br-title">BATTLE RESULT</h3>
+  <div id="br-body"></div>
+  <button id="btn-br-close">Close</button>
 </div>
 
 <!-- redeploy -->
@@ -188,28 +207,45 @@
 <!-- webgl error -->
 <div id="webgl-error" class="overlay hidden">
   <div class="panel">
-    <h2>WebGL not available</h2>
-    <p>This game needs WebGL. Please open it in a modern browser (Chrome, Edge, Firefox).</p>
+    <h2>WEBGL INITIALIZATION FAILED</h2>
+    <p style="text-align:left;max-width:520px;margin:0 auto;line-height:1.6">The battlefield cannot be rendered. This game needs WebGL — a graphics system built into modern browsers.<br><br>
+    <b>Possible causes:</b><br>
+    • Hardware acceleration is disabled in your browser settings<br>
+    • Your browser is outdated (Chrome 90+, Edge 90+, Firefox 90+ recommended)<br>
+    • Your GPU driver is outdated or blocked<br>
+    • You opened the file with a very old viewer<br><br>
+    <b>Try:</b><br>
+    • Reload the page<br>
+    • Enable hardware acceleration: Chrome → Settings → System → Use hardware acceleration<br>
+    • Update your browser & GPU driver<br>
+    • Try a different browser (Chrome, Edge, Firefox)<br>
+    </p>
+    <div class="row center" style="margin-top:18px">
+      <button onclick="location.reload()" class="primary">🔄 Retry</button>
+      <a href="https://get.webgl.org/" target="_blank" rel="noopener" class="bugreport-link">Check WebGL</a>
+      <a href="https://caniuse.com/webgl" target="_blank" rel="noopener" class="bugreport-link">Browser Requirements</a>
+    </div>
+    <p class="footnote">If WebGL is supported, the game runs fully offline — your machine is the server. No install needed.</p>
   </div>
 </div>
 
-<!-- v8.3 settings -->
+<!-- v8.3 settings — now with actual numbers, presets, validation -->
 <div id="settings" class="overlay hidden">
   <div class="panel settings-panel">
     <p class="pretitle">The War Council</p>
-    <h2>Army settings <span>— your doctrine, your rules</span></h2>
+    <h2>Army settings <span>— your doctrine, your rules · <b id="set-army-size">0</b> soldiers</span></h2>
     <div class="set-row">
-      <label>👑 Bodyguards <i>protect the king</i></label>
+      <label>👑 Bodyguards <i>protect the king · <span id="set-bg-n">0</span> soldiers</i></label>
       <input type="range" id="set-bg" min="0" max="50" step="1" value="5">
       <b id="set-bg-v">5%</b>
     </div>
     <div class="set-row">
-      <label>🛡 Defenders <i>hold your territory</i></label>
+      <label>🛡 Defenders <i>hold your territory · <span id="set-def-n">0</span> soldiers</i></label>
       <input type="range" id="set-def" min="0" max="90" step="1" value="40">
       <b id="set-def-v">40%</b>
     </div>
     <div class="set-row">
-      <label>⚔ Attackers <i>what remains attacks</i></label>
+      <label>⚔ Attackers <i>what remains attacks · <span id="set-atk-n">0</span> soldiers</i></label>
       <span class="set-atk-bar"></span>
       <b id="set-atk-v">55%</b>
     </div>
@@ -217,16 +253,27 @@
       <label>Q order-scope steps <i>(% of army per keypress, comma-separated)</i></label>
       <input type="text" id="set-scopes" value="100, 75, 50, 25, 10, 5" spellcheck="false">
     </div>
+    <div class="set-row">
+      <label>Doctrine presets</label>
+      <div class="row" style="margin:0;gap:6px">
+        <button id="btn-preset-def" title="10% guard / 65% defend / 25% attack">Defensive</button>
+        <button id="btn-preset-bal" title="5% guard / 40% defend / 55% attack">Balanced</button>
+        <button id="btn-preset-off" title="5% guard / 20% defend / 75% attack">Offensive</button>
+        <button id="btn-preset-em" title="15% guard / 20% defend / 65% attack — emergency">Emergency</button>
+      </div>
+    </div>
     <div class="row center">
       <button id="btn-set-apply" class="primary">Apply</button>
       <button id="btn-set-defaults">Restore defaults (5 / 40 / 55)</button>
       <button id="btn-set-close">← Back</button>
     </div>
-    <p class="set-note">Attackers get what is left: 100 − bodyguards − defenders. Defaults: 5 / 40 / 55, scope 100·75·50·25·10·5. Choices are remembered.</p>
+    <p class="set-note">Attackers get what is left: 100 − bodyguards − defenders. Defaults: 5 / 40 / 55, scope 100·75·50·25·10·5. Invalid combos (>100%) are auto-clamped. Actual soldier counts shown above update live.<br>
+    Roles: Scouts/Ranged/Cavalry are represented by unit types — doctrine percentages apply to all.</p>
   </div>
 </div>
 
 <div id="afk-chip">🤖 AFK — the AI Brain rules: fights, hires, commands · press K to take control</div>
+<div id="context-help" class="context-help hidden"></div>
 
 <script>
 {{VENDOR}}

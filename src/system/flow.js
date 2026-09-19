@@ -94,16 +94,28 @@ function beginCampaign(){
   showBanner('The Campaign Begins', F.name+' musters — hold territory, grow rich, conquer', 3);
   showHint('B = muster troops (spend gold) • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 8);
 }
+var kingDeathPenaltyT=0;
 function playerDied(){
   var p=player;
-  if(p.riding) toggleRide(false);   /* v10: the steed flees when the king falls */
+  if(p.riding) toggleRide(false);
   deathPos.copy(p.group.position);
   state=ST.REDEPLOY;
+  kingDeathPenaltyT=45; // 45s penalty after fall: reduced morale/command
   if(document.pointerLockElement) document.exitPointerLock();
+  // apply morale penalty to army
+  for(var i=0;i<entities.length;i++){
+    var e=entities[i];
+    if(!e.dead && e.team===playerTeam && !e.isPlayer){
+      e.moralePenaltyT=30;
+      e.dmgMult=0.78;
+    }
+  }
+  killFeedMsg('King Fallen', 'Morale -22% · Command efficiency -30% for 45s · Treasury ransom', '#e06666');
+  showBanner('The King has Fallen!', 'Your army wavers — morale and command reduced. Ransom paid, but the war goes on.', 4);
   setTimeout(function(){
     if(state===ST.REDEPLOY){
       $('rd-role').textContent=FACS[playerTeam].classes[selectedRole]?FACS[playerTeam].classes[selectedRole].name:'';
-      var ransom=Math.min(100, Math.floor(EC[playerTeam].gold));
+      var ransom=Math.min(120, Math.floor(EC[playerTeam].gold*0.18));
       EC[playerTeam].gold-=ransom;
       $('rd-cost').textContent=ransom;
       $('rd-tickets').textContent=Math.floor(EC[playerTeam].gold);

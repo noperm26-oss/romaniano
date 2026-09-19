@@ -91,6 +91,11 @@ button:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);}
 button:active{transform:translateY(1px);}
 button.primary{background:linear-gradient(#a8271f,#6e1414);color:#f7ecd0;border-color:#3f0c0a;font-weight:bold;letter-spacing:1px;}
 button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
+.bugreport-link{display:inline-block;font-family:inherit;font-size:15px;padding:10px 22px;border-radius:7px;cursor:pointer;
+  border:2px solid #5a3d1e;background:linear-gradient(#efe2bd,#dcc491);color:#3a2a1a;text-decoration:none;
+  transition:transform 0.08s, box-shadow 0.12s;letter-spacing:0.5px;}
+.bugreport-link:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);color:#3a2a1a;}
+.bugreport-link:active{transform:translateY(1px);}
 .row{display:flex;gap:14px;justify-content:center;margin-top:22px;}
 .row.center{justify-content:center;}
 
@@ -126,7 +131,14 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 .faction-card .classes{font-size:11px;color:#8a6a2f;margin:8px 0 0;font-style:italic;}
 
 /* ---------- recruit & warmap ---------- */
-.warmap-panel{max-width:720px;}
+.warmap-panel{max-width:720px;max-height:92vh;overflow-y:auto;}
+.warmap-panel::-webkit-scrollbar{width:10px;}
+.warmap-panel::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:5px;}
+.warmap-panel::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:5px;}
+#recruit .panel{max-width:860px;max-height:92vh;overflow-y:auto;}
+#recruit .panel::-webkit-scrollbar{width:10px;}
+#recruit .panel::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:5px;}
+#recruit .panel::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:5px;}
 #warmap-canvas{width:620px;height:620px;max-width:100%;border:3px solid #5a3d1e;border-radius:8px;
   cursor:pointer;display:block;margin:10px auto 4px;}
 .recruit-card{position:relative;}
@@ -182,8 +194,23 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 .set-note{margin-top:14px;font-size:12px;color:#7a6a50;font-style:italic;text-align:center;}
 
 /* ---- v9: autobuy row + AFK chip ---- */
-.autobuy-row{margin:2px 0 10px;gap:10px;}
+.autobuy-row{margin:2px 0 10px;gap:10px;flex-wrap:wrap;}
 .autobuy-row select{background:#f2e8d2;border:1px solid #b8a37a;border-radius:6px;padding:7px 10px;font-size:14px;color:#3a2a12;font-family:Georgia,serif;}
+.warmap-info{background:linear-gradient(#fbf3dc,#ecd9ab);border:2px solid #8a6a2f;border-radius:8px;padding:10px 14px;margin:8px auto 0;
+  max-width:600px;text-align:left;font-size:13px;color:#3a2a1a;line-height:1.5;min-height:22px;}
+.warmap-info b{color:#6e1414;}
+.warmap-info .tag{display:inline-block;background:#5a3d1e;color:#f4e8c8;padding:1px 7px;border-radius:4px;font-size:11px;margin-right:6px;}
+.battle-report{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;
+  background:linear-gradient(#f4e8c8,#e6d3a3);border:3px solid #5a3d1e;border-radius:10px;
+  padding:18px 22px;min-width:360px;max-width:520px;box-shadow:0 18px 60px rgba(0,0,0,0.7);text-align:center;color:#3a2a1a;}
+.battle-report h3{margin:0 0 10px;font-size:22px;letter-spacing:2px;color:#6e1414;}
+.battle-report .line{display:flex;justify-content:space-between;margin:5px 0;font-size:14px;}
+.battle-report .line b{color:#3a2a1a;}
+.battle-report button{margin-top:12px;}
+.context-help{position:fixed;left:50%;top:62px;transform:translateX(-50%);z-index:30;
+  background:rgba(20,13,6,0.82);border:1px solid #8a6a2f;border-radius:7px;padding:8px 16px;
+  font-size:12.5px;color:#e6d5a8;pointer-events:none;max-width:80vw;text-align:center;}
+.context-help.hidden{display:none;}
 #afk-chip{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(20px);z-index:30;
   background:linear-gradient(180deg,#3f2f1a,#2a2012);color:#f1dfae;border:1px solid #8a6a2f;border-radius:8px;
   padding:8px 18px;font-size:14px;font-family:Georgia,serif;letter-spacing:0.5px;
@@ -206,10 +233,11 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   .lore-card.show{transform:translateY(0);}
 }
 @media(max-width:700px){
-  #conquest{top:105px;width:190px;}
-  #hud-left{left:8px;top:8px;}#role-badge{padding:6px;}.bars-wrap{width:130px;}#role-name{font-size:11px;}
-  #hud-right{right:8px;top:8px;gap:3px;}.statbox{min-width:30px;padding:4px;font-size:10px;}
-  #minimap{width:120px;height:120px;right:8px;bottom:50px;}
-  .cmdbar{left:8px;bottom:8px;max-width:calc(100vw - 40px);}.cmd-opt{padding:3px;font-size:9px;}
-  .lore-card{max-width:calc(100vw - 175px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
+  #conquest{top:105px;width:170px;}
+  #hud-left{left:8px;top:8px;}#role-badge{padding:6px;}.bars-wrap{width:120px;}#role-name{font-size:11px;}
+  #hud-right{right:8px;top:8px;gap:2px;flex-wrap:wrap;max-width:190px;justify-content:flex-end;}.statbox{min-width:26px;padding:3px 4px;font-size:9px;}
+  #minimap{width:110px;height:110px;right:8px;bottom:50px;}
+  .cmdbar{left:8px;bottom:8px;max-width:calc(100vw - 20px);}.cmd-opt{padding:3px;font-size:9px;}
+  .lore-card{max-width:calc(100vw - 135px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
+  #actionbar{right:8px;top:108px;width:150px;}
 }

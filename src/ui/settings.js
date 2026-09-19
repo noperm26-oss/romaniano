@@ -1,4 +1,4 @@
-/* ---------------- v8.3 settings: doctrine % + scope steps ---------------- */
+/* ---------------- v8.3 settings: doctrine % + scope steps + live counts ---------------- */
 var overlaySettings=null;
 function applyDoctrineCfg(bg, def, scopes){
   bg=Number.isFinite(bg)?bg:0.05;def=Number.isFinite(def)?def:0.4;
@@ -20,11 +20,30 @@ function loadDoctrineCfg(){
     if(s && isFinite(s.bg)) applyDoctrineCfg(s.bg, s.def, s.scopes);
   }catch(e){}
 }
+function armySizeNow(){
+  var n=0;
+  if(typeof entities!=='undefined'){
+    for(var i=0;i<entities.length;i++){
+      var e=entities[i];
+      if(!e.dead && !e.civ && !e.isPlayer && e.team===playerTeam) n++;
+    }
+  }
+  return n;
+}
 function updSettingsLabels(){
   var bg=+$('set-bg').value, def=+$('set-def').value;
+  if(bg+def>100){ def=100-bg; $('set-def').value=def; }
+  var atk=Math.max(0,100-bg-def);
   $('set-bg-v').textContent=bg+'%';
   $('set-def-v').textContent=def+'%';
-  $('set-atk-v').textContent=Math.max(0,100-bg-def)+'%';
+  $('set-atk-v').textContent=atk+'%';
+  var total=armySizeNow();
+  var bgN=Math.round(total*bg/100), defN=Math.round(total*def/100), atkN=Math.max(0,total-bgN-defN);
+  var elBgN=$('set-bg-n'), elDefN=$('set-def-n'), elAtkN=$('set-atk-n'), elTot=$('set-army-size');
+  if(elBgN) elBgN.textContent=bgN;
+  if(elDefN) elDefN.textContent=defN;
+  if(elAtkN) elAtkN.textContent=atkN;
+  if(elTot) elTot.textContent=total;
 }
 function syncSettingsUI(){
   $('set-bg').value=Math.round(DOCTRINE.bg*100);
@@ -62,7 +81,8 @@ $('btn-set-apply').addEventListener('click', function(){
   arr.sort(function(a,b){ return b-a; }); arr=arr.slice(0,8);
   if(!arr.length) arr=[100,75,50,25,10,5];
   applyDoctrineCfg(bg/100, def/100, arr.map(function(v){ return v/100; }));
-  killFeedMsg('Settings', 'Doctrine: '+bg+'% guard / '+def+'% defend / '+atk+'% attack · scope steps: '+arr.join(', ')+'%', '#8ab8e0');
+  var total=armySizeNow();
+  killFeedMsg('Settings', 'Doctrine: '+bg+'% ('+Math.round(total*bg/100)+') guard / '+def+'% ('+Math.round(total*def/100)+') defend / '+atk+'% ('+Math.round(total*atk/100)+') attack · scope: '+arr.join(', ')+'%', '#8ab8e0');
   toggleSettings(false);
 });
 $('btn-set-defaults').addEventListener('click', function(){
@@ -74,3 +94,20 @@ $('btn-set-close').addEventListener('click', function(){ Snd.click(); toggleSett
 $('btn-settings').addEventListener('click', function(){ Snd.click(); toggleSettings(true); });
 $('btn-warmap-close').addEventListener('click', function(){ Snd.click(); toggleWarmap(); });
 $('warmap-canvas').addEventListener('click', marchClick);
+$('warmap-canvas').addEventListener('mousemove', warmapMouseMove);
+// presets
+function setPreset(bg,def){
+  $('set-bg').value=bg; $('set-def').value=def;
+  updSettingsLabels();
+}
+var bDef=$('btn-preset-def'), bBal=$('btn-preset-bal'), bOff=$('btn-preset-off'), bEm=$('btn-preset-em');
+if(bDef) bDef.addEventListener('click', function(){ Snd.click(); setPreset(10,65); });
+if(bBal) bBal.addEventListener('click', function(){ Snd.click(); setPreset(5,40); });
+if(bOff) bOff.addEventListener('click', function(){ Snd.click(); setPreset(5,20); });
+if(bEm) bEm.addEventListener('click', function(){ Snd.click(); setPreset(15,20); });
+
+// battle report close
+var brClose=$('btn-br-close');
+if(brClose) brClose.addEventListener('click', function(){
+  var el=$('battle-report'); if(el) el.classList.add('hidden');
+});

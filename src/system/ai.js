@@ -5,6 +5,8 @@ function updateAI(e, dt){
   e.staggerT-=dt;
   e.retargetT-=dt;
   if(e.rallyT>0) e.rallyT-=dt;
+  if(e.moraleBonusT>0) e.moraleBonusT-=dt;
+  if(e.moralePenaltyT>0){ e.moralePenaltyT-=dt; if(e.moralePenaltyT<=0) e.dmgMult=1; }
   if(e.kind==='wolf'){ updateWolf(e,dt); return; }
   if(e.kind==='villager'){ updateVillager(e,dt); return; }
   if(e.kind==='worker'){ updateWorker(e,dt); return; }
@@ -198,7 +200,20 @@ function updateAI(e, dt){
   if(e.detourT>0){ e.detourT-=dt; if(mvl>0.05){ mvx=Math.sin(e.detourYaw)*mvl; mvz=Math.cos(e.detourYaw)*mvl; } }
   if(mvl>0.05){
     if(e.staggerT>0){ e.movingAmt=0; e.walkRate=0; return; }
-    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1);
+    // terrain move cost + kingdom move modifier
+    var terrCost=1;
+    if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
+      var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
+      terrCost=terrainMoveCost(zoneTerrain(zi));
+    }
+    var moveMod=1;
+    if(typeof kingdomMod!=='undefined' && e.team){
+      var km=kingdomMod(e.team);
+      if(km) moveMod=km.move||1;
+    }
+    // morale bonus near king
+    var morale= (e.moraleBonusT>0?1.15:1) * (e.dmgMult||1);
+    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1) / terrCost * moveMod * morale;
     moveWithCollision(e.group.position,mvx/mvl*Math.min(mvl,1)*sp*dt,mvz/mvl*Math.min(mvl,1)*sp*dt,0.5);
     collideCircle(e.group.position, 0.5);          /* v8: no more phasing through walls */
     var nmove=Math.abs(e.group.position.x-ex)+Math.abs(e.group.position.z-ez);

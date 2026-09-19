@@ -1,4 +1,12 @@
-function aiCap(f){ return 50 + 10*(ownedCounts()[f]||0); }   /* v8: bots scale with territory */
+function aiCap(f){
+  var base=50 + 10*(ownedCounts()[f]||0);
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):null;
+  if(mod){
+    // economic kingdoms sustain larger, aggressive slightly smaller but faster
+    base=Math.round(base*(mod.economy*0.6+0.6));
+  }
+  return base;
+}
 var WIN_ZONES=128;
 var marchCooldown=0;
 
@@ -59,24 +67,50 @@ var captureT=0, incomeT=0, raidT=0, aiBuyT=0, conqHudT=0, cmdHudT=0, backupT=4;
 function incomeTick(){
   var oc=ownedCounts();
   FAC_KEYS.forEach(function(f){
-    EC[f].gold += 2 + oc[f]*0.4;
+    var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):{economy:1};
+    var baseIncome=2 + oc[f]*0.4;
+    // terrain & strategic income per zone
+    for(var i=0;i<zones.length;i++){
+      if(zones[i].owner===f){
+        var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+        // subtract base 2.2 to avoid double counting, keep site/bonus
+        baseIncome+=Math.max(0, inc-2.2);
+      }
+    }
+    // kingdom economy modifier
+    baseIncome*= (0.7 + mod.economy*0.3);
+    // anti-snowball supply penalty
+    if(typeof supplyPenalty!=='undefined') baseIncome*=supplyPenalty(f);
+    // upkeep
+    var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
+    baseIncome-=upkeep*0.35; // upkeep partially from income tick (scaled down, rest via rate)
+    EC[f].gold += baseIncome*0.1; // tick is 0.1s scaled in update loop? keep same factor as before (original added per tick)
+    if(EC[f].gold<0) EC[f].gold=0;
   });
-  for(var i=0;i<zones.length;i++){
-    var z=zones[i];
+  // extra per-zone bonuses (village tribute + sites) kept for compatibility but now via zoneIncomeBase
+  for(var j=0;j<zones.length;j++){
+    var z=zones[j];
     if(!z.owner) continue;
-    if(z.bonus) EC[z.owner].gold += 0.7;              /* village tribute */
-    if(zoneSiteRate) EC[z.owner].gold += zoneSiteRate[i];  /* v8: what the buildings earn */
+    // small extra for bonus already counted, but keep for legacy
+    if(z.bonus) EC[z.owner].gold += 0.07;
+    if(typeof zoneSiteRate!=='undefined' && zoneSiteRate) EC[z.owner].gold += zoneSiteRate[j]*0.1;
   }
 }
 function incomeRate(f){
-  var r=2+(ownedCounts()[f]||0)*0.4;
+  var oc=ownedCounts();
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):{economy:1, upkeep:1};
+  var r=2+(oc[f]||0)*0.4;
   for(var i=0;i<zones.length;i++){
     if(zones[i].owner===f){
-      if(zones[i].bonus) r+=0.7;
-      if(zoneSiteRate) r+=zoneSiteRate[i];
+      var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+      r+=Math.max(0, inc-2.2);
     }
   }
-  return r;
+  r*= (0.7 + mod.economy*0.3);
+  if(typeof supplyPenalty!=='undefined') r*=supplyPenalty(f);
+  var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
+  r-=upkeep;
+  return Math.max(0, r);
 }
 function captureTick(){
   var counts={};
@@ -89,6 +123,8 @@ function captureTick(){
     counts[zi][e.team]=(counts[zi][e.team]||0)+1;
   }
   var flipped=false;
+  var flippedZone=-1;
+  var oldOwner=null;
   for(var z in counts){
     var zi2=+z, zone=zones[zi2];
     var c=counts[z];
@@ -98,11 +134,29 @@ function captureTick(){
       else others+=c[f];
     });
     if(!best || others>=bestN) continue;
+    // terrain defense + kingdom defense + anti-snowball defensive bonus
+    var defBonus=0;
+    if(typeof terrainDefenseBonus!=='undefined'){
+      defBonus+=terrainDefenseBonus(typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
+    }
+    if(typeof defensiveBonus!=='undefined') defBonus+=defensiveBonus(zi2)*0.18;
+    if(zone.owner){
+      var km=typeof kingdomMod!=='undefined'?kingdomMod(zone.owner):null;
+      if(km) defBonus+= (km.defense-1)*6;
+      // building bonus
+      if(typeof zoneBuildingBonus!=='undefined'){
+        var bb=zoneBuildingBonus(zi2);
+        defBonus+=bb.morale*8;
+      }
+    }
     zone.inf[best]+=bestN*0.7;
     FAC_KEYS.forEach(function(f){ if(f!==best && zone.inf[f]>0) zone.inf[f]=Math.max(0,zone.inf[f]-0.5); });
     var need = zone.owner===null ? 4 : (zone.core?16:11);
+    need+=defBonus;
     if(zone.owner!==best && zone.inf[best]>=need){
       var old=zone.owner;
+      oldOwner=old;
+      flippedZone=zi2;
       zone.owner=best;
       FAC_KEYS.forEach(function(f){ zone.inf[f]=0; });
       flipped=true;
@@ -113,9 +167,16 @@ function captureTick(){
       }
       if(playerTeam && best===playerTeam){
         Snd.horn();
-        showBanner(zone.core?'Enemy stronghold taken!':'Territory seized!', 'The banner of '+FACS[best].name+' rises (+income)', 2.4);
+        var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(zi2):0;
+        var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains';
+        showBanner(zone.core?'Enemy stronghold taken!':'Territory seized!',
+          'The banner of '+FACS[best].name+' rises | '+terr+' | +'+inc.toFixed(1)+'g/min', 2.8);
       } else if(playerTeam && old===playerTeam){
         showBanner('Territory lost!', FACS[best].name+' overruns your lands', 2.4);
+      }
+      // finalize battle tracking
+      if(typeof finalizeBattle!=='undefined' && (counts[zi2][playerTeam]||counts[zi2][best])){
+        finalizeBattle(zi2, best);
       }
     }
   }
@@ -189,12 +250,37 @@ function aiBuyTick(){
     var count=0;
     entities.forEach(function(e){ if(!e.dead&&!e.isPlayer&&e.team===team) count++; });
     if(count>=aiCap(team)) return;
+    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced'};
     var defs=RECRUIT_DEFS[team];
     var keys=Object.keys(defs);
+    var gold=EC[team].gold;
+    var reserve=gold*pers.reserve;
+    var canSpend=gold-reserve;
+    if(canSpend<20) return;
+    // economic AI keeps more reserve, aggressive spends
     var key=keys[randi(0,keys.length-1)];
+    if(pers.name==='Aggressive'){
+      // prefer expensive
+      var bestCost=-1;
+      keys.forEach(function(k){
+        var d=defs[k];
+        if(d.cost>bestCost && d.cost<=canSpend){ bestCost=d.cost; key=k; }
+      });
+    } else if(pers.name==='Economic'){
+      // prefer cheap, keep treasury
+      var cheapCost=1e9;
+      keys.forEach(function(k){
+        var d=defs[k];
+        if(d.cost<cheapCost && d.cost<=canSpend*0.6){ cheapCost=d.cost; key=k; }
+      });
+    } else if(pers.name==='Defensive'){
+      // prefer defenders / infantry
+      var pref=keys.filter(function(k){ return k.indexOf('def')>=0 || k.indexOf('guard')>=0 || k.indexOf('hopl')>=0 || k.indexOf('legion')>=0; });
+      if(pref.length && Math.random()<0.6) key=choice(pref);
+    }
     if(key==='champion'&&Math.random()<0.7) key=keys[0];
     var def=defs[key];
-    if(EC[team].gold>=def.cost){
+    if(EC[team].gold>=def.cost && canSpend>=def.cost){
       EC[team].gold-=def.cost;
       doMuster(team, key, false);
     }
@@ -206,13 +292,30 @@ function doMuster(team, key, announce){
   var def=RECRUIT_DEFS[team][key];
   var spot=findFreeSpot(td.hall.door.x+rand(-3,3), td.hall.door.z+rand(-2,2), 0.5);
   var e=spawnCharacter(key, team, spot.x, spot.z);
-  e.order=curOrder||'follow';   /* v9: fresh troops always have a duty (trail the king) */
+  // kingdom infantry modifier
+  if(typeof kingdomMod!=='undefined'){
+    var km=kingdomMod(team);
+    if(km){
+      e.maxHp=Math.round(e.maxHp*km.infantry);
+      e.hp=e.maxHp;
+      e.dmg*=km.infantry;
+    }
+  }
+  // building recruit bonus
+  if(typeof zoneBuildingBonus!=='undefined'){
+    var zi=zoneIdxAt(td.hall.x, td.hall.z);
+    var bb=zoneBuildingBonus(zi);
+    if(bb && bb.recruit) e.dmg*=1+bb.recruit*0.4;
+  }
+  e.order=curOrder||'follow';
   if(e.order==='follow') e.sqIdx=playerUnits().length;
-  if(team===playerTeam) scheduleReform();   /* v11: recruits join a group on the next think */
+  if(team===playerTeam) scheduleReform();
   e.goal={x:td.hall.door.x+rand(-30,30), z:td.hall.door.z+TOWNS_and_front(team)*rand(20,45)};
   if(announce){
     Snd.coin(); Snd.horn();
-    killFeedMsg('Muster', def.name+' joins the army', '#e9c458');
+    var disc=typeof _barracksDiscount!=='undefined'?_barracksDiscount:0;
+    var msg=def.name+' joins the army'+(disc? ' (barracks -'+Math.round(disc*100)+'%)':'');
+    killFeedMsg('Muster', msg, '#e9c458');
   }
   return e;
 }
