@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Age of Warfare — Battlefield of the Ages</title>
+<style>
+{{STYLES}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="hud-left">
+    <div id="role-badge">
+      <span id="role-icon"></span>
+      <div class="bars-wrap">
+        <div id="role-name">—</div>
+        <div class="bar hp"><i id="hp-fill"></i></div>
+        <div class="bar st"><i id="st-fill"></i></div>
+      </div>
+    </div>
+  </div>
+  <!-- conquest bar: % of the map owned by each faction -->
+  <div id="conquest">
+    <div id="conq-title">WORLD DOMINATION</div>
+    <div id="conq-bar"></div>
+    <div id="conq-labels"></div>
+  </div>
+  <div id="hud-right">
+    <div class="statbox gold"><label>TREASURY ♛</label><b id="gold-n">0</b></div>
+    <div class="statbox"><label>ZONES</label><b id="zones-n">0</b></div>
+    <div class="statbox"><label>KILLS</label><b id="kills-n">0</b></div>
+    <div class="statbox"><label>SCORE</label><b id="score-n">0</b></div>
+  </div>
+  <div id="killfeed"></div>
+  <div id="fac-name"></div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="crosshair" class="crosshair"></div>
+  <div id="hint"></div>
+  <div id="rally-chip" class="rally-chip ready">G — Battle Horn · READY</div>
+  <nav id="actionbar" aria-label="Battle controls">
+    <button data-action="follow" title="1">Follow · 1</button><button data-action="defend" title="2">Defend · 2</button>
+    <button data-action="attack" title="3">Advance · 3</button><button data-action="halt" title="4">Halt · 4</button>
+    <button data-action="scope">Scope · Q</button><button data-action="muster">Muster · B</button>
+    <button data-action="map">War map · T</button><button data-action="ride">Mount · H</button>
+    <button data-action="strike">Strike</button><button data-action="block">Block / Aim</button>
+    <button data-action="rally">Rally · G</button><button data-action="afk">AI ruler · K</button>
+    <button data-action="pause">Pause · Esc</button><button data-action="hide">Hide · F2</button>
+  </nav>
+  <div id="cmdbar" class="cmdbar"></div>
+</div>
+
+<!-- landmark lore card -->
+<div id="lore" class="lore-card">
+  <div id="lore-name"></div>
+  <div id="lore-sub"></div>
+  <p id="lore-story"></p>
+</div>
+
+<!-- announcements -->
+<div id="banner"><h2 id="banner-title"></h2><p id="banner-sub"></p></div>
+
+<!-- main menu -->
+<div id="menu" class="overlay">
+  <div class="panel main-panel">
+    <p class="pretitle">Age of Warfare</p>
+    <h1>BATTLEFIELD<span class="of"> of the </span>AGES</h1>
+    <p class="subtitle">A ×1000 world. Four kingdoms. Real buildings. One throne.</p>
+    <p class="lore">Rule as King of <b>Sparta</b>, <b>Rome</b>, <b>Moldova</b>, the <b>Norrøn</b> host,
+      <b>Kemet</b> of the Nile, or <b>Nippon</b> of the warring clans.
+      Six nations, each with its own homeland — halls, temples, barracks and homes you can walk into.
+      Your kingdom earns <b>gold</b> from the territory it holds; spend it at the muster to <b>buy troops</b>.
+      Seize the neutral lands, crush the other kings, and own <b>128 of the 256 zones</b> — half the world — to rule it all.</p>
+    <button id="btn-begin" class="primary">Take the Throne</button>
+    <div class="controls">
+      <span><b>WASD</b> move</span><span><b>Mouse</b> look</span><span><b>LMB</b> attack</span>
+      <span><b>RMB</b> block / aim</span><span><b>Shift</b> sprint</span><span><b>Space</b> dodge</span>
+      <span><b>B</b> muster troops</span><span><b>T</b> war map &amp; march</span><span><b>G</b> battle horn</span><span><b>1-4</b> army orders</span><span><b>Q</b> order scope</span><span><b>K</b> AFK brain</span><span><b>M</b> music</span>
+    </div>
+    <p class="footnote">Historical fiction · runs fully offline · your machine is the server</p>
+  </div>
+</div>
+
+<!-- faction select -->
+<div id="faction" class="overlay hidden">
+  <div class="panel roles-panel">
+    <h2>Choose your kingdom <span>— each rules its own homeland on the vast map</span></h2>
+    <div id="faction-grid" class="fac-grid"></div>
+    <div class="row">
+      <button id="btn-back-fac">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- role select -->
+<div id="roles" class="overlay hidden">
+  <div class="panel roles-panel">
+    <h2 id="roles-title">Choose your soldier <span>— pick a role, then rule</span></h2>
+    <div id="role-grid" class="scroll-grid"></div>
+    <div class="row sticky-row">
+      <button id="btn-back">← Kingdoms</button>
+      <button id="btn-spawn" class="primary" disabled>Choose your soldier</button>
+    </div>
+  </div>
+</div>
+
+<!-- pause -->
+<div id="pause" class="overlay hidden">
+  <div class="panel">
+    <h2>Pauză <span>— the war waits for no king</span></h2>
+    <div class="controls">
+      <span><b>WASD</b> move</span><span><b>Mouse</b> look</span><span><b>LMB</b> attack</span>
+      <span><b>RMB</b> block / aim</span><span><b>B</b> muster troops</span><span><b>T</b> war map</span><span><b>G</b> battle horn</span><span><b>1-4</b> army orders</span><span><b>Q</b> order scope</span><span><b>K</b> AFK brain</span><span><b>M</b> music</span>
+    </div>
+    <div class="row center">
+      <button id="btn-resume" class="primary">Continue — Rule on</button>
+      <button id="btn-settings">⚙ Army settings</button>
+      <button id="btn-abandon">Abandon kingdom</button>
+    </div>
+  </div>
+</div>
+
+<!-- recruit (king's muster) -->
+<div id="recruit" class="overlay hidden">
+  <div class="panel roles-panel">
+    <p class="pretitle">The King's Muster</p>
+    <h2>Buy troops <span>— gold: <b id="recruit-treasury">0</b> · army: <b id="recruit-count">0</b> (they spawn at your hall)</span></h2>
+    <div class="row center autobuy-row">
+      <button id="btn-autobuy">🤖 Auto-buy: OFF</button>
+      <select id="autobuy-sel" title="Troop the auto-buyer keeps hiring"></select>
+    </div>
+    <div id="recruit-list" class="scroll-grid"></div>
+    <div class="row sticky-row">
+      <button id="btn-recruit-close">← Back to battle (B)</button>
+    </div>
+  </div>
+</div>
+
+<!-- campaign map -->
+<div id="warmap" class="overlay hidden">
+  <div class="panel warmap-panel">
+    <p class="pretitle">Campaign Map</p>
+    <h2>The known world <span>— click: army holds that ground · SHIFT-click: march the king</span></h2>
+    <canvas id="warmap-canvas" width="620" height="620"></canvas>
+    <p class="redeploy-note">Click anywhere: your troops go, guard that ground and attack if pressed · SHIFT-click marches the king (your lands, no foes near) · own <b>128 zones</b> to rule it all</p>
+    <div class="row">
+      <button id="btn-warmap-close">← Back to battle (T)</button>
+    </div>
+  </div>
+</div>
+
+<!-- redeploy -->
+<div id="redeploy" class="overlay hidden">
+  <div class="panel roles-panel death-tint">
+    <p class="pretitle red">Cazut — you have fallen in battle</p>
+    <h2>Re_muster <span>— the war goes on (previous role: <b id="rd-role">—</b>)</span></h2>
+    <p class="redeploy-note">The king's ransom cost the treasury <b><span id="rd-cost">0</span> gold</b> · treasury left: <b id="rd-tickets">—</b></p>
+    <div id="role-grid-rd" class="scroll-grid"></div>
+    <div class="row sticky-row">
+      <button id="btn-rd-abandon">Abandon</button>
+      <button id="btn-rd-spawn" class="primary" disabled>Choose your soldier</button>
+    </div>
+  </div>
+</div>
+
+<!-- result -->
+<div id="result" class="overlay hidden">
+  <div class="panel result-panel">
+    <h1 id="res-title" class="res-title">DOMINION</h1>
+    <p id="res-sub" class="subtitle"></p>
+    <div class="death-stats">
+      <div><label>Zones owned</label><b id="res-zones">–</b></div>
+      <div><label>Your kills</label><b id="res-kills">–</b></div>
+      <div><label>Score</label><b id="res-score">–</b></div>
+      <div><label>Treasury</label><b id="res-gold" class="green">–</b></div>
+    </div>
+    <div class="row center">
+      <button id="btn-new" class="primary">New Campaign</button>
+      <button id="btn-menu">Main menu</button>
+    </div>
+  </div>
+</div>
+
+<!-- webgl error -->
+<div id="webgl-error" class="overlay hidden">
+  <div class="panel">
+    <h2>WebGL not available</h2>
+    <p>This game needs WebGL. Please open it in a modern browser (Chrome, Edge, Firefox).</p>
+  </div>
+</div>
+
+<!-- v8.3 settings -->
+<div id="settings" class="overlay hidden">
+  <div class="panel settings-panel">
+    <p class="pretitle">The War Council</p>
+    <h2>Army settings <span>— your doctrine, your rules</span></h2>
+    <div class="set-row">
+      <label>👑 Bodyguards <i>protect the king</i></label>
+      <input type="range" id="set-bg" min="0" max="50" step="1" value="5">
+      <b id="set-bg-v">5%</b>
+    </div>
+    <div class="set-row">
+      <label>🛡 Defenders <i>hold your territory</i></label>
+      <input type="range" id="set-def" min="0" max="90" step="1" value="40">
+      <b id="set-def-v">40%</b>
+    </div>
+    <div class="set-row">
+      <label>⚔ Attackers <i>what remains attacks</i></label>
+      <span class="set-atk-bar"></span>
+      <b id="set-atk-v">55%</b>
+    </div>
+    <div class="set-row set-wide">
+      <label>Q order-scope steps <i>(% of army per keypress, comma-separated)</i></label>
+      <input type="text" id="set-scopes" value="100, 75, 50, 25, 10, 5" spellcheck="false">
+    </div>
+    <div class="row center">
+      <button id="btn-set-apply" class="primary">Apply</button>
+      <button id="btn-set-defaults">Restore defaults (5 / 40 / 55)</button>
+      <button id="btn-set-close">← Back</button>
+    </div>
+    <p class="set-note">Attackers get what is left: 100 − bodyguards − defenders. Defaults: 5 / 40 / 55, scope 100·75·50·25·10·5. Choices are remembered.</p>
+  </div>
+</div>
+
+<div id="afk-chip">🤖 AFK — the AI Brain rules: fights, hires, commands · press K to take control</div>
+
+<script>
+{{VENDOR}}
+</script>
+<script>
+{{GAME}}
+</script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#1a120a;
+  font-family:Georgia,'Times New Roman',serif;color:#f1e4c3;user-select:none;-webkit-user-select:none;}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;}
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:0;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,0) 52%, rgba(130,10,10,0.62) 100%);}
+.hidden{display:none !important;}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;}
+#hud-left{position:absolute;top:16px;left:16px;}
+#role-badge{display:flex;align-items:center;gap:12px;background:rgba(20,13,6,0.72);
+  border:2px solid #8a6a2f;border-radius:8px;padding:10px 14px;}
+#role-icon svg{width:34px;height:34px;color:#e9c458;display:block;}
+#role-name{font-size:14px;letter-spacing:0.5px;color:#f4e6bd;margin-bottom:5px;}
+.bars-wrap{width:180px;}
+.bar{height:11px;background:#241505;border:1px solid #8a6a2f;border-radius:3px;margin-bottom:4px;overflow:hidden;position:relative;}
+.bar i{display:block;height:100%;width:100%;transition:width 0.12s linear;}
+.bar.hp i{background:linear-gradient(#c0392b,#7e1a10);}
+.bar.st i{background:linear-gradient(#58b368,#2e7d43);}
+#hud-right{position:absolute;top:16px;right:16px;display:flex;gap:8px;}
+.statbox{background:rgba(20,13,6,0.72);border:2px solid #8a6a2f;border-radius:8px;padding:8px 12px;text-align:center;min-width:60px;}
+.statbox label{display:block;font-size:9px;letter-spacing:1.5px;color:#b9a06a;}
+.statbox b{font-size:17px;color:#f4e6bd;}
+.statbox.gold b{color:#e9c458;}
+#fac-name{position:absolute;top:74px;right:16px;font-size:12px;font-style:italic;color:#d8c89a;
+  background:rgba(20,13,6,0.55);padding:4px 10px;border-radius:6px;border:1px solid rgba(138,106,47,0.6);}
+
+/* conquest bar: % of the world owned per faction */
+#conquest{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:rgba(20,13,6,0.72);border:2px solid #8a6a2f;border-radius:8px;padding:7px 14px 8px;
+  width:340px;text-align:center;}
+#conq-title{font-size:9px;letter-spacing:2.5px;color:#b9a06a;margin-bottom:5px;}
+#conq-bar{display:flex;height:12px;border-radius:3px;overflow:hidden;border:1px solid #241505;}
+#conq-bar div{height:100%;}
+#conq-labels{display:flex;justify-content:center;gap:10px;font-size:10.5px;margin-top:4px;flex-wrap:wrap;}
+
+/* killfeed */
+#killfeed{position:absolute;top:150px;right:16px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
+.feed-item{background:rgba(20,13,6,0.78);border:1px solid #8a6a2f;border-radius:6px;
+  padding:5px 12px;font-size:12.5px;color:#e6d5a8;transition:opacity 0.6s;display:flex;gap:8px;}
+.feed-item .x{color:#e9c458;}
+.feed-item.fade{opacity:0;}
+
+/* minimap (whole world) */
+#minimap{position:absolute;right:16px;bottom:16px;width:190px;height:190px;
+  border:2px solid #8a6a2f;border-radius:8px;background:#31502a;}
+
+.crosshair{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;
+  background:#f1e4c3;border-radius:50%;box-shadow:0 0 3px rgba(0,0,0,0.8);}
+.crosshair.bow::after{content:'';position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border:1.5px solid rgba(241,228,195,0.75);border-radius:50%;}
+.crosshair.aim::after{content:'';position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;
+  border:1.5px solid rgba(241,228,195,0.85);border-radius:50%;}
+.crosshair.aim{background:#e9c458;}
+#hint{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);
+  background:rgba(20,13,6,0.72);border:1px solid #8a6a2f;border-radius:6px;padding:7px 16px;
+  font-size:13px;color:#e6d5a8;opacity:0;transition:opacity 0.4s;white-space:nowrap;}
+#hint.show{opacity:1;}
+
+/* ---------- banner ---------- */
+#banner{position:fixed;left:0;right:0;top:24%;text-align:center;pointer-events:none;z-index:11;
+  opacity:0;transform:scale(0.92);transition:opacity 0.35s, transform 0.35s;}
+#banner.show{opacity:1;transform:scale(1);}
+#banner h2{font-size:50px;margin:0;letter-spacing:4px;color:#f4e6bd;
+  text-shadow:0 2px 0 #3a2408, 0 0 22px rgba(0,0,0,0.7);}
+#banner p{margin:6px 0 0;font-size:17px;font-style:italic;color:#e0c98e;
+  text-shadow:0 1px 3px rgba(0,0,0,0.8);}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at center, rgba(15,10,4,0.45) 0%, rgba(10,7,3,0.82) 100%);}
+.panel{background:linear-gradient(#f4e8c8,#e6d3a3);color:#3a2a1a;border:3px solid #5a3d1e;border-radius:10px;
+  box-shadow:0 18px 60px rgba(0,0,0,0.7), inset 0 0 60px rgba(120,85,30,0.25);
+  padding:34px 44px;max-width:860px;text-align:center;margin:20px;}
+.panel h1{font-size:60px;margin:6px 0 0;letter-spacing:8px;color:#6e1414;
+  text-shadow:0 1px 0 #c9a227, 0 3px 0 #5a3d1e;}
+.panel h1 .of{font-size:30px;letter-spacing:2px;font-style:italic;color:#8a6a2f;}
+.panel h2{font-size:26px;margin:0 0 6px;color:#5a3d1e;letter-spacing:1px;}
+.panel h2 span{font-size:14.5px;font-style:italic;color:#7a6238;letter-spacing:0;}
+.panel h2 span b{color:#3a2a1a;}
+.pretitle{font-size:13px;letter-spacing:4px;color:#8a6a2f;margin:0;text-transform:uppercase;}
+.pretitle.red{color:#a8271f;}
+.subtitle{font-size:18px;font-style:italic;color:#7a5c28;margin:2px 0 14px;}
+.lore{max-width:620px;margin:0 auto 22px;line-height:1.55;font-size:14.5px;color:#4a3820;}
+.footnote{font-size:11.5px;color:#8a744c;margin:18px 0 0;font-style:italic;}
+.controls{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;margin:18px 0 6px;font-size:13px;color:#4a3820;}
+.controls b{color:#6e1414;}
+button{font-family:inherit;font-size:17px;padding:11px 26px;border-radius:7px;cursor:pointer;
+  border:2px solid #5a3d1e;background:linear-gradient(#efe2bd,#dcc491);color:#3a2a1a;transition:transform 0.08s, box-shadow 0.12s;}
+button:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);}
+button:active{transform:translateY(1px);}
+button.primary{background:linear-gradient(#a8271f,#6e1414);color:#f7ecd0;border-color:#3f0c0a;font-weight:bold;letter-spacing:1px;}
+button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
+.row{display:flex;gap:14px;justify-content:center;margin-top:22px;}
+.row.center{justify-content:center;}
+
+/* ---------- selection panels (scrollable) ---------- */
+.roles-panel{max-width:1060px;max-height:92vh;overflow-y:auto;overflow-x:hidden;}
+.roles-panel::-webkit-scrollbar{width:10px;}
+.roles-panel::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:5px;}
+.roles-panel::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:5px;}
+.scroll-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:13px;margin:16px 0 4px;}
+.sticky-row{position:sticky;bottom:-34px;margin:18px -44px -34px;padding:14px 44px 20px;
+  background:linear-gradient(rgba(230,211,163,0) 0%, #e6d3a3 26%);}
+.death-tint{background:linear-gradient(#e8d3b8,#d4b892);}
+.redeploy-note{font-size:13.5px;color:#6e1414;margin:6px 0 2px;}
+.redeploy-note b{color:#3a2a1a;}
+
+/* ---------- faction & role cards ---------- */
+.fac-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:18px 0 4px;}
+.card{background:linear-gradient(#fbf3dc,#ecd9ab);border:2px solid #8a6a2f;border-radius:9px;padding:14px 12px 12px;
+  cursor:pointer;text-align:center;transition:transform 0.1s, box-shadow 0.12s, border-color 0.12s;}
+.card:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,0.3);}
+.card.sel{border-color:#a8271f;box-shadow:0 0 0 3px rgba(168,39,31,0.45), 0 8px 20px rgba(0,0,0,0.3);}
+.card-icon svg{width:44px;height:44px;color:#6e1414;}
+.card h3{margin:6px 0 2px;font-size:19px;color:#3a2a1a;letter-spacing:1px;}
+.card h3 span{display:block;font-size:11.5px;font-style:italic;font-weight:normal;color:#7a6238;}
+.card .tag{font-size:11.5px;color:#8a6a2f;margin:2px 0 8px;font-style:italic;}
+.stat{display:flex;justify-content:space-between;align-items:center;margin:3px 0;font-size:11px;}
+.stat label{color:#7a6238;letter-spacing:0.5px;}
+.pips i{display:inline-block;width:9px;height:9px;margin-left:2.5px;border-radius:50%;
+  background:#d8c491;border:1px solid #a08a55;}
+.pips i.on{background:#a8271f;border-color:#6e1414;}
+.card .desc{font-size:11.5px;line-height:1.45;color:#5a4830;margin:9px 0 0;text-align:left;}
+.faction-card .desc{text-align:center;font-size:12px;}
+.faction-card .classes{font-size:11px;color:#8a6a2f;margin:8px 0 0;font-style:italic;}
+
+/* ---------- recruit & warmap ---------- */
+.warmap-panel{max-width:720px;}
+#warmap-canvas{width:620px;height:620px;max-width:100%;border:3px solid #5a3d1e;border-radius:8px;
+  cursor:pointer;display:block;margin:10px auto 4px;}
+.recruit-card{position:relative;}
+.recruit-card .cost{margin:8px 0 0;font-size:14px;color:#8a6a2f;font-weight:bold;}
+.recruit-card.poor{opacity:0.55;}
+.recruit-card.poor .cost{color:#a8271f;}
+
+/* ---------- result ---------- */
+.result-panel h1{font-size:58px;letter-spacing:6px;}
+.death-stats{display:flex;gap:26px;justify-content:center;margin:18px 0 4px;flex-wrap:wrap;}
+.death-stats label{display:block;font-size:10px;letter-spacing:2px;color:#8a6a2f;text-transform:uppercase;}
+.death-stats b{font-size:26px;color:#3a2a1a;}
+.death-stats b.green{color:#2e7d43;}
+.death-stats b.red{color:#a8271f;}
+
+/* ---------- v5: landmark lore card ---------- */
+.lore-card{position:fixed;left:50%;bottom:76px;transform:translateX(-50%) translateY(18px);
+  width:min(560px,86vw);background:linear-gradient(180deg,#f5edd8 0%,#e9dcba 100%);
+  border:2px solid #6b5232;border-radius:10px;padding:14px 20px 13px;
+  box-shadow:0 8px 26px rgba(10,8,4,0.45), inset 0 0 40px rgba(120,90,40,0.18);
+  opacity:0;pointer-events:none;transition:opacity 0.35s ease, transform 0.35s ease;z-index:40;text-align:center;}
+.lore-card.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#lore-name{font-size:19px;font-weight:bold;letter-spacing:1px;color:#4a3315;font-family:Georgia,'Times New Roman',serif;}
+#lore-sub{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#8a6a2f;margin-top:2px;}
+#lore-story{font-size:12.5px;line-height:1.55;color:#54402a;margin:8px 0 0;font-style:italic;}
+
+/* ---------- v5: battle horn chip ---------- */
+.rally-chip{position:fixed;right:16px;bottom:16px;padding:7px 14px;border-radius:8px;
+  font-size:11.5px;letter-spacing:1.5px;font-weight:bold;z-index:35;
+  border:2px solid #6b5232;font-family:Georgia,serif;transition:all 0.25s ease;}
+.rally-chip.ready{background:linear-gradient(180deg,#3d3424,#2c2519);color:#e9c458;border-color:#a8842f;
+  box-shadow:0 0 14px rgba(233,196,88,0.35);}
+.rally-chip.cd{background:rgba(30,26,18,0.75);color:#8a7a58;border-color:#4a3f2c;}
+
+/* ---------- v6: army command bar ---------- */
+.cmdbar{position:fixed;left:16px;bottom:16px;display:flex;gap:6px;align-items:center;z-index:35;
+  background:rgba(30,26,18,0.72);border:2px solid #4a3f2c;border-radius:8px;padding:6px 10px;}
+.cmd-opt{font-size:10.5px;letter-spacing:1px;font-weight:bold;color:#8a7a58;padding:3px 8px;border-radius:5px;
+  font-family:Georgia,serif;border:1px solid transparent;}
+.cmd-opt.on{color:#e9c458;background:rgba(233,196,88,0.12);border-color:#a8842f;}
+.cmd-n{font-size:12px;color:#b9a06a;font-weight:bold;margin-left:4px;font-family:Georgia,serif;}
+
+/* ---- v8.3 settings ---- */
+.settings-panel{max-width:640px;}
+.set-row{display:flex;align-items:center;gap:12px;margin:14px 0;}
+.set-row label{flex:0 0 46%;font-weight:bold;color:#4a3418;font-size:15px;}
+.set-row label i{display:block;font-weight:normal;color:#7a6a50;font-size:12px;font-style:italic;}
+.set-row input[type=range]{flex:1;accent-color:#8a271f;}
+.set-row b{width:52px;text-align:right;font-size:17px;color:#8a271f;}
+.set-row.set-wide{flex-direction:column;align-items:stretch;gap:6px;}
+.set-row.set-wide input[type=text]{background:#f2e8d2;border:1px solid #b8a37a;border-radius:6px;padding:8px 10px;font-size:15px;color:#3a2a12;}
+.set-atk-bar{flex:1;height:10px;border-radius:5px;background:linear-gradient(90deg,#e06666,#a8271f);}
+.set-note{margin-top:14px;font-size:12px;color:#7a6a50;font-style:italic;text-align:center;}
+
+/* ---- v9: autobuy row + AFK chip ---- */
+.autobuy-row{margin:2px 0 10px;gap:10px;}
+.autobuy-row select{background:#f2e8d2;border:1px solid #b8a37a;border-radius:6px;padding:7px 10px;font-size:14px;color:#3a2a12;font-family:Georgia,serif;}
+#afk-chip{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(20px);z-index:30;
+  background:linear-gradient(180deg,#3f2f1a,#2a2012);color:#f1dfae;border:1px solid #8a6a2f;border-radius:8px;
+  padding:8px 18px;font-size:14px;font-family:Georgia,serif;letter-spacing:0.5px;
+  opacity:0;pointer-events:none;transition:opacity 0.3s ease, transform 0.3s ease;box-shadow:0 6px 18px rgba(10,8,4,0.5);}
+#afk-chip.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Optional controls: the same actions as keyboard/mouse, no duplicate game logic. */
+#actionbar{position:fixed;right:16px;top:114px;display:grid;grid-template-columns:repeat(2,1fr);gap:4px;pointer-events:auto;width:210px;padding:7px;background:rgba(25,20,13,.82);border:1px solid #8a6a2f;border-radius:7px;}
+#actionbar button{font:11px Georgia,serif;padding:7px 3px;margin:0;min-width:0;background:#352a1b;color:#e9dbb7;border:1px solid #6e5731;border-radius:3px;cursor:pointer;}
+#actionbar button:hover,#actionbar button:focus-visible{background:#594326;outline:1px solid #e9c458;}
+@media(max-width:700px){#actionbar{right:8px;top:105px;width:160px;}#actionbar button{font-size:10px;padding:6px 2px;}.cmdbar{max-width:calc(100vw - 40px);flex-wrap:wrap;}}
+
+@media(max-width:1250px){
+  #conquest{top:103px;left:16px;transform:none;width:260px;box-sizing:border-box;}
+  #conq-labels{font-size:9px;gap:5px;}
+  #hint{bottom:54px;max-width:calc(100vw - 270px);font-size:11px;}
+  #banner h2{font-size:clamp(25px,4vw,48px);letter-spacing:2px;}
+  .cmdbar{max-width:calc(100vw - 265px);}
+  .lore-card{max-width:calc(100vw - 275px);left:16px;transform:translateY(18px);}
+  .lore-card.show{transform:translateY(0);}
+}
+@media(max-width:700px){
+  #conquest{top:105px;width:190px;}
+  #hud-left{left:8px;top:8px;}#role-badge{padding:6px;}.bars-wrap{width:130px;}#role-name{font-size:11px;}
+  #hud-right{right:8px;top:8px;gap:3px;}.statbox{min-width:30px;padding:4px;font-size:10px;}
+  #minimap{width:120px;height:120px;right:8px;bottom:50px;}
+  .cmdbar{left:8px;bottom:8px;max-width:calc(100vw - 40px);}.cmd-opt{padding:3px;font-size:9px;}
+  .lore-card{max-width:calc(100vw - 175px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
+}
