@@ -1,27 +1,42 @@
-/* ---------------- recruit panel (the King's muster) ---------------- */
+/* ---------------- recruit panel (the King's muster) + upkeep + kingdom mods ---------------- */
 var overlayRecruit, recruitOpen=false;
 function buildRecruitList(){
   var F=FACS[playerTeam];
   var defs=RECRUIT_DEFS[playerTeam];
   var list=$('recruit-list');
   var html='';
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(playerTeam):null;
   Object.keys(defs).forEach(function(k){
     var d=defs[k];
-    function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class="'+(i<=n?'on':'')+'"></i>'; return s; }
+    function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class=\"'+(i<=n?'on':'')+'\"></i>'; return s; }
     var afford=EC[playerTeam].gold>=d.cost;
-    html+='<div class="card recruit-card'+(afford?'':' poor')+'" data-key="'+k+'">'
-      +'<div class="card-icon">'+ICONS[d.icon]+'</div>'
+    var kmBonus='';
+    if(mod){
+      if(k.indexOf('arch')>=0 || k.indexOf('bow')>=0 || k.indexOf('sag')>=0 || k.indexOf('tox')>=0){
+        if(mod.name==='Kemet' || mod.name==='Nippon') kmBonus=' | Kingdom bonus';
+      }
+      if(mod.infantry!==1) kmBonus=' | Inf ×'+mod.infantry.toFixed(2);
+    }
+    html+='<div class=\"card recruit-card'+(afford?'':' poor')+'\" data-key=\"'+k+'\">'
+      +'<div class=\"card-icon\">'+ICONS[d.icon]+'</div>'
       +'<h3>'+d.name+'</h3>'
-      +'<p class="tag">'+d.tag+'</p>'
-      +'<div class="stat"><label>Health</label><span class="pips">'+pips(d.stats.hp)+'</span></div>'
-      +'<div class="stat"><label>Damage</label><span class="pips">'+pips(d.stats.dmg)+'</span></div>'
-      +'<p class="cost">gold '+d.cost+'</p>'
+      +'<p class=\"tag\">'+d.tag+kmBonus+'</p>'
+      +'<div class=\"stat\"><label>Health</label><span class=\"pips\">'+pips(d.stats.hp)+'</span></div>'
+      +'<div class=\"stat\"><label>Damage</label><span class=\"pips\">'+pips(d.stats.dmg)+'</span></div>'
+      +'<p class=\"cost\">gold '+d.cost+'</p>'
       +'</div>';
   });
   list.innerHTML=html;
   $('recruit-treasury').textContent=Math.floor(EC[playerTeam].gold);
-  $('recruit-count').textContent=teamAliveCount(playerTeam)+' / unlimited';
-  /* v9: keep the auto-buy troop picker in sync */
+  var army=teamAliveCount(playerTeam);
+  $('recruit-count').textContent=army+' / unlimited';
+  var upkeepEl=$('recruit-upkeep');
+  if(upkeepEl){
+    var up=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+    var inc=typeof incomeRate!=='undefined'?incomeRate(playerTeam):0;
+    upkeepEl.textContent=up.toFixed(1)+' (net '+(inc-up).toFixed(1)+')';
+  }
+  /* keep the auto-buy troop picker in sync */
   var selA=$('autobuy-sel');
   if(selA){
     autobuyKey();
@@ -38,8 +53,7 @@ function buildRecruitList(){
     card.addEventListener('click', function(){
       var key=card.getAttribute('data-key');
       var d=RECRUIT_DEFS[playerTeam][key];
-      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more', 2.5); return; }
-      /* v8.2: player army is UNLIMITED — old TEAM_CAP check removed (bots are capped by aiCap, not you) */
+      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
       EC[playerTeam].gold-=d.cost;
       doMuster(playerTeam, key, true);
       buildRecruitList();

@@ -1,5 +1,6 @@
-/* ---------------- rally: the battle horn (G) ---------------- */
+/* ---------------- rally: the battle horn (G) + king aura ---------------- */
 var rallyCd=0;
+var kingAuraT=0;
 function doRally(){
   if(!player||player.dead||rallyCd>0||state!==ST.PLAY) return false;
   rallyCd=22;
@@ -13,13 +14,14 @@ function doRally(){
     if(dx*dx+dz*dz<55*55){ e.rallyT=8; n++; }
   }
   killFeedMsg('Battle Horn', n+' allies rally — +speed +damage (8s)', '#e9c458');
+  kingAuraT=8;
   return true;
 }
 
 function killFeedMsg(who, what, col){
   var div=document.createElement('div');
   div.className='feed-item';
-  div.innerHTML='<span style="color:'+col+'">'+who+'</span><span class="x">»</span><span>'+what+'</span>';
+  div.innerHTML='<span style="color:'+col+'\">'+who+'</span><span class="x">»</span><span>'+what+'</span>';
   hudEls.feed.prepend(div);
   while(hudEls.feed.children.length>5) hudEls.feed.removeChild(hudEls.feed.lastChild);
   setTimeout(function(){ div.classList.add('fade'); }, 3600);
@@ -39,6 +41,13 @@ function updateHUD(dt){
   var oc=ownedCounts();
   hudEls.zonesN.textContent=playerTeam?oc[playerTeam]:0;
   hudEls.goldN.textContent=playerTeam?Math.floor(EC[playerTeam].gold):0;
+  // army size in top HUD
+  var armyN=0;
+  for(var _ai=0;_ai<entities.length;_ai++){
+    var _ae=entities[_ai];
+    if(!_ae.dead && !_ae.civ && !_ae.isPlayer && _ae.team===playerTeam) armyN++;
+  }
+  if(hudEls.armyN) hudEls.armyN.textContent=armyN;
   if(player && !player.dead){
     hudEls.hp.style.width=(clamp(player.hp/player.maxHp,0,1)*100)+'%';
     hudEls.st.style.width=(clamp(player.stamina,0,100))+'%';
@@ -59,7 +68,7 @@ function updateHUD(dt){
     FAC_KEYS.forEach(function(f){
       var pct=Math.round(oc[f]/total*100);
       segs+='<div style="width:'+(oc[f]/total*100)+'%;background:'+FACS[f].mapColor+'"></div>';
-      labels+='<span style="color:'+FACS[f].mapColor+'">'+FACS[f].name+' '+pct+'%</span>';
+      labels+='<span style="color:'+FACS[f].mapColor+'\">'+FACS[f].name+' '+pct+'%</span>';
     });
     var npct=Math.round(oc.neutral/total*100);
     segs+='<div style="width:'+(oc.neutral/total*100)+'%;background:#6b6257"></div>';
@@ -86,33 +95,100 @@ function updateHUD(dt){
       hudEls.lore.classList.add('show');
     } else { hudEls.lore.classList.remove('show'); loreNow=null; }
   } else { hudEls.lore.classList.remove('show'); }
-  /* army command bar */
+  /* army command bar — now with threat, destination, ETA */
   cmdHudT-=dt;
   if(cmdHudT<=0){
     cmdHudT=0.4;
-    var armyN=0;
-    for(var ai2=0;ai2<entities.length;ai2++){
-      var ae=entities[ai2];
-      if(!ae.dead && !ae.civ && !ae.isPlayer && ae.team===playerTeam) armyN++;
-    }
     var lbl={follow:'1 FOLLOW', defend:'2 DEFEND', attack:'3 ATTACK', halt:'4 HALT', area:'MAP POST'};
     var roles={bodyguard:0,defender:0,attacker:0};
     for(var re2=0;re2<entities.length;re2++){
-      var rn=entities[re2].role;
-      if(rn&&roles[rn]!==undefined) roles[rn]++;
+      var e2=entities[re2];
+      if(!e2.dead && e2.team===playerTeam && e2.role && roles[e2.role]!==undefined) roles[e2.role]++;
     }
     var inc=incomeRate(playerTeam);
+    var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+    var net=(inc-upkeep).toFixed(1);
+    var threat='Low', foesNear=0;
+    if(player){
+      for(var fi=0;fi<entities.length;fi++){
+        var fe=entities[fi];
+        if(!fe.dead && fe.team!==playerTeam && !fe.civ && !fe.passive){
+          var dx=fe.group.position.x-player.group.position.x, dz=fe.group.position.z-player.group.position.z;
+          if(dx*dx+dz*dz<80*80) foesNear++;
+        }
+      }
+      if(foesNear>=8) threat='High';
+      else if(foesNear>=3) threat='Medium';
+    }
+    var destStr='';
+    if(typeof brainGoal!=='undefined' && brainGoal && afkMode){
+      destStr=' → '+brainGoal.x+','+brainGoal.z+' ('+brainGoal.d+'u)';
+    } else if(curOrder==='area' && GROUPS.length){
+      var g0=GROUPS[0];
+      if(g0 && g0.post) destStr=' → '+Math.round(g0.post.x)+','+Math.round(g0.post.z);
+    }
+    var stateLabel=typeof brainIntent!=='undefined'?brainIntent:(curOrder||'IDLE');
     hudEls.cmd.innerHTML='<span class="cmd-scope">'+Math.round(SCOPES[cmdScopeIdx]*100)+'%</span>'
       +['follow','defend','attack','halt','area'].map(function(o){
-        return '<span class="cmd-opt'+(curOrder===o?' on':'')+'">'+lbl[o]+'</span>';
+        return '<span class="cmd-opt'+(curOrder===o?' on':'')+'\">'+lbl[o]+'</span>';
       }).join('')
       +'<span class="cmd-n">⚔ '+armyN+(roles.bodyguard?' 👑'+roles.bodyguard:'')+(roles.defender?' 🛡'+roles.defender:'')+(roles.attacker?' ⚔'+roles.attacker:'')+'</span>'
-      +'<span class="cmd-n">💰+'+inc.toFixed(1)+'/s</span>'
-      +(AUTOBUY.on?'<span class="cmd-n">🤖 auto-buy</span>':'');
+      +'<span class="cmd-n">💰'+(upkeep>0?net+'+':'')+inc.toFixed(1)+'/s'+(upkeep>0?' (upkeep -'+upkeep.toFixed(1)+')':'')+'</span>'
+      +'<span class="cmd-n">⚠ '+threat+(foesNear?' ('+foesNear+')':'')+'</span>'
+      +(destStr?'<span class="cmd-n">'+stateLabel+destStr+'</span>':'<span class="cmd-n">'+stateLabel+'</span>')
+      +(AUTOBUY.on?'<span class="cmd-n">🤖 '+AUTOBUY.mode+'</span>':'');
+  }
+  /* king aura: morale bonus around king */
+  kingAuraT=Math.max(0, kingAuraT-dt);
+  if(kingAuraT>0 && player && !player.dead){
+    for(var ki=0;ki<entities.length;ki++){
+      var ke=entities[ki];
+      if(ke.dead||ke.team!==playerTeam||ke.isPlayer) continue;
+      var dx=ke.group.position.x-player.group.position.x, dz=ke.group.position.z-player.group.position.z;
+      if(dx*dx+dz*dz<28*28){
+        ke.moraleBonusT=Math.max(ke.moraleBonusT||0, 0.6);
+        // small combat buff
+        if(ke.rallyT<=0) ke.dmgMult=1.12;
+      }
+    }
   }
   /* battle horn chip */
   rallyCd=Math.max(0, rallyCd-dt);
   hudEls.rally.textContent=rallyCd>0?('G — Battle Horn · '+Math.ceil(rallyCd)+'s'):('G — Battle Horn · READY');
   hudEls.rally.className=rallyCd>0?'rally-chip cd':'rally-chip ready';
+
+  // battle report auto-hide
+  if(typeof lastBattle!=='undefined' && lastBattle.time>0){
+    var brEl=$('battle-report');
+    if(brEl && !brEl.classList.contains('hidden')){
+      if(gameTime - lastBattle.time > 6){
+        brEl.classList.add('hidden');
+      }
+    }
+  }
+  // contextual help
+  var ctxEl=$('context-help');
+  if(ctxEl){
+    var ctxText='';
+    if(warmapOpen){
+      ctxText='🗺 War Map: Click = army holds ground · SHIFT+Click = march king · Hover = territory info · [T] close';
+    } else if(recruitOpen){
+      ctxText='⚔ Muster: Click card to recruit · Auto-buy modes: Conservative/Balanced/Aggressive · Gold from territories';
+    } else if(settingsOpen){
+      ctxText='⚙ Doctrine: Bodyguards protect king · Defenders hold territory · Attackers advance · [Q] scope · Presets: Defensive/Balanced/Offensive/Emergency';
+    } else if(state===ST.PLAY){
+      if(curOrder){
+        ctxText='🎖 Command: [1] Follow · [2] Defend · [3] Advance · [4] Halt · [Q] Scope ('+Math.round(SCOPES[cmdScopeIdx]*100)+'%) · [B] Muster · [T] Map · [G] Horn · King aura +12% dmg near allies';
+      } else if(afkMode){
+        var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(playerTeam):null;
+        ctxText='🤖 AI Brain ('+(pers?pers.name:'Balanced')+') commanding — considers treasury, army, territory value, threats, king health · [K] take control';
+      }
+    }
+    if(ctxText){
+      ctxEl.textContent=ctxText;
+      ctxEl.classList.remove('hidden');
+    } else {
+      ctxEl.classList.add('hidden');
+    }
+  }
 }
-/* minimap (whole world) */

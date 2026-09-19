@@ -2,7 +2,7 @@
 var loreNow=null;
 var hudEls={
   hp:$('hp-fill'), st:$('st-fill'), score:$('score-n'),
-  kills:$('kills-n'), zonesN:$('zones-n'), goldN:$('gold-n'),
+  kills:$('kills-n'), zonesN:$('zones-n'), goldN:$('gold-n'), armyN:$('army-n'),
   roleName:$('role-name'), roleIcon:$('role-icon'),
   crosshair:$('crosshair'), hint:$('hint'), vignette:$('vignette'),
   banner:$('banner'), bannerTitle:$('banner-title'), bannerSub:$('banner-sub'),

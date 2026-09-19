@@ -45,4 +45,7 @@ function updateStrategy(dt){
   if(backupT<=0){ backupT=2; backupScan(); }
   autobuyT-=dt;
   if(autobuyT<=0){ autobuyT=1.2; autobuyTick(); }
+  if(typeof kingDeathPenaltyT!=='undefined' && kingDeathPenaltyT>0) kingDeathPenaltyT-=dt;
+  if(typeof updateBuildingBonuses!=='undefined') updateBuildingBonuses(dt);
+  if(typeof autoSaveTick!=='undefined') autoSaveTick(dt);
 }

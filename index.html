@@ -138,7 +138,14 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 .faction-card .classes{font-size:11px;color:#8a6a2f;margin:8px 0 0;font-style:italic;}
 
 /* ---------- recruit & warmap ---------- */
-.warmap-panel{max-width:720px;}
+.warmap-panel{max-width:720px;max-height:92vh;overflow-y:auto;}
+.warmap-panel::-webkit-scrollbar{width:10px;}
+.warmap-panel::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:5px;}
+.warmap-panel::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:5px;}
+#recruit .panel{max-width:860px;max-height:92vh;overflow-y:auto;}
+#recruit .panel::-webkit-scrollbar{width:10px;}
+#recruit .panel::-webkit-scrollbar-track{background:rgba(90,61,30,0.25);border-radius:5px;}
+#recruit .panel::-webkit-scrollbar-thumb{background:#8a6a2f;border-radius:5px;}
 #warmap-canvas{width:620px;height:620px;max-width:100%;border:3px solid #5a3d1e;border-radius:8px;
   cursor:pointer;display:block;margin:10px auto 4px;}
 .recruit-card{position:relative;}
@@ -194,8 +201,23 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 .set-note{margin-top:14px;font-size:12px;color:#7a6a50;font-style:italic;text-align:center;}
 
 /* ---- v9: autobuy row + AFK chip ---- */
-.autobuy-row{margin:2px 0 10px;gap:10px;}
+.autobuy-row{margin:2px 0 10px;gap:10px;flex-wrap:wrap;}
 .autobuy-row select{background:#f2e8d2;border:1px solid #b8a37a;border-radius:6px;padding:7px 10px;font-size:14px;color:#3a2a12;font-family:Georgia,serif;}
+.warmap-info{background:linear-gradient(#fbf3dc,#ecd9ab);border:2px solid #8a6a2f;border-radius:8px;padding:10px 14px;margin:8px auto 0;
+  max-width:600px;text-align:left;font-size:13px;color:#3a2a1a;line-height:1.5;min-height:22px;}
+.warmap-info b{color:#6e1414;}
+.warmap-info .tag{display:inline-block;background:#5a3d1e;color:#f4e8c8;padding:1px 7px;border-radius:4px;font-size:11px;margin-right:6px;}
+.battle-report{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;
+  background:linear-gradient(#f4e8c8,#e6d3a3);border:3px solid #5a3d1e;border-radius:10px;
+  padding:18px 22px;min-width:360px;max-width:520px;box-shadow:0 18px 60px rgba(0,0,0,0.7);text-align:center;color:#3a2a1a;}
+.battle-report h3{margin:0 0 10px;font-size:22px;letter-spacing:2px;color:#6e1414;}
+.battle-report .line{display:flex;justify-content:space-between;margin:5px 0;font-size:14px;}
+.battle-report .line b{color:#3a2a1a;}
+.battle-report button{margin-top:12px;}
+.context-help{position:fixed;left:50%;top:62px;transform:translateX(-50%);z-index:30;
+  background:rgba(20,13,6,0.82);border:1px solid #8a6a2f;border-radius:7px;padding:8px 16px;
+  font-size:12.5px;color:#e6d5a8;pointer-events:none;max-width:80vw;text-align:center;}
+.context-help.hidden{display:none;}
 #afk-chip{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(20px);z-index:30;
   background:linear-gradient(180deg,#3f2f1a,#2a2012);color:#f1dfae;border:1px solid #8a6a2f;border-radius:8px;
   padding:8px 18px;font-size:14px;font-family:Georgia,serif;letter-spacing:0.5px;
@@ -218,12 +240,13 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   .lore-card.show{transform:translateY(0);}
 }
 @media(max-width:700px){
-  #conquest{top:105px;width:190px;}
-  #hud-left{left:8px;top:8px;}#role-badge{padding:6px;}.bars-wrap{width:130px;}#role-name{font-size:11px;}
-  #hud-right{right:8px;top:8px;gap:3px;}.statbox{min-width:30px;padding:4px;font-size:10px;}
-  #minimap{width:120px;height:120px;right:8px;bottom:50px;}
-  .cmdbar{left:8px;bottom:8px;max-width:calc(100vw - 40px);}.cmd-opt{padding:3px;font-size:9px;}
-  .lore-card{max-width:calc(100vw - 175px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
+  #conquest{top:105px;width:170px;}
+  #hud-left{left:8px;top:8px;}#role-badge{padding:6px;}.bars-wrap{width:120px;}#role-name{font-size:11px;}
+  #hud-right{right:8px;top:8px;gap:2px;flex-wrap:wrap;max-width:190px;justify-content:flex-end;}.statbox{min-width:26px;padding:3px 4px;font-size:9px;}
+  #minimap{width:110px;height:110px;right:8px;bottom:50px;}
+  .cmdbar{left:8px;bottom:8px;max-width:calc(100vw - 20px);}.cmd-opt{padding:3px;font-size:9px;}
+  .lore-card{max-width:calc(100vw - 135px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
+  #actionbar{right:8px;top:108px;width:150px;}
 }
 
 </style>
@@ -252,6 +275,7 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   </div>
   <div id="hud-right">
     <div class="statbox gold"><label>TREASURY ♛</label><b id="gold-n">0</b></div>
+    <div class="statbox"><label>ARMY ⚔</label><b id="army-n">0</b></div>
     <div class="statbox"><label>ZONES</label><b id="zones-n">0</b></div>
     <div class="statbox"><label>KILLS</label><b id="kills-n">0</b></div>
     <div class="statbox"><label>SCORE</label><b id="score-n">0</b></div>
@@ -351,10 +375,16 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 <div id="recruit" class="overlay hidden">
   <div class="panel roles-panel">
     <p class="pretitle">The King's Muster</p>
-    <h2>Buy troops <span>— gold: <b id="recruit-treasury">0</b> · army: <b id="recruit-count">0</b> (they spawn at your hall)</span></h2>
+    <h2>Buy troops <span>— gold: <b id="recruit-treasury">0</b> · army: <b id="recruit-count">0</b> (they spawn at your hall) · upkeep: <b id="recruit-upkeep">0</b>/s</span></h2>
     <div class="row center autobuy-row">
       <button id="btn-autobuy">🤖 Auto-buy: OFF</button>
       <select id="autobuy-sel" title="Troop the auto-buyer keeps hiring"></select>
+      <select id="autobuy-mode" title="Auto-buy strategy">
+        <option value="conservative">Conservative (30% reserve)</option>
+        <option value="balanced" selected>Balanced (15% reserve)</option>
+        <option value="aggressive">Aggressive (5% reserve)</option>
+        <option value="off">Off</option>
+      </select>
     </div>
     <div id="recruit-list" class="scroll-grid"></div>
     <div class="row sticky-row">
@@ -367,13 +397,22 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 <div id="warmap" class="overlay hidden">
   <div class="panel warmap-panel">
     <p class="pretitle">Campaign Map</p>
-    <h2>The known world <span>— click: army holds that ground · SHIFT-click: march the king</span></h2>
+    <h2>The known world <span>— click: army holds that ground · SHIFT-click: march the king · hover for info</span></h2>
     <canvas id="warmap-canvas" width="620" height="620"></canvas>
-    <p class="redeploy-note">Click anywhere: your troops go, guard that ground and attack if pressed · SHIFT-click marches the king (your lands, no foes near) · own <b>128 zones</b> to rule it all</p>
+    <div id="warmap-info" class="warmap-info"></div>
+    <p class="redeploy-note">Click anywhere: your troops go, guard that ground and attack if pressed · SHIFT-click marches the king (your lands, no foes near) · own <b>128 zones</b> to rule it all<br>
+    <span style="font-size:11px;color:#8a744c">Terrain affects movement & defense: Forest +20% def, Mountains +35% def, Hills +15%, River +10%, Desert -5% · Roads reduce travel cost</span></p>
     <div class="row">
       <button id="btn-warmap-close">← Back to battle (T)</button>
     </div>
   </div>
+</div>
+
+<!-- battle report -->
+<div id="battle-report" class="battle-report hidden">
+  <h3 id="br-title">BATTLE RESULT</h3>
+  <div id="br-body"></div>
+  <button id="btn-br-close">Close</button>
 </div>
 
 <!-- redeploy -->
@@ -411,28 +450,45 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 <!-- webgl error -->
 <div id="webgl-error" class="overlay hidden">
   <div class="panel">
-    <h2>WebGL not available</h2>
-    <p>This game needs WebGL. Please open it in a modern browser (Chrome, Edge, Firefox).</p>
+    <h2>WEBGL INITIALIZATION FAILED</h2>
+    <p style="text-align:left;max-width:520px;margin:0 auto;line-height:1.6">The battlefield cannot be rendered. This game needs WebGL — a graphics system built into modern browsers.<br><br>
+    <b>Possible causes:</b><br>
+    • Hardware acceleration is disabled in your browser settings<br>
+    • Your browser is outdated (Chrome 90+, Edge 90+, Firefox 90+ recommended)<br>
+    • Your GPU driver is outdated or blocked<br>
+    • You opened the file with a very old viewer<br><br>
+    <b>Try:</b><br>
+    • Reload the page<br>
+    • Enable hardware acceleration: Chrome → Settings → System → Use hardware acceleration<br>
+    • Update your browser & GPU driver<br>
+    • Try a different browser (Chrome, Edge, Firefox)<br>
+    </p>
+    <div class="row center" style="margin-top:18px">
+      <button onclick="location.reload()" class="primary">🔄 Retry</button>
+      <a href="https://get.webgl.org/" target="_blank" rel="noopener" class="bugreport-link">Check WebGL</a>
+      <a href="https://caniuse.com/webgl" target="_blank" rel="noopener" class="bugreport-link">Browser Requirements</a>
+    </div>
+    <p class="footnote">If WebGL is supported, the game runs fully offline — your machine is the server. No install needed.</p>
   </div>
 </div>
 
-<!-- v8.3 settings -->
+<!-- v8.3 settings — now with actual numbers, presets, validation -->
 <div id="settings" class="overlay hidden">
   <div class="panel settings-panel">
     <p class="pretitle">The War Council</p>
-    <h2>Army settings <span>— your doctrine, your rules</span></h2>
+    <h2>Army settings <span>— your doctrine, your rules · <b id="set-army-size">0</b> soldiers</span></h2>
     <div class="set-row">
-      <label>👑 Bodyguards <i>protect the king</i></label>
+      <label>👑 Bodyguards <i>protect the king · <span id="set-bg-n">0</span> soldiers</i></label>
       <input type="range" id="set-bg" min="0" max="50" step="1" value="5">
       <b id="set-bg-v">5%</b>
     </div>
     <div class="set-row">
-      <label>🛡 Defenders <i>hold your territory</i></label>
+      <label>🛡 Defenders <i>hold your territory · <span id="set-def-n">0</span> soldiers</i></label>
       <input type="range" id="set-def" min="0" max="90" step="1" value="40">
       <b id="set-def-v">40%</b>
     </div>
     <div class="set-row">
-      <label>⚔ Attackers <i>what remains attacks</i></label>
+      <label>⚔ Attackers <i>what remains attacks · <span id="set-atk-n">0</span> soldiers</i></label>
       <span class="set-atk-bar"></span>
       <b id="set-atk-v">55%</b>
     </div>
@@ -440,16 +496,27 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
       <label>Q order-scope steps <i>(% of army per keypress, comma-separated)</i></label>
       <input type="text" id="set-scopes" value="100, 75, 50, 25, 10, 5" spellcheck="false">
     </div>
+    <div class="set-row">
+      <label>Doctrine presets</label>
+      <div class="row" style="margin:0;gap:6px">
+        <button id="btn-preset-def" title="10% guard / 65% defend / 25% attack">Defensive</button>
+        <button id="btn-preset-bal" title="5% guard / 40% defend / 55% attack">Balanced</button>
+        <button id="btn-preset-off" title="5% guard / 20% defend / 75% attack">Offensive</button>
+        <button id="btn-preset-em" title="15% guard / 20% defend / 65% attack — emergency">Emergency</button>
+      </div>
+    </div>
     <div class="row center">
       <button id="btn-set-apply" class="primary">Apply</button>
       <button id="btn-set-defaults">Restore defaults (5 / 40 / 55)</button>
       <button id="btn-set-close">← Back</button>
     </div>
-    <p class="set-note">Attackers get what is left: 100 − bodyguards − defenders. Defaults: 5 / 40 / 55, scope 100·75·50·25·10·5. Choices are remembered.</p>
+    <p class="set-note">Attackers get what is left: 100 − bodyguards − defenders. Defaults: 5 / 40 / 55, scope 100·75·50·25·10·5. Invalid combos (>100%) are auto-clamped. Actual soldier counts shown above update live.<br>
+    Roles: Scouts/Ranged/Cavalry are represented by unit types — doctrine percentages apply to all.</p>
   </div>
 </div>
 
 <div id="afk-chip">🤖 AFK — the AI Brain rules: fights, hires, commands · press K to take control</div>
+<div id="context-help" class="context-help hidden"></div>
 
 <script>
 /**
@@ -555,6 +622,236 @@ function groundH(x,z){
     }
   }
   return h;
+}
+
+
+// SOURCE: src/world/zone-info.js
+/* ------------------------------------------------------------
+   zone-info.js — terrain types, strategic value, kingdom
+   modifiers, building bonuses, anti-snowball helpers
+   ------------------------------------------------------------ */
+
+var ZONE_TERRAINS=['plains','forest','hills','mountains','desert','river'];
+/* deterministic terrain per zone: based on ground height + noise */
+function zoneTerrain(zi){
+  var c=zoneCenter(zi);
+  var h=groundH(c.x,c.z);
+  var n=Math.sin(c.x*0.0017+c.z*0.0023)*0.5 + Math.cos(c.x*0.0031-c.z*0.0027)*0.5;
+  var d=Math.sqrt(c.x*c.x+c.z*c.z);
+  if(d<420) return 'city'; /* the Field */
+  if(Math.abs(c.x)<120 && Math.abs(c.z)<2600) {
+    if(Math.abs(c.x)<24) return 'river';
+  }
+  if(h>7.5) return 'mountains';
+  if(h>4.2) return 'hills';
+  if(n>0.6) return 'forest';
+  if(d>2200 && Math.abs(c.x)>800) return 'desert';
+  if(n<-0.4) return 'river';
+  return 'plains';
+}
+function terrainDefenseBonus(t){
+  switch(t){
+    case 'forest': return 20;
+    case 'hills': return 15;
+    case 'mountains': return 35;
+    case 'river': return 10;
+    case 'city': return 25;
+    case 'desert': return -5;
+    default: return 0;
+  }
+}
+function terrainMoveCost(t){
+  switch(t){
+    case 'plains': return 1.0;
+    case 'forest': return 1.25;
+    case 'hills': return 1.35;
+    case 'mountains': return 1.8;
+    case 'desert': return 1.15;
+    case 'river': return 1.4;
+    case 'city': return 0.9;
+    default: return 1.0;
+  }
+}
+function zoneStrategicValue(zi){
+  var z=zones[zi];
+  if(!z) return 'Low';
+  if(z.core) return 'Capital';
+  if(z.bonus) return 'High';
+  var rate=(typeof zoneSiteRate!=='undefined' && zoneSiteRate)?zoneSiteRate[zi]:0;
+  if(rate>0.25) return 'High';
+  if(rate>0.12) return 'Medium';
+  if(terrainDefenseBonus(zoneTerrain(zi))>=20) return 'Medium';
+  return 'Low';
+}
+function zoneIncomeBase(zi){
+  var t=zoneTerrain(zi);
+  var base=2.2;
+  switch(t){
+    case 'city': base=6; break;
+    case 'forest': base=3.0; break;
+    case 'hills': base=2.8; break;
+    case 'mountains': base=3.5; break;
+    case 'desert': base=1.2; break;
+    case 'river': base=3.2; break;
+    default: base=2.2;
+  }
+  var z=zones[zi];
+  if(z && z.core) base+=4;
+  if(z && z.bonus) base+=1.8;
+  var rate=(typeof zoneSiteRate!=='undefined' && zoneSiteRate)?zoneSiteRate[zi]:0;
+  base+=rate*3;
+  return base;
+}
+function zonePopulation(zi){
+  var t=zoneTerrain(zi);
+  var pop=0;
+  switch(t){
+    case 'city': pop=18000; break;
+    case 'plains': pop=8000; break;
+    case 'forest': pop=5200; break;
+    case 'hills': pop=4100; break;
+    case 'mountains': pop=2200; break;
+    case 'desert': pop=1500; break;
+    case 'river': pop=9600; break;
+    default: pop=6000;
+  }
+  var z=zones[zi];
+  if(z && z.core) pop*=2.2;
+  if(z && z.bonus) pop*=1.6;
+  var rate=(typeof zoneSiteRate!=='undefined' && zoneSiteRate)?zoneSiteRate[zi]:0;
+  pop+=rate*12000;
+  return Math.round(pop);
+}
+
+/* Kingdom gameplay differences — not just visual */
+var KINGDOM_MODS={
+  sparta:{ name:'Sparta', infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, desc:'Strong infantry & defense, weaker economy' },
+  rome:{ name:'Roma', infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, desc:'Organized defense & infrastructure, higher upkeep' },
+  moldavia:{ name:'Moldova', infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, desc:'Balanced economy & regional defense' },
+  vikings:{ name:'Norrøn', infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, desc:'Aggressive warfare & mobility' },
+  egypt:{ name:'Kemet', infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, desc:'Economy & ranged/support' },
+  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, desc:'Disciplined specialists & mobility' }
+};
+function kingdomMod(f){ return KINGDOM_MODS[f]||KINGDOM_MODS.moldavia; }
+
+/* Building bonuses: if a zone contains a specific building type, give modifiers */
+function zoneBuildingBonus(zi){
+  // Look up nearby building types from SITES
+  var bonus={recruit:0, morale:0, treasury:0, manpower:0};
+  if(typeof SITES==='undefined') return bonus;
+  for(var i=0;i<SITES.length;i++){
+    var s=SITES[i];
+    if(s.zi!==zi) continue;
+    switch(s.type){
+      case 'farm': bonus.manpower+=0.15; bonus.treasury+=0.08; break;
+      case 'market': bonus.treasury+=0.22; break;
+      case 'forge': bonus.recruit+=0.18; break;
+      case 'mine': bonus.treasury+=0.18; break;
+      case 'cave': bonus.treasury+=0.12; break;
+      default: break;
+    }
+  }
+  var z=zones[zi];
+  if(z && z.core){
+    bonus.recruit+=0.25; bonus.morale+=0.2; bonus.treasury+=0.15;
+  }
+  if(z && z.bonus){
+    bonus.manpower+=0.12; bonus.treasury+=0.1;
+  }
+  return bonus;
+}
+
+/* Anti-snowball: upkeep, supply penalty, defensive bonus for threatened */
+function armyUpkeepCost(team){
+  var count=0;
+  if(typeof entities!=='undefined'){
+    for(var i=0;i<entities.length;i++){
+      var e=entities[i];
+      if(!e.dead && !e.passive && e.team===team) count++;
+    }
+  }
+  var mod=kingdomMod(team);
+  // Base upkeep 0.02 gold/sec per soldier, scaled by kingdom and size
+  var base=count*0.022*mod.upkeep;
+  // Large army penalty: beyond 80, cost grows 1.5x
+  if(count>80) base+= (count-80)*0.015*mod.upkeep;
+  if(count>150) base+= (count-150)*0.02;
+  return base;
+}
+function supplyPenalty(team){
+  var oc=typeof ownedCounts!=='undefined'?ownedCounts():null;
+  if(!oc) return 1;
+  var owned=oc[team]||0;
+  // Long-distance penalty: owning >80 zones makes distant zones less efficient
+  if(owned<60) return 1;
+  if(owned<100) return 0.92;
+  if(owned<140) return 0.85;
+  return 0.78;
+}
+function defensiveBonus(zi){
+  var oc=typeof ownedCounts!=='undefined'?ownedCounts():null;
+  if(!oc || !zones[zi]) return 0;
+  var owner=zones[zi].owner;
+  if(!owner) return 0;
+  var owned=oc[owner]||0;
+  // If owner is losing ( <20 zones), give recovery bonus
+  if(owned<15) return 18;
+  if(owned<30) return 10;
+  // If zone is core and owner is threatened (<40 zones), extra defense
+  if(zones[zi].core && owned<45) return 15;
+  return 0;
+}
+
+/* Battle tracking for reports */
+var lastBattle={time:0, zone:-1, enemyLoss:0, ourLoss:0, gold:0, result:'', armyRemaining:0, territoryCaptured:-1};
+var battleLoss={};
+function resetBattleTracking(){
+  battleLoss={};
+  FAC_KEYS.forEach(function(f){ battleLoss[f]=0; });
+}
+function recordKill(victimTeam){
+  if(!battleLoss[victimTeam]) battleLoss[victimTeam]=0;
+  battleLoss[victimTeam]++;
+}
+function finalizeBattle(zoneIdx, winner){
+  var oc=ownedCounts();
+  var enemyLoss=0, ourLoss=0;
+  if(playerTeam){
+    ourLoss=battleLoss[playerTeam]||0;
+    FAC_KEYS.forEach(function(f){
+      if(f!==playerTeam) enemyLoss+=battleLoss[f]||0;
+    });
+  }
+  lastBattle={
+    time:typeof gameTime!=='undefined'?gameTime:0,
+    zone:zoneIdx,
+    enemyLoss:enemyLoss,
+    ourLoss:ourLoss,
+    gold:Math.round(oc[playerTeam]? (typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(zoneIdx)*18:0):0),
+    result:winner===playerTeam?'Victory':(winner?'Defeat':'Stalemate'),
+    armyRemaining:typeof teamAliveCount!=='undefined'?teamAliveCount(playerTeam):0,
+    territoryCaptured:zoneIdx
+  };
+  if(playerTeam && (enemyLoss+ourLoss)>3){
+    showBanner('BATTLE: '+lastBattle.result,
+      'Enemy Losses: '+enemyLoss+' | Our Losses: '+ourLoss+' | Army: '+lastBattle.armyRemaining+' | '+(lastBattle.result==='Victory'?'Gold +'+lastBattle.gold:''),
+      4.5);
+    // populate detailed battle report panel
+    var br=$('battle-report');
+    if(br){
+      var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zoneIdx):'plains';
+      var strat=typeof zoneStrategicValue!=='undefined'?zoneStrategicValue(zoneIdx):'Low';
+      $('br-title').textContent='BATTLE RESULT — '+lastBattle.result;
+      $('br-body').innerHTML='<div class=\"line\"><span>Territory</span><b>#'+zoneIdx+' ('+terr+' — '+strat+')</b></div>'
+        +'<div class=\"line\"><span>Enemy Losses</span><b>'+enemyLoss+'</b></div>'
+        +'<div class=\"line\"><span>Our Losses</span><b>'+ourLoss+'</b></div>'
+        +'<div class=\"line\"><span>Territory Captured</span><b>'+(winner===playerTeam?'#'+zoneIdx:'—')+'</b></div>'
+        +'<div class=\"line\"><span>Gold Gained</span><b>'+(winner===playerTeam?'+'+lastBattle.gold:'0')+'</b></div>'
+        +'<div class=\"line\"><span>Army Remaining</span><b>'+lastBattle.armyRemaining+'</b></div>';
+      br.classList.remove('hidden');
+    }
+  }
+  resetBattleTracking();
 }
 
 
@@ -2053,6 +2350,63 @@ function buildTown(facKey){
    ============================================================ */
 
 
+// SOURCE: src/buildings/gameplay.js
+/* ------------------------------------------------------------
+   gameplay.js — building functions: barracks, temple, hall, homes
+   ------------------------------------------------------------ */
+var buildingBonusT=0;
+function updateBuildingBonuses(dt){
+  buildingBonusT-=dt;
+  if(buildingBonusT>0) return;
+  buildingBonusT=1.2;
+  if(!player || player.dead || !playerTeam) return;
+  var px=player.group.position.x, pz=player.group.position.z;
+  var td=typeof townData!=='undefined'?townData[playerTeam]:null;
+  if(!td) return;
+  // Hall: treasury + command center
+  if(td.hall){
+    var dx=px-td.hall.x, dz=pz-td.hall.z;
+    if(dx*dx+dz*dz<35*35){
+      EC[playerTeam].gold+=0.8;
+      if(typeof kingAuraT!=='undefined') kingAuraT=Math.max(kingAuraT, 2);
+      if(Math.random()<0.08) killFeedMsg('Hall', 'Command center: +treasury, morale aura', '#e9c458');
+    }
+  }
+  // Barracks: recruit bonus
+  if(td.barracks){
+    var bx=px-td.barracks.x, bz=pz-td.barracks.z;
+    if(bx*bx+bz*bz<28*28){
+      // reduce muster cost slightly when near barracks
+      if(typeof _barracksDiscount==='undefined') window._barracksDiscount=0;
+      window._barracksDiscount=0.15;
+      if(Math.random()<0.07) killFeedMsg('Barracks', 'Near barracks: -15% recruit cost, +training', '#7ec97e');
+    } else {
+      window._barracksDiscount=0;
+    }
+  }
+  // Temple/Church: morale + recovery
+  if(td.temple){
+    var tx=px-td.temple.x, tz=pz-td.temple.z;
+    if(tx*tx+tz*tz<30*30){
+      player.hp=Math.min(player.maxHp, player.hp+0.6);
+      player.stamina=Math.min(100, player.stamina+1.2);
+      if(Math.random()<0.06) killFeedMsg('Temple', 'Sacred ground: +recovery, +morale', '#8ab8e0');
+    }
+  }
+  // Homes: population/manpower contribution already via zone income, but give small passive when near any settlement
+  if(typeof SETTLEMENTS!=='undefined'){
+    for(var i=0;i<SETTLEMENTS.length;i++){
+      var s=SETTLEMENTS[i];
+      var dx2=px-s.x, dz2=pz-s.z;
+      if(dx2*dx2+dz2*dz2<22*22){
+        EC[playerTeam].gold+=0.15;
+        break;
+      }
+    }
+  }
+}
+
+
 // SOURCE: src/buildings/landmarks.js
 function frescoTex(base,accent){
   var cv=document.createElement('canvas'); cv.width=256; cv.height=64;
@@ -3361,12 +3715,13 @@ var FACS={};
 FACS.sparta={
     name:'SPARTA', sub:'Λacedaemon · 480 BC',
     loreEnemy:'the Persian Empire',
-    desc:'Brothers of the agoge, forged in the crucible of Laconia. Bronze hoplites, one for each tile of the enemy shield-wall.',
+    desc:'Brothers of the agoge, forged in the crucible of Laconia. Bronze hoplites, one for each tile of the enemy shield-wall. Gameplay: +18% infantry, +22% defense, -18% economy, +8% upkeep.',
     drone:73.42, mode:'phr',
     bannerBg:'#a03820', bannerBorder:'#c9a227', emblem:'lambda',
     enemyBg:'#5b2a86', enemyBorder:'#c9a227', enemyEmblem:'star',
     mapColor:'#d35454',
     townPalette:{wall:0xcfc5a8, wallAlt:0xc2b89a, roof:0x9a5a3c, palisade:0x8a6a48, stall:0xa03828, col:0xd8cdb0},
+    gameplay:{infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, specialty:'Strong infantry & defense, weaker economy, defensive bonuses in hills/mountains'},
     classes:{}
   };
 
@@ -3407,12 +3762,13 @@ FACS.sparta.classes.spartiatis={name:'Spartiátis', en:'Royal Sword-brother', hp
 FACS.rome={
     name:'ROMA', sub:'Legio X · 58 BC',
     loreEnemy:'the Gallic Tribes',
-    desc:'Caesar\'s Tenth in Gaul. Shield-wall, pilum, gladius — the eagle marches. Break the horde and let the standard fly.',
+    desc:'Caesar\'s Tenth in Gaul. Shield-wall, pilum, gladius — the eagle marches. Gameplay: organized defense +18%, economy +5%, upkeep +15%, infrastructure bonuses.',
     drone:82.4, mode:'dor',
     bannerBg:'#8e1b1b', bannerBorder:'#c9a227', emblem:'spqr',
     enemyBg:'#3f5a3a', enemyBorder:'#e2d9bf', enemyEmblem:'swirl',
     mapColor:'#a8321f',
     townPalette:{wall:0x9a6a4c, wallAlt:0x8a5c42, roof:0xa8563a, palisade:0x7a5a40, stall:0x8e1b1b, col:0xe8e0cf},
+    gameplay:{infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, specialty:'Strong organization & defensive infrastructure, higher upkeep, barracks +25% recruit'},
     classes:{}
   };
 
@@ -3453,12 +3809,13 @@ FACS.rome.classes.princeps={name:'Princeps', en:'Veteran of the Line', hp:145, d
 FACS.moldavia={
     name:'MOLDOVA', sub:'Țara Moldovei · 1475',
     loreEnemy:'the Ottoman Invaders',
-    desc:'The host of Ștefan cel Mare musters at the monastery town. Curteni, răzeși and arcași — sword, spear and bow, as it was in those times.',
+    desc:'The host of Ștefan cel Mare musters at the monastery town. Curteni, răzeși and arcași — sword, spear and bow. Gameplay: balanced economy +12%, defense +8%, move +2%.',
     drone:73.42, mode:'dor',
     bannerBg:'#8e1b1b', bannerBorder:'#c9a227', emblem:'aurochs',
     enemyBg:'#1f5c3d', enemyBorder:'#c9a227', enemyEmblem:'star',
     mapColor:'#3f8a5e',
     townPalette:{wall:0xe8e0cf, wallAlt:0xd8d0bc, roof:0x6d4a34, palisade:0x6e5232, stall:0x8e1b1b, col:0xe8e0cf},
+    gameplay:{infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, specialty:'Balanced economy & regional defense, church + morale, homes + manpower'},
     classes:{}
   };
 
@@ -3507,12 +3864,13 @@ FACS.moldavia.classes.viteaz={name:'Viteaz', en:'Brave-hearted', hp:140, dmg:30,
 FACS.vikings={
     name:'NORRØN', sub:'The Great Heathen · 865 AD',
     loreEnemy:'the Saxon Kingdoms',
-    desc:'The sons of the sea-kings land on the Northumbrian shore. Shield-wall of the huscarls — Odin owns the battle-mad.',
+    desc:'The sons of the sea-kings land on the Northumbrian shore. Shield-wall of the huscarls — Odin owns the battle-mad. Gameplay: +12% infantry, -8% defense, +15% move, -8% upkeep, aggressive.',
     drone:61.7, mode:'penta',
     bannerBg:'#2b3440', bannerBorder:'#e8e4da', emblem:'raven',
     enemyBg:'#d8d2c0', enemyBorder:'#2b2b30', enemyEmblem:'cross',
     mapColor:'#4a6a8a',
     townPalette:{wall:0x5a4632, wallAlt:0x4c3c2c, roof:0x9a8555, palisade:0x4c3c2a, stall:0x2b3440, col:0x8a8478},
+    gameplay:{infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, specialty:'Aggressive warfare & mobility, longhouse + attack bonus'},
     classes:{}
   };
 
@@ -3553,12 +3911,13 @@ FACS.vikings.classes.ulfhednar={name:'Úlfheðnar', en:'Wolf-skinned', hp:115, d
 FACS.egypt={
     name:'KEMET', sub:'New Kingdom · 1274 BC',
     loreEnemy:'the Hittite Host',
-    desc:'The two lands of the Nile answer the Pharaoh. Medjay of the guard, spearmen of the warru, bows at Kadesh.',
+    desc:'The two lands of the Nile answer the Pharaoh. Medjay of the guard, spearmen of the warru, bows at Kadesh. Gameplay: economy +22%, ranged +15%, upkeep -5%.',
     drone:65.4, mode:'min',
     bannerBg:'#d8c9a0', bannerBorder:'#1f4e79', emblem:'ankh',
     enemyBg:'#8a5a3a', enemyBorder:'#c9a227', enemyEmblem:'disc',
     mapColor:'#c9a227',
     townPalette:{wall:0xd8c9a0, wallAlt:0xcbb98c, roof:0x9a8555, palisade:0xa08a5c, stall:0x1f4e79, col:0xd8cdb0},
+    gameplay:{infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, specialty:'Economy & ranged/support, temple + recovery, market +22% treasury'},
     classes:{}
   };
 
@@ -3599,12 +3958,13 @@ FACS.egypt.classes.menfyt={name:'Menfyt', en:'Bronze Elite', hp:145, dmg:29, spe
 FACS.nippon={
     name:'NIPPON', sub:'Sengoku · 1560',
     loreEnemy:'the Rival Clans',
-    desc:'The azure sky above the warring clans. Katana, yari and yumi — the daimyo calls, the samurai answers.',
+    desc:'The azure sky above the warring clans. Katana, yari and yumi — the daimyo calls, the samurai answers. Gameplay: disciplined specialists +8% infantry, +12% move, -8% upkeep.',
     drone:73.42, mode:'penta',
     bannerBg:'#f1e8d8', bannerBorder:'#c0272d', emblem:'disc',
     enemyBg:'#1c1c1c', enemyBorder:'#c9a227', enemyEmblem:'star',
     mapColor:'#8a5a9a',
     townPalette:{wall:0x8a6a52, wallAlt:0x7a5c46, roof:0x3d3d42, palisade:0x5a4632, stall:0xc0272d, col:0x8a8478},
+    gameplay:{infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, specialty:'Disciplined specialists & mobility, dojo + training, yumi + range'},
     classes:{}
   };
 
@@ -3756,7 +4116,15 @@ var stars=new THREE.Points(starGeo, starMat); scene.add(stars);
 
 
 // SOURCE: src/system/strategy.js
-function aiCap(f){ return 50 + 10*(ownedCounts()[f]||0); }   /* v8: bots scale with territory */
+function aiCap(f){
+  var base=50 + 10*(ownedCounts()[f]||0);
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):null;
+  if(mod){
+    // economic kingdoms sustain larger, aggressive slightly smaller but faster
+    base=Math.round(base*(mod.economy*0.6+0.6));
+  }
+  return base;
+}
 var WIN_ZONES=128;
 var marchCooldown=0;
 
@@ -3817,24 +4185,50 @@ var captureT=0, incomeT=0, raidT=0, aiBuyT=0, conqHudT=0, cmdHudT=0, backupT=4;
 function incomeTick(){
   var oc=ownedCounts();
   FAC_KEYS.forEach(function(f){
-    EC[f].gold += 2 + oc[f]*0.4;
+    var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):{economy:1};
+    var baseIncome=2 + oc[f]*0.4;
+    // terrain & strategic income per zone
+    for(var i=0;i<zones.length;i++){
+      if(zones[i].owner===f){
+        var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+        // subtract base 2.2 to avoid double counting, keep site/bonus
+        baseIncome+=Math.max(0, inc-2.2);
+      }
+    }
+    // kingdom economy modifier
+    baseIncome*= (0.7 + mod.economy*0.3);
+    // anti-snowball supply penalty
+    if(typeof supplyPenalty!=='undefined') baseIncome*=supplyPenalty(f);
+    // upkeep
+    var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
+    baseIncome-=upkeep*0.35; // upkeep partially from income tick (scaled down, rest via rate)
+    EC[f].gold += baseIncome*0.1; // tick is 0.1s scaled in update loop? keep same factor as before (original added per tick)
+    if(EC[f].gold<0) EC[f].gold=0;
   });
-  for(var i=0;i<zones.length;i++){
-    var z=zones[i];
+  // extra per-zone bonuses (village tribute + sites) kept for compatibility but now via zoneIncomeBase
+  for(var j=0;j<zones.length;j++){
+    var z=zones[j];
     if(!z.owner) continue;
-    if(z.bonus) EC[z.owner].gold += 0.7;              /* village tribute */
-    if(zoneSiteRate) EC[z.owner].gold += zoneSiteRate[i];  /* v8: what the buildings earn */
+    // small extra for bonus already counted, but keep for legacy
+    if(z.bonus) EC[z.owner].gold += 0.07;
+    if(typeof zoneSiteRate!=='undefined' && zoneSiteRate) EC[z.owner].gold += zoneSiteRate[j]*0.1;
   }
 }
 function incomeRate(f){
-  var r=2+(ownedCounts()[f]||0)*0.4;
+  var oc=ownedCounts();
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(f):{economy:1, upkeep:1};
+  var r=2+(oc[f]||0)*0.4;
   for(var i=0;i<zones.length;i++){
     if(zones[i].owner===f){
-      if(zones[i].bonus) r+=0.7;
-      if(zoneSiteRate) r+=zoneSiteRate[i];
+      var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+      r+=Math.max(0, inc-2.2);
     }
   }
-  return r;
+  r*= (0.7 + mod.economy*0.3);
+  if(typeof supplyPenalty!=='undefined') r*=supplyPenalty(f);
+  var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
+  r-=upkeep;
+  return Math.max(0, r);
 }
 function captureTick(){
   var counts={};
@@ -3847,6 +4241,8 @@ function captureTick(){
     counts[zi][e.team]=(counts[zi][e.team]||0)+1;
   }
   var flipped=false;
+  var flippedZone=-1;
+  var oldOwner=null;
   for(var z in counts){
     var zi2=+z, zone=zones[zi2];
     var c=counts[z];
@@ -3856,11 +4252,29 @@ function captureTick(){
       else others+=c[f];
     });
     if(!best || others>=bestN) continue;
+    // terrain defense + kingdom defense + anti-snowball defensive bonus
+    var defBonus=0;
+    if(typeof terrainDefenseBonus!=='undefined'){
+      defBonus+=terrainDefenseBonus(typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
+    }
+    if(typeof defensiveBonus!=='undefined') defBonus+=defensiveBonus(zi2)*0.18;
+    if(zone.owner){
+      var km=typeof kingdomMod!=='undefined'?kingdomMod(zone.owner):null;
+      if(km) defBonus+= (km.defense-1)*6;
+      // building bonus
+      if(typeof zoneBuildingBonus!=='undefined'){
+        var bb=zoneBuildingBonus(zi2);
+        defBonus+=bb.morale*8;
+      }
+    }
     zone.inf[best]+=bestN*0.7;
     FAC_KEYS.forEach(function(f){ if(f!==best && zone.inf[f]>0) zone.inf[f]=Math.max(0,zone.inf[f]-0.5); });
     var need = zone.owner===null ? 4 : (zone.core?16:11);
+    need+=defBonus;
     if(zone.owner!==best && zone.inf[best]>=need){
       var old=zone.owner;
+      oldOwner=old;
+      flippedZone=zi2;
       zone.owner=best;
       FAC_KEYS.forEach(function(f){ zone.inf[f]=0; });
       flipped=true;
@@ -3871,9 +4285,16 @@ function captureTick(){
       }
       if(playerTeam && best===playerTeam){
         Snd.horn();
-        showBanner(zone.core?'Enemy stronghold taken!':'Territory seized!', 'The banner of '+FACS[best].name+' rises (+income)', 2.4);
+        var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(zi2):0;
+        var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains';
+        showBanner(zone.core?'Enemy stronghold taken!':'Territory seized!',
+          'The banner of '+FACS[best].name+' rises | '+terr+' | +'+inc.toFixed(1)+'g/min', 2.8);
       } else if(playerTeam && old===playerTeam){
         showBanner('Territory lost!', FACS[best].name+' overruns your lands', 2.4);
+      }
+      // finalize battle tracking
+      if(typeof finalizeBattle!=='undefined' && (counts[zi2][playerTeam]||counts[zi2][best])){
+        finalizeBattle(zi2, best);
       }
     }
   }
@@ -3947,12 +4368,37 @@ function aiBuyTick(){
     var count=0;
     entities.forEach(function(e){ if(!e.dead&&!e.isPlayer&&e.team===team) count++; });
     if(count>=aiCap(team)) return;
+    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced'};
     var defs=RECRUIT_DEFS[team];
     var keys=Object.keys(defs);
+    var gold=EC[team].gold;
+    var reserve=gold*pers.reserve;
+    var canSpend=gold-reserve;
+    if(canSpend<20) return;
+    // economic AI keeps more reserve, aggressive spends
     var key=keys[randi(0,keys.length-1)];
+    if(pers.name==='Aggressive'){
+      // prefer expensive
+      var bestCost=-1;
+      keys.forEach(function(k){
+        var d=defs[k];
+        if(d.cost>bestCost && d.cost<=canSpend){ bestCost=d.cost; key=k; }
+      });
+    } else if(pers.name==='Economic'){
+      // prefer cheap, keep treasury
+      var cheapCost=1e9;
+      keys.forEach(function(k){
+        var d=defs[k];
+        if(d.cost<cheapCost && d.cost<=canSpend*0.6){ cheapCost=d.cost; key=k; }
+      });
+    } else if(pers.name==='Defensive'){
+      // prefer defenders / infantry
+      var pref=keys.filter(function(k){ return k.indexOf('def')>=0 || k.indexOf('guard')>=0 || k.indexOf('hopl')>=0 || k.indexOf('legion')>=0; });
+      if(pref.length && Math.random()<0.6) key=choice(pref);
+    }
     if(key==='champion'&&Math.random()<0.7) key=keys[0];
     var def=defs[key];
-    if(EC[team].gold>=def.cost){
+    if(EC[team].gold>=def.cost && canSpend>=def.cost){
       EC[team].gold-=def.cost;
       doMuster(team, key, false);
     }
@@ -3964,13 +4410,30 @@ function doMuster(team, key, announce){
   var def=RECRUIT_DEFS[team][key];
   var spot=findFreeSpot(td.hall.door.x+rand(-3,3), td.hall.door.z+rand(-2,2), 0.5);
   var e=spawnCharacter(key, team, spot.x, spot.z);
-  e.order=curOrder||'follow';   /* v9: fresh troops always have a duty (trail the king) */
+  // kingdom infantry modifier
+  if(typeof kingdomMod!=='undefined'){
+    var km=kingdomMod(team);
+    if(km){
+      e.maxHp=Math.round(e.maxHp*km.infantry);
+      e.hp=e.maxHp;
+      e.dmg*=km.infantry;
+    }
+  }
+  // building recruit bonus
+  if(typeof zoneBuildingBonus!=='undefined'){
+    var zi=zoneIdxAt(td.hall.x, td.hall.z);
+    var bb=zoneBuildingBonus(zi);
+    if(bb && bb.recruit) e.dmg*=1+bb.recruit*0.4;
+  }
+  e.order=curOrder||'follow';
   if(e.order==='follow') e.sqIdx=playerUnits().length;
-  if(team===playerTeam) scheduleReform();   /* v11: recruits join a group on the next think */
+  if(team===playerTeam) scheduleReform();
   e.goal={x:td.hall.door.x+rand(-30,30), z:td.hall.door.z+TOWNS_and_front(team)*rand(20,45)};
   if(announce){
     Snd.coin(); Snd.horn();
-    killFeedMsg('Muster', def.name+' joins the army', '#e9c458');
+    var disc=typeof _barracksDiscount!=='undefined'?_barracksDiscount:0;
+    var msg=def.name+' joins the army'+(disc? ' (barracks -'+Math.round(disc*100)+'%)':'');
+    killFeedMsg('Muster', msg, '#e9c458');
   }
   return e;
 }
@@ -3978,6 +4441,206 @@ function TOWNS_and_front(team){
   var T=TOWNS[team];
   return T.z<0?1:-1;
 }
+
+
+// SOURCE: src/system/save.js
+/* ---------------- save / persistence + recovery ---------------- */
+var SAVE_KEY='aow_save_v12';
+function saveCampaign(){
+  try{
+    if(!playerTeam || !zones.length) return false;
+    var data={
+      v:12,
+      team:playerTeam,
+      role:player?player.roleKey||selectedRole:null,
+      gold:EC[playerTeam]?EC[playerTeam].gold:0,
+      zones:zones.map(function(z){ return z.owner; }),
+      inf:zones.map(function(z){ return z.inf; }),
+      px:player?player.group.position.x:0,
+      pz:player?player.group.position.z:0,
+      kills:kills,
+      score:score,
+      doctrine:{bg:DOCTRINE.bg, def:DOCTRINE.def, scopes:SCOPES.slice()},
+      autobuy:{on:AUTOBUY.on, key:AUTOBUY.key, mode:AUTOBUY.mode},
+      afk:afkMode,
+      time:Date.now()
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    return true;
+  }catch(e){ console.warn('save failed', e); return false; }
+}
+function loadCampaign(){
+  try{
+    var raw=localStorage.getItem(SAVE_KEY);
+    if(!raw) return null;
+    var data=JSON.parse(raw);
+    if(!data || data.v<10) return null;
+    return data;
+  }catch(e){ return null; }
+}
+function hasSave(){
+  try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; }
+}
+function clearSave(){
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+}
+function tryRestoreSave(){
+  var data=loadCampaign();
+  if(!data) return false;
+  try{
+    // validate zones length
+    if(!data.zones || data.zones.length!==ZN*ZN) return false;
+    // restore economy & zones
+    FAC_KEYS.forEach(function(k){ if(EC[k]) EC[k].gold=data.gold && data.team===k ? data.gold : EC[k].gold; });
+    for(var i=0;i<zones.length;i++){
+      zones[i].owner=data.zones[i];
+      if(data.inf && data.inf[i]) zones[i].inf=data.inf[i];
+    }
+    if(data.doctrine) applyDoctrineCfg(data.doctrine.bg, data.doctrine.def, data.doctrine.scopes);
+    if(data.autobuy){
+      AUTOBUY.on=!!data.autobuy.on;
+      AUTOBUY.key=data.autobuy.key;
+      AUTOBUY.mode=data.autobuy.mode||'balanced';
+      updAutobuyUI();
+    }
+    if(data.kills) kills=data.kills;
+    if(data.score) score=data.score;
+    // player position will be set after spawn
+    window._pendingSavePos={x:data.px, z:data.pz, team:data.team, role:data.role};
+    return true;
+  }catch(e){
+    console.warn('restore failed', e);
+    clearSave();
+    return false;
+  }
+}
+var saveT=0;
+function autoSaveTick(dt){
+  saveT-=dt;
+  if(saveT<=0){
+    saveT=12;
+    if(state===ST.PLAY && playerTeam) saveCampaign();
+  }
+}
+// expose for debug menu
+window.__saveDbg={save:saveCampaign, load:loadCampaign, clear:clearSave, has:hasSave};
+
+
+// SOURCE: src/system/debug-tools.js
+/* ---------------- hidden developer/debug menu ---------------- */
+var debugOpen=false;
+var overlayDebug=null;
+function toggleDebug(open){
+  if(!overlayDebug){
+    var div=document.createElement('div');
+    div.id='debug-overlay';
+    div.className='overlay hidden';
+    div.innerHTML='<div class=\"panel\" style=\"max-width:720px;text-align:left\">'
+      +'<h2>🔧 Developer Tools <span>— hidden, for testing only</span></h2>'
+      +'<div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0\">'
+      +'<button id=\"dbg-gold\">+1000 Gold</button>'
+      +'<button id=\"dbg-gold10\">+10000 Gold</button>'
+      +'<button id=\"dbg-army\">Spawn 10 Army</button>'
+      +'<button id=\"dbg-killking\">Kill King (test death)</button>'
+      +'<button id=\"dbg-tp-field\">Teleport to Field (0,0)</button>'
+      +'<button id=\"dbg-tp-cap\">Teleport to Capital</button>'
+      +'<button id=\"dbg-enemy\">Spawn Enemy Army (5)</button>'
+      +'<button id=\"dbg-battle\">Force Battle Report</button>'
+      +'<button id=\"dbg-set50\">Set 50% Zones</button>'
+      +'<button id=\"dbg-set128\">Set 128 Zones (win)</button>'
+      +'<button id=\"dbg-clear\">Clear Save</button>'
+      +'<button id=\"dbg-save\">Save Now</button>'
+      +'<button id=\"dbg-brain\">Force AI Decision</button>'
+      +'<button id=\"dbg-switch\">Switch Kingdom (random)</button>'
+      +'<button id=\"dbg-upkeep\">Toggle Upkeep Debug</button>'
+      +'<button id=\"dbg-reset\">Reset Campaign</button>'
+      +'</div>'
+      +'<div id=\"dbg-info\" style=\"background:#fbf3dc;border:1px solid #8a6a2f;border-radius:6px;padding:8px;font-size:12px;max-height:180px;overflow:auto\"></div>'
+      +'<div class=\"row center\"><button id=\"dbg-close\">Close (F10)</button></div>'
+      +'</div>';
+    document.body.appendChild(div);
+    overlayDebug=div;
+    // bind buttons
+    div.querySelector('#dbg-gold').addEventListener('click', function(){ if(EC[playerTeam]) EC[playerTeam].gold+=1000; updDbgInfo(); });
+    div.querySelector('#dbg-gold10').addEventListener('click', function(){ if(EC[playerTeam]) EC[playerTeam].gold+=10000; updDbgInfo(); });
+    div.querySelector('#dbg-army').addEventListener('click', function(){ for(var i=0;i<10;i++) doMuster(playerTeam, Object.keys(RECRUIT_DEFS[playerTeam])[0], false); updDbgInfo(); });
+    div.querySelector('#dbg-killking').addEventListener('click', function(){ if(window.__game && window.__game.doom) window.__game.doom(); });
+    div.querySelector('#dbg-tp-field').addEventListener('click', function(){ if(player){ player.group.position.x=0; player.group.position.z=0; } });
+    div.querySelector('#dbg-tp-cap').addEventListener('click', function(){ if(player && TOWNS[playerTeam]){ player.group.position.x=TOWNS[playerTeam].x; player.group.position.z=TOWNS[playerTeam].z; } });
+    div.querySelector('#dbg-enemy').addEventListener('click', function(){
+      var other=FAC_KEYS.filter(function(f){return f!==playerTeam;})[0];
+      for(var i=0;i<5;i++){ var okey=Object.keys(FACS[other].classes)[0]; spawnCharacter(okey, other, player.group.position.x+rand(-20,20), player.group.position.z+rand(-20,20)); }
+      updDbgInfo();
+    });
+    div.querySelector('#dbg-battle').addEventListener('click', function(){
+      if(typeof lastBattle!=='undefined'){
+        var el=$('battle-report');
+        if(el){
+          $('br-title').textContent='BATTLE RESULT — '+lastBattle.result;
+          $('br-body').innerHTML='<div class=\"line\"><span>Enemy Losses</span><b>'+lastBattle.enemyLoss+'</b></div>'
+            +'<div class=\"line\"><span>Our Losses</span><b>'+lastBattle.ourLoss+'</b></div>'
+            +'<div class=\"line\"><span>Territory</span><b>#'+lastBattle.zone+'</b></div>'
+            +'<div class=\"line\"><span>Gold</span><b>+'+lastBattle.gold+'</b></div>'
+            +'<div class=\"line\"><span>Army Remaining</span><b>'+lastBattle.armyRemaining+'</b></div>';
+          el.classList.remove('hidden');
+        }
+      }
+    });
+    div.querySelector('#dbg-set50').addEventListener('click', function(){
+      var oc=ownedCounts(); var need=50-oc[playerTeam];
+      for(var i=0;i<zones.length && need>0;i++){ if(zones[i].owner!==playerTeam){ zones[i].owner=playerTeam; need--; } }
+      updDbgInfo();
+    });
+    div.querySelector('#dbg-set128').addEventListener('click', function(){
+      var oc=ownedCounts(); var need=128-oc[playerTeam];
+      for(var i=0;i<zones.length && need>0;i++){ if(zones[i].owner!==playerTeam){ zones[i].owner=playerTeam; need--; } }
+      checkDomination(); updDbgInfo();
+    });
+    div.querySelector('#dbg-clear').addEventListener('click', function(){ clearSave(); killFeedMsg('Debug','Save cleared','#e06666'); updDbgInfo(); });
+    div.querySelector('#dbg-save').addEventListener('click', function(){ saveCampaign(); killFeedMsg('Debug','Saved','#7ec97e'); updDbgInfo(); });
+    div.querySelector('#dbg-brain').addEventListener('click', function(){ brainCmdT=0; brainTick(1); updDbgInfo(); });
+    div.querySelector('#dbg-switch').addEventListener('click', function(){
+      var other=FAC_KEYS.filter(function(f){return f!==playerTeam;})[Math.floor(Math.random()*5)];
+      playerTeam=other; toFaction(); updDbgInfo();
+    });
+    div.querySelector('#dbg-upkeep').addEventListener('click', function(){
+      var up=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+      var inc=typeof incomeRate!=='undefined'?incomeRate(playerTeam):0;
+      killFeedMsg('Debug','Upkeep '+up.toFixed(2)+' | Income '+inc.toFixed(2)+' | Net '+(inc-up).toFixed(2),'#8ab8e0');
+      updDbgInfo();
+    });
+    div.querySelector('#dbg-reset').addEventListener('click', function(){ location.reload(); });
+    div.querySelector('#dbg-close').addEventListener('click', function(){ toggleDebug(false); });
+  }
+  debugOpen=(open===undefined)?!debugOpen:!!open;
+  if(debugOpen){
+    if(overlayDebug) { overlayDebug.classList.remove('hidden'); updDbgInfo(); }
+    if(document.pointerLockElement) document.exitPointerLock();
+  } else {
+    if(overlayDebug) overlayDebug.classList.add('hidden');
+    if(state===ST.PLAY) tryLock();
+  }
+}
+function updDbgInfo(){
+  var el=document.getElementById('dbg-info');
+  if(!el) return;
+  var oc=typeof ownedCounts!=='undefined'?ownedCounts():{};
+  var up=typeof armyUpkeepCost!=='undefined' && playerTeam?armyUpkeepCost(playerTeam).toFixed(2):'0';
+  var inc=typeof incomeRate!=='undefined' && playerTeam?incomeRate(playerTeam).toFixed(2):'0';
+  var terr=player? (typeof zoneTerrain!=='undefined'?zoneTerrain(zoneIdxAt(player.group.position.x, player.group.position.z)):'?'):'?';
+  el.innerHTML='Team: '+(playerTeam||'?')+' | Gold: '+(EC[playerTeam]?Math.floor(EC[playerTeam].gold):0)+' | Army: '+teamAliveCount(playerTeam)+' | Zones: '+(oc[playerTeam]||0)
+    +'<br>Income: '+inc+'/s | Upkeep: '+up+'/s | Net: '+(inc-up).toFixed(2)+'/s | Terrain: '+terr
+    +'<br>Doctrine: '+(DOCTRINE?Math.round(DOCTRINE.bg*100)+'/'+Math.round(DOCTRINE.def*100)+'/'+Math.round((1-DOCTRINE.bg-DOCTRINE.def)*100):'?')
+    +' | Autobuy: '+(AUTOBUY?AUTOBUY.mode+' '+(AUTOBUY.on?'ON':'OFF'):'?')+' | AFK: '+(afkMode?'ON '+brainIntent:'OFF')
+    +'<br>Brain: '+JSON.stringify(window.__brainDbg||{})+'<br>LastDecision: '+JSON.stringify(window.__lastBrainDecision||{})
+    +'<br>LastBattle: '+JSON.stringify(typeof lastBattle!=='undefined'?lastBattle:{});
+}
+window.addEventListener('keydown', function(ev){
+  if(ev.code==='F10' && !ev.repeat){
+    ev.preventDefault();
+    toggleDebug();
+  }
+});
 
 
 // SOURCE: src/system/entities.js
@@ -4127,6 +4790,7 @@ function killEntity(e, killer){
   e.dead=true; e.deadT=0; e.hp=0;
   e.bar.grp.visible=false;
   Snd.die();
+  if(typeof recordKill!=='undefined' && e.team) recordKill(e.team);
   if(e.isCommander){
     Snd.roar(); spawnParticles(e.group.position, 0xc9a227, 16, 3, 5);
     showBanner(e.name+' has fallen!', 'A champion is slain', 2.2);
@@ -4134,7 +4798,12 @@ function killEntity(e, killer){
   if(killer && killer.isPlayer){
     kills++;
     score+=e.scoreVal;
-    EC[playerTeam].gold+=8; /* bounty */
+    var bounty=8;
+    if(typeof kingdomMod!=='undefined' && playerTeam){
+      var km=kingdomMod(playerTeam);
+      bounty=Math.round(8*(km.economy*0.5+0.5));
+    }
+    EC[playerTeam].gold+=bounty; /* bounty */
   }
   killFeedKill(killer, e);
   checkDomination();
@@ -4295,7 +4964,17 @@ function updatePlayer(dt){
     p.dodgeT-=dt;
     moveWithCollision(p.group.position,p.dodgeDir.x*13*dt,p.dodgeDir.z*13*dt,0.46);
   } else if(moving){
-    var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1);
+    var terrCost=1;
+    if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
+      var zi=zoneIdxAt(p.group.position.x, p.group.position.z);
+      terrCost=terrainMoveCost(zoneTerrain(zi));
+    }
+    var moveMod=1;
+    if(typeof kingdomMod!=='undefined' && playerTeam){
+      var km=kingdomMod(playerTeam);
+      if(km) moveMod=km.move||1;
+    }
+    var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1) / terrCost * moveMod;
     moveWithCollision(p.group.position,mx*spd*dt,mz*spd*dt,0.46);
   }
   p.movingAmt=lerp(p.movingAmt,(moving||p.dodgeT>0)?1:0,Math.min(1,dt*10));
@@ -4575,6 +5254,8 @@ function updateAI(e, dt){
   e.staggerT-=dt;
   e.retargetT-=dt;
   if(e.rallyT>0) e.rallyT-=dt;
+  if(e.moraleBonusT>0) e.moraleBonusT-=dt;
+  if(e.moralePenaltyT>0){ e.moralePenaltyT-=dt; if(e.moralePenaltyT<=0) e.dmgMult=1; }
   if(e.kind==='wolf'){ updateWolf(e,dt); return; }
   if(e.kind==='villager'){ updateVillager(e,dt); return; }
   if(e.kind==='worker'){ updateWorker(e,dt); return; }
@@ -4768,7 +5449,20 @@ function updateAI(e, dt){
   if(e.detourT>0){ e.detourT-=dt; if(mvl>0.05){ mvx=Math.sin(e.detourYaw)*mvl; mvz=Math.cos(e.detourYaw)*mvl; } }
   if(mvl>0.05){
     if(e.staggerT>0){ e.movingAmt=0; e.walkRate=0; return; }
-    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1);
+    // terrain move cost + kingdom move modifier
+    var terrCost=1;
+    if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
+      var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
+      terrCost=terrainMoveCost(zoneTerrain(zi));
+    }
+    var moveMod=1;
+    if(typeof kingdomMod!=='undefined' && e.team){
+      var km=kingdomMod(e.team);
+      if(km) moveMod=km.move||1;
+    }
+    // morale bonus near king
+    var morale= (e.moraleBonusT>0?1.15:1) * (e.dmgMult||1);
+    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1) / terrCost * moveMod * morale;
     moveWithCollision(e.group.position,mvx/mvl*Math.min(mvl,1)*sp*dt,mvz/mvl*Math.min(mvl,1)*sp*dt,0.5);
     collideCircle(e.group.position, 0.5);          /* v8: no more phasing through walls */
     var nmove=Math.abs(e.group.position.x-ex)+Math.abs(e.group.position.z-ez);
@@ -5067,7 +5761,7 @@ function updateCamera(dt){
 var loreNow=null;
 var hudEls={
   hp:$('hp-fill'), st:$('st-fill'), score:$('score-n'),
-  kills:$('kills-n'), zonesN:$('zones-n'), goldN:$('gold-n'),
+  kills:$('kills-n'), zonesN:$('zones-n'), goldN:$('gold-n'), armyN:$('army-n'),
   roleName:$('role-name'), roleIcon:$('role-icon'),
   crosshair:$('crosshair'), hint:$('hint'), vignette:$('vignette'),
   banner:$('banner'), bannerTitle:$('banner-title'), bannerSub:$('banner-sub'),
@@ -5141,8 +5835,9 @@ function updateFx(dt){
 
 
 // SOURCE: src/ui/hud.js
-/* ---------------- rally: the battle horn (G) ---------------- */
+/* ---------------- rally: the battle horn (G) + king aura ---------------- */
 var rallyCd=0;
+var kingAuraT=0;
 function doRally(){
   if(!player||player.dead||rallyCd>0||state!==ST.PLAY) return false;
   rallyCd=22;
@@ -5156,13 +5851,14 @@ function doRally(){
     if(dx*dx+dz*dz<55*55){ e.rallyT=8; n++; }
   }
   killFeedMsg('Battle Horn', n+' allies rally — +speed +damage (8s)', '#e9c458');
+  kingAuraT=8;
   return true;
 }
 
 function killFeedMsg(who, what, col){
   var div=document.createElement('div');
   div.className='feed-item';
-  div.innerHTML='<span style="color:'+col+'">'+who+'</span><span class="x">»</span><span>'+what+'</span>';
+  div.innerHTML='<span style="color:'+col+'\">'+who+'</span><span class="x">»</span><span>'+what+'</span>';
   hudEls.feed.prepend(div);
   while(hudEls.feed.children.length>5) hudEls.feed.removeChild(hudEls.feed.lastChild);
   setTimeout(function(){ div.classList.add('fade'); }, 3600);
@@ -5182,6 +5878,13 @@ function updateHUD(dt){
   var oc=ownedCounts();
   hudEls.zonesN.textContent=playerTeam?oc[playerTeam]:0;
   hudEls.goldN.textContent=playerTeam?Math.floor(EC[playerTeam].gold):0;
+  // army size in top HUD
+  var armyN=0;
+  for(var _ai=0;_ai<entities.length;_ai++){
+    var _ae=entities[_ai];
+    if(!_ae.dead && !_ae.civ && !_ae.isPlayer && _ae.team===playerTeam) armyN++;
+  }
+  if(hudEls.armyN) hudEls.armyN.textContent=armyN;
   if(player && !player.dead){
     hudEls.hp.style.width=(clamp(player.hp/player.maxHp,0,1)*100)+'%';
     hudEls.st.style.width=(clamp(player.stamina,0,100))+'%';
@@ -5202,7 +5905,7 @@ function updateHUD(dt){
     FAC_KEYS.forEach(function(f){
       var pct=Math.round(oc[f]/total*100);
       segs+='<div style="width:'+(oc[f]/total*100)+'%;background:'+FACS[f].mapColor+'"></div>';
-      labels+='<span style="color:'+FACS[f].mapColor+'">'+FACS[f].name+' '+pct+'%</span>';
+      labels+='<span style="color:'+FACS[f].mapColor+'\">'+FACS[f].name+' '+pct+'%</span>';
     });
     var npct=Math.round(oc.neutral/total*100);
     segs+='<div style="width:'+(oc.neutral/total*100)+'%;background:#6b6257"></div>';
@@ -5229,36 +5932,103 @@ function updateHUD(dt){
       hudEls.lore.classList.add('show');
     } else { hudEls.lore.classList.remove('show'); loreNow=null; }
   } else { hudEls.lore.classList.remove('show'); }
-  /* army command bar */
+  /* army command bar — now with threat, destination, ETA */
   cmdHudT-=dt;
   if(cmdHudT<=0){
     cmdHudT=0.4;
-    var armyN=0;
-    for(var ai2=0;ai2<entities.length;ai2++){
-      var ae=entities[ai2];
-      if(!ae.dead && !ae.civ && !ae.isPlayer && ae.team===playerTeam) armyN++;
-    }
     var lbl={follow:'1 FOLLOW', defend:'2 DEFEND', attack:'3 ATTACK', halt:'4 HALT', area:'MAP POST'};
     var roles={bodyguard:0,defender:0,attacker:0};
     for(var re2=0;re2<entities.length;re2++){
-      var rn=entities[re2].role;
-      if(rn&&roles[rn]!==undefined) roles[rn]++;
+      var e2=entities[re2];
+      if(!e2.dead && e2.team===playerTeam && e2.role && roles[e2.role]!==undefined) roles[e2.role]++;
     }
     var inc=incomeRate(playerTeam);
+    var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+    var net=(inc-upkeep).toFixed(1);
+    var threat='Low', foesNear=0;
+    if(player){
+      for(var fi=0;fi<entities.length;fi++){
+        var fe=entities[fi];
+        if(!fe.dead && fe.team!==playerTeam && !fe.civ && !fe.passive){
+          var dx=fe.group.position.x-player.group.position.x, dz=fe.group.position.z-player.group.position.z;
+          if(dx*dx+dz*dz<80*80) foesNear++;
+        }
+      }
+      if(foesNear>=8) threat='High';
+      else if(foesNear>=3) threat='Medium';
+    }
+    var destStr='';
+    if(typeof brainGoal!=='undefined' && brainGoal && afkMode){
+      destStr=' → '+brainGoal.x+','+brainGoal.z+' ('+brainGoal.d+'u)';
+    } else if(curOrder==='area' && GROUPS.length){
+      var g0=GROUPS[0];
+      if(g0 && g0.post) destStr=' → '+Math.round(g0.post.x)+','+Math.round(g0.post.z);
+    }
+    var stateLabel=typeof brainIntent!=='undefined'?brainIntent:(curOrder||'IDLE');
     hudEls.cmd.innerHTML='<span class="cmd-scope">'+Math.round(SCOPES[cmdScopeIdx]*100)+'%</span>'
       +['follow','defend','attack','halt','area'].map(function(o){
-        return '<span class="cmd-opt'+(curOrder===o?' on':'')+'">'+lbl[o]+'</span>';
+        return '<span class="cmd-opt'+(curOrder===o?' on':'')+'\">'+lbl[o]+'</span>';
       }).join('')
       +'<span class="cmd-n">⚔ '+armyN+(roles.bodyguard?' 👑'+roles.bodyguard:'')+(roles.defender?' 🛡'+roles.defender:'')+(roles.attacker?' ⚔'+roles.attacker:'')+'</span>'
-      +'<span class="cmd-n">💰+'+inc.toFixed(1)+'/s</span>'
-      +(AUTOBUY.on?'<span class="cmd-n">🤖 auto-buy</span>':'');
+      +'<span class="cmd-n">💰'+(upkeep>0?net+'+':'')+inc.toFixed(1)+'/s'+(upkeep>0?' (upkeep -'+upkeep.toFixed(1)+')':'')+'</span>'
+      +'<span class="cmd-n">⚠ '+threat+(foesNear?' ('+foesNear+')':'')+'</span>'
+      +(destStr?'<span class="cmd-n">'+stateLabel+destStr+'</span>':'<span class="cmd-n">'+stateLabel+'</span>')
+      +(AUTOBUY.on?'<span class="cmd-n">🤖 '+AUTOBUY.mode+'</span>':'');
+  }
+  /* king aura: morale bonus around king */
+  kingAuraT=Math.max(0, kingAuraT-dt);
+  if(kingAuraT>0 && player && !player.dead){
+    for(var ki=0;ki<entities.length;ki++){
+      var ke=entities[ki];
+      if(ke.dead||ke.team!==playerTeam||ke.isPlayer) continue;
+      var dx=ke.group.position.x-player.group.position.x, dz=ke.group.position.z-player.group.position.z;
+      if(dx*dx+dz*dz<28*28){
+        ke.moraleBonusT=Math.max(ke.moraleBonusT||0, 0.6);
+        // small combat buff
+        if(ke.rallyT<=0) ke.dmgMult=1.12;
+      }
+    }
   }
   /* battle horn chip */
   rallyCd=Math.max(0, rallyCd-dt);
   hudEls.rally.textContent=rallyCd>0?('G — Battle Horn · '+Math.ceil(rallyCd)+'s'):('G — Battle Horn · READY');
   hudEls.rally.className=rallyCd>0?'rally-chip cd':'rally-chip ready';
+
+  // battle report auto-hide
+  if(typeof lastBattle!=='undefined' && lastBattle.time>0){
+    var brEl=$('battle-report');
+    if(brEl && !brEl.classList.contains('hidden')){
+      if(gameTime - lastBattle.time > 6){
+        brEl.classList.add('hidden');
+      }
+    }
+  }
+  // contextual help
+  var ctxEl=$('context-help');
+  if(ctxEl){
+    var ctxText='';
+    if(warmapOpen){
+      ctxText='🗺 War Map: Click = army holds ground · SHIFT+Click = march king · Hover = territory info · [T] close';
+    } else if(recruitOpen){
+      ctxText='⚔ Muster: Click card to recruit · Auto-buy modes: Conservative/Balanced/Aggressive · Gold from territories';
+    } else if(settingsOpen){
+      ctxText='⚙ Doctrine: Bodyguards protect king · Defenders hold territory · Attackers advance · [Q] scope · Presets: Defensive/Balanced/Offensive/Emergency';
+    } else if(state===ST.PLAY){
+      if(curOrder){
+        ctxText='🎖 Command: [1] Follow · [2] Defend · [3] Advance · [4] Halt · [Q] Scope ('+Math.round(SCOPES[cmdScopeIdx]*100)+'%) · [B] Muster · [T] Map · [G] Horn · King aura +12% dmg near allies';
+      } else if(afkMode){
+        var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(playerTeam):null;
+        ctxText='🤖 AI Brain ('+(pers?pers.name:'Balanced')+') commanding — considers treasury, army, territory value, threats, king health · [K] take control';
+      }
+    }
+    if(ctxText){
+      ctxEl.textContent=ctxText;
+      ctxEl.classList.remove('hidden');
+    } else {
+      ctxEl.classList.add('hidden');
+    }
+  }
 }
-/* minimap (whole world) */
 
 
 // SOURCE: src/ui/minimap.js
@@ -5312,30 +6082,45 @@ function drawMinimap(oc){
 
 
 // SOURCE: src/ui/recruit.js
-/* ---------------- recruit panel (the King's muster) ---------------- */
+/* ---------------- recruit panel (the King's muster) + upkeep + kingdom mods ---------------- */
 var overlayRecruit, recruitOpen=false;
 function buildRecruitList(){
   var F=FACS[playerTeam];
   var defs=RECRUIT_DEFS[playerTeam];
   var list=$('recruit-list');
   var html='';
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(playerTeam):null;
   Object.keys(defs).forEach(function(k){
     var d=defs[k];
-    function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class="'+(i<=n?'on':'')+'"></i>'; return s; }
+    function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class=\"'+(i<=n?'on':'')+'\"></i>'; return s; }
     var afford=EC[playerTeam].gold>=d.cost;
-    html+='<div class="card recruit-card'+(afford?'':' poor')+'" data-key="'+k+'">'
-      +'<div class="card-icon">'+ICONS[d.icon]+'</div>'
+    var kmBonus='';
+    if(mod){
+      if(k.indexOf('arch')>=0 || k.indexOf('bow')>=0 || k.indexOf('sag')>=0 || k.indexOf('tox')>=0){
+        if(mod.name==='Kemet' || mod.name==='Nippon') kmBonus=' | Kingdom bonus';
+      }
+      if(mod.infantry!==1) kmBonus=' | Inf ×'+mod.infantry.toFixed(2);
+    }
+    html+='<div class=\"card recruit-card'+(afford?'':' poor')+'\" data-key=\"'+k+'\">'
+      +'<div class=\"card-icon\">'+ICONS[d.icon]+'</div>'
       +'<h3>'+d.name+'</h3>'
-      +'<p class="tag">'+d.tag+'</p>'
-      +'<div class="stat"><label>Health</label><span class="pips">'+pips(d.stats.hp)+'</span></div>'
-      +'<div class="stat"><label>Damage</label><span class="pips">'+pips(d.stats.dmg)+'</span></div>'
-      +'<p class="cost">gold '+d.cost+'</p>'
+      +'<p class=\"tag\">'+d.tag+kmBonus+'</p>'
+      +'<div class=\"stat\"><label>Health</label><span class=\"pips\">'+pips(d.stats.hp)+'</span></div>'
+      +'<div class=\"stat\"><label>Damage</label><span class=\"pips\">'+pips(d.stats.dmg)+'</span></div>'
+      +'<p class=\"cost\">gold '+d.cost+'</p>'
       +'</div>';
   });
   list.innerHTML=html;
   $('recruit-treasury').textContent=Math.floor(EC[playerTeam].gold);
-  $('recruit-count').textContent=teamAliveCount(playerTeam)+' / unlimited';
-  /* v9: keep the auto-buy troop picker in sync */
+  var army=teamAliveCount(playerTeam);
+  $('recruit-count').textContent=army+' / unlimited';
+  var upkeepEl=$('recruit-upkeep');
+  if(upkeepEl){
+    var up=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+    var inc=typeof incomeRate!=='undefined'?incomeRate(playerTeam):0;
+    upkeepEl.textContent=up.toFixed(1)+' (net '+(inc-up).toFixed(1)+')';
+  }
+  /* keep the auto-buy troop picker in sync */
   var selA=$('autobuy-sel');
   if(selA){
     autobuyKey();
@@ -5352,8 +6137,7 @@ function buildRecruitList(){
     card.addEventListener('click', function(){
       var key=card.getAttribute('data-key');
       var d=RECRUIT_DEFS[playerTeam][key];
-      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more', 2.5); return; }
-      /* v8.2: player army is UNLIMITED — old TEAM_CAP check removed (bots are capped by aiCap, not you) */
+      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
       EC[playerTeam].gold-=d.cost;
       doMuster(playerTeam, key, true);
       buildRecruitList();
@@ -5379,8 +6163,9 @@ function toggleRecruit(){
 
 
 // SOURCE: src/ui/campaign-map.js
-/* ---------------- campaign map (march) ---------------- */
+/* ---------------- campaign map (march) + territory info panel ---------------- */
 var overlayWarmap, warmapOpen=false;
+var warmapHoverZi=-1;
 function toggleWarmap(){
   warmapOpen=!warmapOpen;
   if(warmapOpen){
@@ -5403,9 +6188,32 @@ function drawWarmap(){
   g.fillRect(0,0,w,h);
   for(var i=0;i<zones.length;i++){
     var zc=zoneCenter(i);
-    g.fillStyle = zones[i].owner ? FACS[zones[i].owner].mapColor : '#6b6257';
-    g.globalAlpha = zones[i].owner ? 0.85 : 0.4;
+    var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(i):'plains';
+    var baseCol = zones[i].owner ? FACS[zones[i].owner].mapColor : '#6b6257';
+    // tint by terrain
+    var col=baseCol;
+    if(!zones[i].owner){
+      if(terr==='forest') col='#4a5a3a';
+      else if(terr==='mountains') col='#7a756a';
+      else if(terr==='hills') col='#6b6257';
+      else if(terr==='desert') col='#8a7a5a';
+      else if(terr==='river') col='#5a6a7a';
+    }
+    g.fillStyle=col;
+    g.globalAlpha = zones[i].owner ? 0.88 : 0.5;
     g.fillRect(X(zc.x-ZS/2)+1, Z(zc.z-ZS/2)+1, ZS*sx-2, ZS*sz-2);
+    // strategic marker
+    if(zones[i].core){
+      g.globalAlpha=1;
+      g.fillStyle='#f1e4c3';
+      g.font='bold 10px Georgia';
+      g.fillText('♜', X(zc.x), Z(zc.z)+3);
+    } else if(zones[i].bonus){
+      g.globalAlpha=0.9;
+      g.fillStyle='#e9c458';
+      g.font='9px Georgia';
+      g.fillText('⬢', X(zc.x), Z(zc.z)+3);
+    }
   }
   g.globalAlpha=1;
   g.strokeStyle='rgba(0,0,0,0.25)';
@@ -5436,6 +6244,71 @@ function drawWarmap(){
   g.beginPath(); g.arc(X(0), Z(0), 14, 0, TAU); g.fill();
   g.fillStyle='#f1e4c3';
   g.fillText('The Field', X(0), Z(0)+4);
+
+  // highlight hovered zone
+  if(warmapHoverZi>=0){
+    var hc=zoneCenter(warmapHoverZi);
+    g.strokeStyle='#f1e4c3'; g.lineWidth=2;
+    g.strokeRect(X(hc.x-ZS/2)+1, Z(hc.z-ZS/2)+1, ZS*sx-2, ZS*sz-2);
+    g.lineWidth=1;
+  }
+}
+function warmapInfoHtml(zi){
+  if(zi<0||zi>=zones.length) return '<i>Hover a territory for details — click to order army, SHIFT-click to march king</i>';
+  var z=zones[zi];
+  var c=zoneCenter(zi);
+  var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zi):'plains';
+  var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(zi):0;
+  var pop=typeof zonePopulation!=='undefined'?zonePopulation(zi):0;
+  var strat=typeof zoneStrategicValue!=='undefined'?zoneStrategicValue(zi):'Low';
+  var defB=typeof terrainDefenseBonus!=='undefined'?terrainDefenseBonus(terr):0;
+  if(typeof defensiveBonus!=='undefined') defB+=defensiveBonus(zi);
+  var owner=z.owner?FACS[z.owner].name:'Neutral';
+  var ownerCol=z.owner?FACS[z.owner].mapColor:'#9a9078';
+  var friendly=z.owner===playerTeam;
+  var status=friendly?'Friendly':(z.owner?'Enemy-controlled':(z.core?'Contested':'Neutral'));
+  var dist=0, travel='—';
+  if(typeof player!=='undefined' && player){
+    dist=Math.hypot(player.group.position.x-c.x, player.group.position.z-c.z);
+    var speed=player.riding?12:6;
+    var moveCost=typeof terrainMoveCost!=='undefined'?terrainMoveCost(terr):1;
+    var sec=Math.round(dist/speed*moveCost);
+    var m=Math.floor(sec/60), s=sec%60;
+    travel=(m>0?m+'m ':'')+s+'s ('+Math.round(dist)+'u)';
+  }
+  var bb=typeof zoneBuildingBonus!=='undefined'?zoneBuildingBonus(zi):null;
+  var bonusStr='';
+  if(bb){
+    var parts=[];
+    if(bb.treasury) parts.push('💰+'+Math.round(bb.treasury*100)+'%');
+    if(bb.recruit) parts.push('⚔+'+Math.round(bb.recruit*100)+'%');
+    if(bb.manpower) parts.push('👥+'+Math.round(bb.manpower*100)+'%');
+    if(bb.morale) parts.push('🛡+'+Math.round(bb.morale*100)+'%');
+    if(parts.length) bonusStr=' | '+parts.join(' ');
+  }
+  return '<span class=\"tag\" style=\"background:'+ownerCol+'\">'+owner+'</span> <b>Territory #'+zi+'</b> ('+Math.round(c.x)+', '+Math.round(c.z)+') — <b>'+status+'</b><br>'
+    +'Terrain: <b>'+terr+'</b> (Def +'+defB+'% | Move ×'+(typeof terrainMoveCost!=='undefined'?terrainMoveCost(terr).toFixed(2):'1.0')+') | Strategic: <b>'+strat+'</b>'+bonusStr+'<br>'
+    +'Income: <b>+'+inc.toFixed(1)+' Gold/min</b> | Population: <b>'+pop.toLocaleString()+'</b> | Defense Bonus: <b>+'+defB+'%</b><br>'
+    +'Travel: <b>'+travel+'</b> | Owner: <b style=\"color:'+ownerCol+'\">'+owner+'</b> | Influence: '+(z.owner?Object.keys(z.inf).map(function(f){ return FACS[f].name+':'+Math.round(z.inf[f]); }).join(', '):'—');
+}
+function updateWarmapInfo(zi){
+  var el=$('warmap-info');
+  if(!el) return;
+  el.innerHTML=warmapInfoHtml(zi);
+}
+function warmapMouseMove(ev){
+  var cv=$('warmap-canvas');
+  var rect=cv.getBoundingClientRect();
+  var px=(ev.clientX-rect.left)/rect.width;
+  var py=(ev.clientY-rect.top)/rect.height;
+  var wx=px*(WORLD.half*2)-WORLD.half;
+  var wz=py*(WORLD.half*2)-WORLD.half;
+  var zi=zoneIdxAt(wx,wz);
+  if(zi!==warmapHoverZi){
+    warmapHoverZi=zi;
+    drawWarmap();
+    updateWarmapInfo(zi);
+  }
 }
 function marchClick(ev){
   var cv=$('warmap-canvas');
@@ -5444,16 +6317,22 @@ function marchClick(ev){
   var py=(ev.clientY-rect.top)/rect.height;
   var wx=px*(WORLD.half*2)-WORLD.half;
   var wz=py*(WORLD.half*2)-WORLD.half;
+  var zi=zoneIdxAt(wx,wz);
+  updateWarmapInfo(zi);
   if(!ev.shiftKey){
-    /* v9: click = the scoped army marches there, holds the ground, engages when needed */
+    /* click = the scoped army marches there, holds the ground, engages when needed */
     var sent=issueAreaOrder(wx,wz);
-    if(sent>0) showHint(sent+' units sent to hold ('+Math.round(wx)+', '+Math.round(wz)+')', 2.5);
+    if(sent>0){
+      var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zi):'plains';
+      var moveCost=typeof terrainMoveCost!=='undefined'?terrainMoveCost(terr):1;
+      var dist=player?Math.hypot(player.group.position.x-wx, player.group.position.z-wz):0;
+      var sec=Math.round(dist/6*moveCost);
+      showHint(sent+' units → Territory #'+zi+' ('+terr+') — ETA '+sec+'s', 3);
+    }
     return;
   }
-  var zi=zoneIdxAt(wx,wz);
   if(marchCooldown>0){ showHint('Your soldiers rest — march ready in '+Math.ceil(marchCooldown)+'s', 2); return; }
   if(zones[zi].owner!==playerTeam){ showHint('You can only march into YOUR territory', 2.5); return; }
-  /* no enemy nearby (v9: civilians, workers and wildlife never count — only real soldiers do) */
   var CIVILIAN={worker:1, villager:1, wolf:1, deer:1, sheep:1, bird:1};
   var enemiesNear=false;
   entities.forEach(function(e){
@@ -5471,7 +6350,7 @@ function marchClick(ev){
   player.goal=null;
   marchCooldown=8;
   toggleWarmap();
-  showBanner('March!', 'Your soldier arrives at the banner\'s call', 1.6);
+  showBanner('March!', 'Your king arrives at Territory #'+zi+' — '+ (typeof zoneTerrain!=='undefined'?zoneTerrain(zi):''), 1.8);
   Snd.horn();
 }
 
@@ -5573,16 +6452,28 @@ function beginCampaign(){
   showBanner('The Campaign Begins', F.name+' musters — hold territory, grow rich, conquer', 3);
   showHint('B = muster troops (spend gold) • T = campaign map & march • own '+WIN_ZONES+' zones to rule the world', 8);
 }
+var kingDeathPenaltyT=0;
 function playerDied(){
   var p=player;
-  if(p.riding) toggleRide(false);   /* v10: the steed flees when the king falls */
+  if(p.riding) toggleRide(false);
   deathPos.copy(p.group.position);
   state=ST.REDEPLOY;
+  kingDeathPenaltyT=45; // 45s penalty after fall: reduced morale/command
   if(document.pointerLockElement) document.exitPointerLock();
+  // apply morale penalty to army
+  for(var i=0;i<entities.length;i++){
+    var e=entities[i];
+    if(!e.dead && e.team===playerTeam && !e.isPlayer){
+      e.moralePenaltyT=30;
+      e.dmgMult=0.78;
+    }
+  }
+  killFeedMsg('King Fallen', 'Morale -22% · Command efficiency -30% for 45s · Treasury ransom', '#e06666');
+  showBanner('The King has Fallen!', 'Your army wavers — morale and command reduced. Ransom paid, but the war goes on.', 4);
   setTimeout(function(){
     if(state===ST.REDEPLOY){
       $('rd-role').textContent=FACS[playerTeam].classes[selectedRole]?FACS[playerTeam].classes[selectedRole].name:'';
-      var ransom=Math.min(100, Math.floor(EC[playerTeam].gold));
+      var ransom=Math.min(120, Math.floor(EC[playerTeam].gold*0.18));
       EC[playerTeam].gold-=ransom;
       $('rd-cost').textContent=ransom;
       $('rd-tickets').textContent=Math.floor(EC[playerTeam].gold);
@@ -5779,59 +6670,119 @@ $('actionbar').addEventListener('click',function(ev){var button=ev.target.closes
 
 
 // SOURCE: src/system/autobuy.js
-/* ---------------- v9: AUTO-BUY ---------------- */
+/* ---------------- v9: AUTO-BUY — now with reserve modes ---------------- */
 function autobuyKey(){
   var defs=RECRUIT_DEFS[playerTeam];
   if(!AUTOBUY.key || !defs[AUTOBUY.key]) AUTOBUY.key=Object.keys(defs)[0];
   return AUTOBUY.key;
 }
+function autobuyReservePct(){
+  switch(AUTOBUY.mode){
+    case 'conservative': return 0.30;
+    case 'aggressive': return 0.05;
+    case 'balanced': default: return 0.15;
+  }
+}
 function updAutobuyUI(){
   var b=$('btn-autobuy'); if(!b) return;
-  b.textContent=AUTOBUY.on?'🤖 Auto-buy: ON':'🤖 Auto-buy: OFF';
-  b.className=AUTOBUY.on?'primary':'';
+  if(!AUTOBUY.on){
+    b.textContent='🤖 Auto-buy: OFF';
+    b.className='';
+  } else {
+    var label={conservative:'Conservative', balanced:'Balanced', aggressive:'Aggressive'}[AUTOBUY.mode]||'Balanced';
+    b.textContent='🤖 Auto-buy: '+label;
+    b.className='primary';
+  }
+  var selM=$('autobuy-mode');
+  if(selM) selM.value=AUTOBUY.mode;
 }
 function autobuyTick(){
   if(!AUTOBUY.on || state!==ST.PLAY || !player || player.dead) return;
   var defs=RECRUIT_DEFS[playerTeam];
   var key=autobuyKey(), d=defs[key];
   if(!d) return;
+  var reserve=autobuyReservePct();
+  var gold=EC[playerTeam].gold;
+  var minKeep=0;
+  // keep % of treasury as reserve, scaled by income
+  if(typeof incomeRate!=='undefined'){
+    var inc=incomeRate(playerTeam);
+    minKeep=Math.max(50, inc* (AUTOBUY.mode==='conservative'?18: AUTOBUY.mode==='aggressive'?4:9));
+  }
+  var effective=gold*(1-reserve);
+  if(effective < d.cost) return;
+  if(gold - d.cost < minKeep && AUTOBUY.mode!=='aggressive') return;
   if(EC[playerTeam].gold>=d.cost){
     EC[playerTeam].gold-=d.cost;
     doMuster(playerTeam, key, false);
-    killFeedMsg('Auto-buy', d.name+' mustered — '+Math.floor(EC[playerTeam].gold)+'g left', '#e9c458');
+    killFeedMsg('Auto-buy', d.name+' mustered — '+Math.floor(EC[playerTeam].gold)+'g left ('+AUTOBUY.mode+')', '#e9c458');
     if(recruitOpen) buildRecruitList();
   }
 }
 $('btn-autobuy').addEventListener('click', function(){
   Snd.click();
   AUTOBUY.on=!AUTOBUY.on;
+  if(AUTOBUY.on && !AUTOBUY.mode) AUTOBUY.mode='balanced';
   autobuyKey();
   updAutobuyUI();
-  killFeedMsg('Auto-buy', AUTOBUY.on?('ON — buys '+RECRUIT_DEFS[playerTeam][AUTOBUY.key].name+' whenever gold allows'):'OFF', AUTOBUY.on?'#e9c458':'#b9a06a');
+  if(AUTOBUY.on){
+    killFeedMsg('Auto-buy', AUTOBUY.mode.toUpperCase()+' — buys '+RECRUIT_DEFS[playerTeam][AUTOBUY.key].name+' (keeps '+Math.round(autobuyReservePct()*100)+'% reserve)', '#e9c458');
+  } else {
+    killFeedMsg('Auto-buy', 'OFF', '#b9a06a');
+  }
 });
 $('autobuy-sel').addEventListener('change', function(){
   AUTOBUY.key=this.value;
   if(AUTOBUY.on) killFeedMsg('Auto-buy', 'now buying '+RECRUIT_DEFS[playerTeam][AUTOBUY.key].name, '#e9c458');
 });
+var _autobuyModeSel=$('autobuy-mode');
+if(_autobuyModeSel){
+  _autobuyModeSel.addEventListener('change', function(){
+    if(this.value==='off'){
+      AUTOBUY.on=false;
+    } else {
+      AUTOBUY.mode=this.value;
+      AUTOBUY.on=true;
+    }
+    updAutobuyUI();
+    killFeedMsg('Auto-buy', AUTOBUY.on?(AUTOBUY.mode.toUpperCase()+' mode'):'OFF', AUTOBUY.on?'#e9c458':'#b9a06a');
+  });
+}
 
 
 // SOURCE: src/system/autopilot.js
-/* ---------------- v9: AFK AI BRAIN ---------------- */
+/* ---------------- v9: AFK AI BRAIN — strategic commander ---------------- */
+var AI_PERSONALITIES={
+  balanced:{ name:'Balanced', reserve:0.18, defBias:0.45, atkThreshold:1.15, econFocus:0.5, desc:'Maintains reserve, defends important territory, attacks with advantage' },
+  aggressive:{ name:'Aggressive', reserve:0.06, defBias:0.22, atkThreshold:0.85, econFocus:0.2, desc:'Prioritizes expansion, spends treasury, accepts casualties' },
+  defensive:{ name:'Defensive', reserve:0.28, defBias:0.68, atkThreshold:1.45, econFocus:0.4, desc:'Prioritizes capitals & valuable territories, large defense, counterattacks weakened' },
+  economic:{ name:'Economic', reserve:0.32, defBias:0.38, atkThreshold:1.35, econFocus:0.85, desc:'Prioritizes income & development, avoids unnecessary wars' }
+};
+function aiPersonalityFor(team){
+  var mod=typeof kingdomMod!=='undefined'?kingdomMod(team):null;
+  if(!mod) return AI_PERSONALITIES.balanced;
+  if(mod.name==='NORRØN') return AI_PERSONALITIES.aggressive;
+  if(mod.name==='SPARTA') return AI_PERSONALITIES.defensive;
+  if(mod.name==='KEMET') return AI_PERSONALITIES.economic;
+  if(mod.name==='ROMA') return AI_PERSONALITIES.balanced;
+  if(mod.name==='NIPPON') return AI_PERSONALITIES.balanced;
+  return AI_PERSONALITIES.balanced;
+}
 function toggleAfk(v){
   afkMode=(v===undefined)?!afkMode:!!v;
   var chip=$('afk-chip');
   if(afkMode){
     if(state===ST.PAUSE){ hide(overlayPause); state=ST.PLAY; }
-    /* v10 FIX: overlays gate the brain — close everything so it rules from second one */
     if(recruitOpen) toggleRecruit();
     if(warmapOpen) toggleWarmap();
     if(settingsOpen) toggleSettings(false);
     if(document.pointerLockElement) document.exitPointerLock();
     brainT=0; brainCmdT=0; brainPathT=0; brainStuck=0;
-    killFeedMsg('AFK', '🤖 The AI Brain rules — fights, hires, commands. Press K to take over.', '#d08a3e');
-    showBanner('AFK — AI Brain', 'Your king commands himself now. Press K to rule again.', 3);
+    var pers=aiPersonalityFor(playerTeam);
+    killFeedMsg('AFK', '🤖 AI Brain ('+pers.name+') rules — '+pers.desc+'. Press K to take over.', '#d08a3e');
+    showBanner('AFK — AI Brain · '+pers.name, 'Threat-aware commander: treasury, army, territory, king health. Press K to rule again.', 3.5);
     if(chip) chip.className='show';
-    if(player && !player.dead && !player.riding) toggleRide(true);   /* kings ride to war */
+    if(player && !player.dead && !player.riding) toggleRide(true);
   } else {
     keys.KeyW=false; keys.KeyA=false; keys.KeyS=false; keys.KeyD=false;
     mouse.wantAttack=false;
@@ -5845,7 +6796,12 @@ function toggleAfk(v){
 function brainSetIntent(s){
   brainIntent=s;
   var chip=$('afk-chip');
-  if(chip) chip.textContent='🤖 AFK · '+s+' · army '+playerUnits().length+' · press K to take control';
+  if(chip){
+    var pers=aiPersonalityFor(playerTeam);
+    var extra='';
+    if(typeof EC!=='undefined' && playerTeam) extra=' | gold '+Math.floor(EC[playerTeam].gold)+' | inc '+(typeof incomeRate!=='undefined'?incomeRate(playerTeam).toFixed(1):'0');
+    chip.textContent='🤖 AFK · '+pers.name+' · '+s+' · army '+playerUnits().length+extra+' · press K';
+  }
 }
 function brainTick(dt){
   if(!afkMode) return;
@@ -5865,60 +6821,153 @@ function brainTick(dt){
   if(recruitOpen || warmapOpen || settingsOpen) return;
   var army=playerUnits(), oc=ownedCounts();
   var px=player.group.position.x, pz=player.group.position.z;
-  /* foe scan around the king */
-  var foes=0, foe=null, nd=1e18;   /* nd stays SQUARED here — v10 bugfix: plain-vs-squared mix blinded the brain to foes past ~34u */
+  var pers=aiPersonalityFor(playerTeam);
+  /* --- gather intelligence --- */
+  var treasury=EC[playerTeam].gold;
+  var income=typeof incomeRate!=='undefined'?incomeRate(playerTeam):0;
+  var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam):0;
+  var netIncome=income-upkeep;
+  var armySize=army.length;
+  var territoryCount=oc[playerTeam]||0;
+  var kingHpFrac=player.hp/(player.maxHp||100);
+  var foes=0, foe=null, nd=1e18;
+  var enemyArmies={};
+  var nearestEnemyZoneDist=1e18, nearestEnemyZone=-1;
   entities.forEach(function(e){
     if(e.dead||e.passive||e.civ||!hostileF(e.team,playerTeam)) return;
     var dx=e.group.position.x-px, dz=e.group.position.z-pz, d=dx*dx+dz*dz;
     if(d<70*70) foes++;
     if(d<nd){ nd=d; foe=e; }
+    enemyArmies[e.team]=(enemyArmies[e.team]||0)+1;
   });
   nd=nd===1e18?1e9:Math.sqrt(nd);
-  /* HIRE (v10: never idles while there is gold — army target grows, wealth spills into troops) */
-  var wantArmy=14+(oc[playerTeam]||0)*4;
-  var rich=EC[playerTeam].gold > 180 + incomeRate(playerTeam)*8;
-  if(army.length<wantArmy || rich){
+  // enemy army sizes
+  var maxEnemyArmy=0, totalEnemy=0;
+  for(var et in enemyArmies){ totalEnemy+=enemyArmies[et]; if(enemyArmies[et]>maxEnemyArmy) maxEnemyArmy=enemyArmies[et]; }
+  // territory strategic value & threats
+  var capitalThreat='Low', highValueThreat=0;
+  var myCoreZi=-1;
+  FAC_KEYS.forEach(function(f){
+    if(f!==playerTeam) return;
+    var T=TOWNS[f];
+    var coreZi=zoneIdxAt(T.x,T.z);
+    myCoreZi=coreZi;
+    // check enemies near capital
+    var nearCap=0;
+    entities.forEach(function(e){
+      if(e.dead||e.team===playerTeam||e.civ||e.passive) return;
+      var dx=e.group.position.x-TOWNS[f].x, dz=e.group.position.z-TOWNS[f].z;
+      if(dx*dx+dz*dz<200*200) nearCap++;
+    });
+    if(nearCap>=6) capitalThreat='HIGH';
+    else if(nearCap>=2) capitalThreat='Medium';
+  });
+  // high value zones threatened
+  for(var zi=0;zi<zones.length;zi++){
+    if(zones[zi].owner!==playerTeam) continue;
+    var strat=typeof zoneStrategicValue!=='undefined'?zoneStrategicValue(zi):'Low';
+    if(strat==='High' || strat==='Capital'){
+      var c=zoneCenter(zi);
+      var near=0;
+      entities.forEach(function(e){
+        if(e.dead||e.team===playerTeam||e.civ||e.passive) return;
+        var dx=e.group.position.x-c.x, dz=e.group.position.z-c.z;
+        if(dx*dx+dz*dz<120*120) near++;
+      });
+      if(near>=3) highValueThreat++;
+    }
+  }
+  var threatLevel='Low';
+  if(capitalThreat==='HIGH' || foes>=6) threatLevel='HIGH';
+  else if(capitalThreat==='Medium' || foes>=3 || highValueThreat>0) threatLevel='Medium';
+
+  /* --- economic decisions --- */
+  var wantArmy=14+territoryCount*4;
+  if(pers.name==='Aggressive') wantArmy+=8;
+  if(pers.name==='Defensive') wantArmy+=4;
+  if(pers.name==='Economic') wantArmy=Math.max(10, wantArmy-6);
+  // adjust for treasury & income
+  var reservePct=pers.reserve;
+  var canSpend=treasury*(1-reservePct);
+  var rich=treasury > 180 + income* (pers.econFocus>0.6?12:8) && netIncome>0;
+  if(armySize<wantArmy || rich){
     var defs=RECRUIT_DEFS[playerTeam], best=null;
+    // prefer balanced cost based on personality
     Object.keys(defs).forEach(function(k){
       var d2=defs[k];
-      if(EC[playerTeam].gold>=d2.cost && (!best || d2.cost>best.d.cost)) best={k:k, d:d2};
+      if(EC[playerTeam].gold>=d2.cost){
+        if(!best) best={k:k,d:d2};
+        else {
+          if(pers.name==='Economic' && d2.cost<best.d.cost) best={k:k,d:d2};
+          else if(pers.name!=='Economic' && d2.cost>best.d.cost) best={k:k,d:d2};
+        }
+      }
     });
-    if(best){
+    if(best && canSpend>=best.d.cost){
       EC[playerTeam].gold-=best.d.cost;
       doMuster(playerTeam, best.k, false);
     }
   }
-  /* FIGHT what presses on the king */
+
+  /* --- combat --- */
   if(foe && nd<13){
-    brainSetIntent('FIGHT');
+    brainSetIntent('FIGHT (Threat '+threatLevel+')');
     camYaw=Math.atan2(foe.group.position.x-px, foe.group.position.z-pz);
     if(player.atkT<=0 && player.staggerT<=0 && nd<5){
       mouse.wantAttack=true;
-      player.blocking=false;   /* v10.1: attack beats block — the shield only rises BETWEEN swings */
+      player.blocking=false;
     } else player.blocking=!player.ranged && nd<4.6;
   } else if(player.blocking && !keysShiftHeld()) player.blocking=false;
-  /* COMMANDS — furious: press any advantage the moment it appears */
-  var roles={bg:0,def:0};
-  army.forEach(function(e){ if(e.role==='bodyguard')roles.bg++; if(e.role==='defender')roles.def++; });
+
+  /* --- strategic commands --- */
+  var roles={bg:0,def:0,atk:0};
+  army.forEach(function(e){ if(e.role==='bodyguard')roles.bg++; if(e.role==='defender')roles.def++; if(e.role==='attacker')roles.atk++; });
   brainCmdT-=dt;
   if(brainCmdT<=0){
-    brainCmdT=8;
-    if(foes>=1 && army.length>=8 && nd<45) issueOrder('attack');
-    else if(roles.bg+roles.def===0) issueOrder('defend');
-    else if(army.length>=16+(oc[playerTeam]||0)*2 && Math.random()<0.55) issueOrder('attack');
+    brainCmdT=6 + Math.random()*3;
+    // Decide doctrine based on threat & personality
+    var decision='BALANCED';
+    var deploy={bg:5, def:40, atk:55};
+    if(threatLevel==='HIGH' || capitalThreat==='HIGH'){
+      decision='DEFEND CAPITAL';
+      deploy={bg:10, def:65, atk:25};
+      issueOrder('defend');
+      // set doctrine to defensive
+      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
+    } else if(armySize>maxEnemyArmy*pers.atkThreshold && treasury>100 && threatLevel==='Low'){
+      decision='COUNTERATTACK';
+      deploy={bg:5, def:20, atk:75};
+      if(pers.name==='Aggressive') deploy={bg:3, def:15, atk:82};
+      issueOrder('attack');
+      if(typeof applyDoctrineCfg!=='undefined') applyDoctrineCfg(deploy.bg/100, deploy.def/100);
+    } else if(foes>=1 && armySize>=8 && nd<45){
+      decision='ENGAGE';
+      issueOrder('attack');
+    } else if(roles.bg+roles.def===0 && territoryCount>0){
+      decision='SECURE';
+      issueOrder('defend');
+    } else if(armySize>=16+territoryCount*2 && Math.random()< (pers.name==='Aggressive'?0.75:0.45)){
+      decision='ADVANCE';
+      issueOrder('attack');
+    }
+    // log decision for debug
+    if(typeof window!=='undefined') window.__lastBrainDecision={decision:decision, threat:threatLevel, enemy:maxEnemyArmy, ours:armySize, treasury:Math.floor(treasury), capitalThreat:capitalThreat, deploy:deploy};
   }
-  /* DESTINATION: pursue / regroup / retreat */
-  var hpFrac=player.hp/(player.maxHp||100);
-  var flee=hpFrac<0.35 || (foes>=3 && nd<18);
+
+  /* --- movement: pursue / regroup / retreat --- */
+  var flee=kingHpFrac<0.35 || (foes>=3 && nd<18) || (capitalThreat==='HIGH' && territoryCount<20);
   var gx=null, gz=null;
   if(flee){
-    brainSetIntent('RETREAT');
+    brainSetIntent('RETREAT (HP '+Math.round(kingHpFrac*100)+'%)');
     var bd=1e18;
     for(var zi2=0; zi2<zones.length; zi2++){
       if(zones[zi2].owner!==playerTeam) continue;
       var c3=zoneCenter(zi2);
-      var d3=(c3.x-px)*(c3.x-px)+(c3.z-pz)*(c3.z-pz);
-      if(d3<bd){ bd=d3; gx=c3.x; gz=c3.z; }
+      var strat=typeof zoneStrategicValue!=='undefined'?zoneStrategicValue(zi2):'Low';
+      var score= (c3.x-px)*(c3.x-px)+(c3.z-pz)*(c3.z-pz);
+      if(strat==='Capital') score*=0.3;
+      else if(strat==='High') score*=0.6;
+      if(score<bd){ bd=score; gx=c3.x; gz=c3.z; }
     }
   } else if(foe && nd<70){
     brainSetIntent(player.ranged?'SHOOT':'PURSUE');
@@ -5933,14 +6982,12 @@ function brainTick(dt){
     });
     if(sn>0){ gx=sx2/sn; gz=sz2/sn; }
     else { var T2=TOWNS[playerTeam]; gx=T2.x; gz=T2.z; }
-    if(!foe || nd>=70) brainSetIntent(roles.def>0?'OVERSEE':'REGROUP');
+    if(!foe || nd>=70) brainSetIntent(roles.def>0?'OVERSEE ('+threatLevel+')':'REGROUP');
   }
   var dd=Math.hypot(gx-px, gz-pz);
   if(!player.riding && dd>26) toggleRide(true);
-  var stopAt=(foe && !flee) ? (player.ranged?15.5:4.0) : 7;   /* v10: close into real swing range (cone 4.65) */
+  var stopAt=(foe && !flee) ? (player.ranged?15.5:4.0) : 7;
   if(dd>stopAt){
-    /* v10.1: A* whenever the straight line crosses buildings — the king can no longer
-       beeline into a house. Direct walking only with a clear line of sight. */
     var tx=gx, tz=gz;
     brainPathT-=dt;
     var los=dd<45 ? navLos(px,pz,gx,gz) : false;
@@ -5976,7 +7023,8 @@ function brainTick(dt){
     brainLastPos=null; brainStuck=0;
   }
   window.__brainDbg={foe:!!foe, nd:nd===1e18?null:Math.round(nd), foes:foes, intent:brainIntent,
-    dd:Math.round(dd), army:army.length, want:wantArmy, gold:Math.floor(EC[playerTeam].gold), riding:!!player.riding};
+    dd:Math.round(dd), army:armySize, want:wantArmy, gold:Math.floor(treasury), riding:!!player.riding,
+    threat:threatLevel, enemyMax:maxEnemyArmy, income:Math.round(income), upkeep:Math.round(upkeep), capitalThreat:capitalThreat};
 }
 function keysShiftHeld(){ return keys.ShiftLeft||keys.ShiftRight; }
 window.addEventListener('keydown', function(ev){
@@ -5985,7 +7033,7 @@ window.addEventListener('keydown', function(ev){
 
 
 // SOURCE: src/ui/settings.js
-/* ---------------- v8.3 settings: doctrine % + scope steps ---------------- */
+/* ---------------- v8.3 settings: doctrine % + scope steps + live counts ---------------- */
 var overlaySettings=null;
 function applyDoctrineCfg(bg, def, scopes){
   bg=Number.isFinite(bg)?bg:0.05;def=Number.isFinite(def)?def:0.4;
@@ -6007,11 +7055,30 @@ function loadDoctrineCfg(){
     if(s && isFinite(s.bg)) applyDoctrineCfg(s.bg, s.def, s.scopes);
   }catch(e){}
 }
+function armySizeNow(){
+  var n=0;
+  if(typeof entities!=='undefined'){
+    for(var i=0;i<entities.length;i++){
+      var e=entities[i];
+      if(!e.dead && !e.civ && !e.isPlayer && e.team===playerTeam) n++;
+    }
+  }
+  return n;
+}
 function updSettingsLabels(){
   var bg=+$('set-bg').value, def=+$('set-def').value;
+  if(bg+def>100){ def=100-bg; $('set-def').value=def; }
+  var atk=Math.max(0,100-bg-def);
   $('set-bg-v').textContent=bg+'%';
   $('set-def-v').textContent=def+'%';
-  $('set-atk-v').textContent=Math.max(0,100-bg-def)+'%';
+  $('set-atk-v').textContent=atk+'%';
+  var total=armySizeNow();
+  var bgN=Math.round(total*bg/100), defN=Math.round(total*def/100), atkN=Math.max(0,total-bgN-defN);
+  var elBgN=$('set-bg-n'), elDefN=$('set-def-n'), elAtkN=$('set-atk-n'), elTot=$('set-army-size');
+  if(elBgN) elBgN.textContent=bgN;
+  if(elDefN) elDefN.textContent=defN;
+  if(elAtkN) elAtkN.textContent=atkN;
+  if(elTot) elTot.textContent=total;
 }
 function syncSettingsUI(){
   $('set-bg').value=Math.round(DOCTRINE.bg*100);
@@ -6049,7 +7116,8 @@ $('btn-set-apply').addEventListener('click', function(){
   arr.sort(function(a,b){ return b-a; }); arr=arr.slice(0,8);
   if(!arr.length) arr=[100,75,50,25,10,5];
   applyDoctrineCfg(bg/100, def/100, arr.map(function(v){ return v/100; }));
-  killFeedMsg('Settings', 'Doctrine: '+bg+'% guard / '+def+'% defend / '+atk+'% attack · scope steps: '+arr.join(', ')+'%', '#8ab8e0');
+  var total=armySizeNow();
+  killFeedMsg('Settings', 'Doctrine: '+bg+'% ('+Math.round(total*bg/100)+') guard / '+def+'% ('+Math.round(total*def/100)+') defend / '+atk+'% ('+Math.round(total*atk/100)+') attack · scope: '+arr.join(', ')+'%', '#8ab8e0');
   toggleSettings(false);
 });
 $('btn-set-defaults').addEventListener('click', function(){
@@ -6061,6 +7129,23 @@ $('btn-set-close').addEventListener('click', function(){ Snd.click(); toggleSett
 $('btn-settings').addEventListener('click', function(){ Snd.click(); toggleSettings(true); });
 $('btn-warmap-close').addEventListener('click', function(){ Snd.click(); toggleWarmap(); });
 $('warmap-canvas').addEventListener('click', marchClick);
+$('warmap-canvas').addEventListener('mousemove', warmapMouseMove);
+// presets
+function setPreset(bg,def){
+  $('set-bg').value=bg; $('set-def').value=def;
+  updSettingsLabels();
+}
+var bDef=$('btn-preset-def'), bBal=$('btn-preset-bal'), bOff=$('btn-preset-off'), bEm=$('btn-preset-em');
+if(bDef) bDef.addEventListener('click', function(){ Snd.click(); setPreset(10,65); });
+if(bBal) bBal.addEventListener('click', function(){ Snd.click(); setPreset(5,40); });
+if(bOff) bOff.addEventListener('click', function(){ Snd.click(); setPreset(5,20); });
+if(bEm) bEm.addEventListener('click', function(){ Snd.click(); setPreset(15,20); });
+
+// battle report close
+var brClose=$('btn-br-close');
+if(brClose) brClose.addEventListener('click', function(){
+  var el=$('battle-report'); if(el) el.classList.add('hidden');
+});
 
 
 // SOURCE: src/system/arrow-update.js
@@ -6329,27 +7414,55 @@ function updateStrategy(dt){
   if(backupT<=0){ backupT=2; backupScan(); }
   autobuyT-=dt;
   if(autobuyT<=0){ autobuyT=1.2; autobuyTick(); }
+  if(typeof kingDeathPenaltyT!=='undefined' && kingDeathPenaltyT>0) kingDeathPenaltyT-=dt;
+  if(typeof updateBuildingBonuses!=='undefined') updateBuildingBonuses(dt);
+  if(typeof autoSaveTick!=='undefined') autoSaveTick(dt);
 }
 
 
 // SOURCE: src/system/loop.js
-/* ---------------- main update ---------------- */
+/* ---------------- main update — with LOD & performance safeguards ---------------- */
+var lodTick=0;
 function update(dt){
   NAV.budget=0;NAV.workMs=0;
   gameTime+=dt;
   ehashBuild();
   brainTick(dt);
   if(player && !player.dead && state===ST.PLAY) updatePlayer(dt);
+  var px=player?player.group.position.x:0, pz=player?player.group.position.z:0;
+  lodTick+=dt;
+  var doLod=lodTick>0.25;
+  if(doLod) lodTick=0;
   for(var i=0;i<entities.length;i++){
     var e=entities[i];
     updateEntityLifecycle(e,dt);
     if(e.gone) continue;
     if(e.kind==='wolf'){ updateWolf(e,dt); continue; }
-    if(e.dead||e.passive){ if(e.group.visible) updatePose(e,dt); continue; }
+    if(e.dead||e.passive){
+      if(e.group.visible) updatePose(e,dt);
+      continue;
+    }
     if(e.isPlayer){ advanceCombat(e,dt);updatePose(e,dt); continue; }
-    updateAI(e,dt);
-    advanceCombat(e,dt);
-    if(e.group.visible) updatePose(e,dt);   /* v11: off-screen bones never churn */
+    // LOD: distant units update AI less frequently, lower animation quality
+    var dist2=(e.group.position.x-px)*(e.group.position.x-px)+(e.group.position.z-pz)*(e.group.position.z-pz);
+    var isDistant=dist2>250*250;
+    var isVeryDistant=dist2>400*400;
+    if(isVeryDistant && doLod){
+      // very distant: update AI every 0.5s, skip pose every other frame
+      if((i%2)===0) updateAI(e,dt*2);
+      if(e.group.visible && (i%3)===0) updatePose(e,dt);
+      advanceCombat(e,dt);
+    } else if(isDistant){
+      // distant: half frequency AI
+      e._aiAccum=(e._aiAccum||0)+dt;
+      if(e._aiAccum>0.2){ updateAI(e,e._aiAccum); e._aiAccum=0; }
+      advanceCombat(e,dt);
+      if(e.group.visible) updatePose(e,dt);
+    } else {
+      updateAI(e,dt);
+      advanceCombat(e,dt);
+      if(e.group.visible) updatePose(e,dt);
+    }
   }
   for(var j=entities.length-1;j>=0;j--){
     if(entities[j].gone) entities.splice(j,1);
@@ -6364,6 +7477,8 @@ function update(dt){
   updateCamera(dt);
   updateHUD(dt);
   if(player && player.dead && state===ST.PLAY) playerDied();
+  // cull less frequently for performance
+  if(doLod) cullTick();
 }
 
 /* ---------------- render loop ---------------- */
@@ -6373,7 +7488,7 @@ function frame(now){
   var dt=Math.min((now-last)/1000, 0.05);
   last=now;
   if(manualSimulation)return;
-  if(hitStop>0){ hitStop-=dt; dt=0; }   /* impact freeze-frames */
+  if(hitStop>0){ hitStop-=dt; dt=0; }
   if(state===ST.PLAY || state===ST.REDEPLOY){
     update(dt);
   } else if(state===ST.MENU || state===ST.FACTION || state===ST.ROLES){
@@ -6400,7 +7515,7 @@ var SCOPES=[1,0.75,0.5,0.25,0.1,0.05];
 var DOCTRINE={bg:0.05, def:0.40};   /* v8.3: user-tunable in Settings; defaults 5% guard / 40% defend / 55% attack */
 var settingsOpen=false;
 /* ---- v9/v10: auto-buy + AFK AI brain + royal steed ---- */
-var AUTOBUY={on:false, key:null};
+var AUTOBUY={on:false, key:null, mode:'balanced'}; /* mode: off|conservative|balanced|aggressive */
 var afkMode=false, brainT=0, brainCmdT=0, brainGoal=null, autobuyT=0;
 var brainIntent='IDLE', brainPath=null, brainPathGoal=null, brainPathI=0, brainPathT=0;
 var brainStuck=0, brainSteerT=0, brainSteerOff=0, brainLastPos=null;
@@ -7343,6 +8458,7 @@ if(manualSimulation){
 validateCharacters();
 resetEconomy();
 resetZones();
+if(typeof resetBattleTracking!=='undefined') resetBattleTracking();
 FAC_KEYS.forEach(buildTown);
 buildLandmarks();
 buildVillages();
@@ -7351,7 +8467,11 @@ buildSettlements();
 placeRelics();
 snapshotStatics();
 cullTick();
-loadDoctrineCfg();   /* v8.3: must run AFTER DOCTRINE/SCOPES are initialized (end of script) */
+loadDoctrineCfg();
+// try restore save (optional persistence)
+if(typeof tryRestoreSave!=='undefined'){
+  try{ tryRestoreSave(); }catch(e){}
+}
 spawnWildlife();
 spawnChests();
 toMenu();

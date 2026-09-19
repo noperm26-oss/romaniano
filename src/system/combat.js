@@ -51,6 +51,7 @@ function killEntity(e, killer){
   e.dead=true; e.deadT=0; e.hp=0;
   e.bar.grp.visible=false;
   Snd.die();
+  if(typeof recordKill!=='undefined' && e.team) recordKill(e.team);
   if(e.isCommander){
     Snd.roar(); spawnParticles(e.group.position, 0xc9a227, 16, 3, 5);
     showBanner(e.name+' has fallen!', 'A champion is slain', 2.2);
@@ -58,7 +59,12 @@ function killEntity(e, killer){
   if(killer && killer.isPlayer){
     kills++;
     score+=e.scoreVal;
-    EC[playerTeam].gold+=8; /* bounty */
+    var bounty=8;
+    if(typeof kingdomMod!=='undefined' && playerTeam){
+      var km=kingdomMod(playerTeam);
+      bounty=Math.round(8*(km.economy*0.5+0.5));
+    }
+    EC[playerTeam].gold+=bounty; /* bounty */
   }
   killFeedKill(killer, e);
   checkDomination();
