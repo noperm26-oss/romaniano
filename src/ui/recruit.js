@@ -9,7 +9,8 @@ function buildRecruitList(){
   Object.keys(defs).forEach(function(k){
     var d=defs[k];
     function pips(n){ var s=''; for(var i=1;i<=5;i++) s+='<i class=\"'+(i<=n?'on':'')+'\"></i>'; return s; }
-    var afford=EC[playerTeam].gold>=d.cost;
+    var price=(typeof musterCost==='function')?musterCost(playerTeam,k):d.cost;
+    var afford=EC[playerTeam].gold>=price;
     var kmBonus='';
     if(mod){
       if(k.indexOf('arch')>=0 || k.indexOf('bow')>=0 || k.indexOf('sag')>=0 || k.indexOf('tox')>=0){
@@ -17,13 +18,14 @@ function buildRecruitList(){
       }
       if(mod.infantry!==1) kmBonus=' | Inf ×'+mod.infantry.toFixed(2);
     }
+    if(price!==d.cost) kmBonus+=' | faction price';
     html+='<div class=\"card recruit-card'+(afford?'':' poor')+'\" data-key=\"'+k+'\">'
       +'<div class=\"card-icon\">'+ICONS[d.icon]+'</div>'
       +'<h3>'+d.name+'</h3>'
       +'<p class=\"tag\">'+d.tag+kmBonus+'</p>'
       +'<div class=\"stat\"><label>Health</label><span class=\"pips\">'+pips(d.stats.hp)+'</span></div>'
       +'<div class=\"stat\"><label>Damage</label><span class=\"pips\">'+pips(d.stats.dmg)+'</span></div>'
-      +'<p class=\"cost\">gold '+d.cost+'</p>'
+      +'<p class=\"cost\">gold '+(price!==d.cost?d.cost+' → '+price:price)+'</p>'
       +'</div>';
   });
   list.innerHTML=html;
@@ -43,7 +45,8 @@ function buildRecruitList(){
     selA.innerHTML='';
     Object.keys(defs).forEach(function(k){
       var o=document.createElement('option');
-      o.value=k; o.textContent=defs[k].name+' ('+defs[k].cost+'g)';
+      var pc=(typeof musterCost==='function')?musterCost(playerTeam,k):defs[k].cost;
+      o.value=k; o.textContent=defs[k].name+' ('+pc+'g)';
       if(k===AUTOBUY.key) o.selected=true;
       selA.appendChild(o);
     });
@@ -53,8 +56,9 @@ function buildRecruitList(){
     card.addEventListener('click', function(){
       var key=card.getAttribute('data-key');
       var d=RECRUIT_DEFS[playerTeam][key];
-      if(EC[playerTeam].gold < d.cost){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
-      EC[playerTeam].gold-=d.cost;
+      var buyPrice=(typeof musterCost==='function')?musterCost(playerTeam,key):d.cost;
+      if(EC[playerTeam].gold < buyPrice){ showHint('Not enough gold — hold territory to earn more (upkeep: '+(typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(playerTeam).toFixed(1):'0')+'/s)', 2.5); return; }
+      EC[playerTeam].gold-=buyPrice;
       doMuster(playerTeam, key, true);
       buildRecruitList();
     });

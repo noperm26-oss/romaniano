@@ -18,7 +18,23 @@ function updateAI(e, dt){
     var tdx=t.group.position.x-ex, tdz=t.group.position.z-ez;
     var tdist=Math.sqrt(tdx*tdx+tdz*tdz)||0.001;
     var aggro=e.ranged?26 : e.order==='halt'?16 : e.order==='attack'?38 : e.order==='defend'?26 : e.order==='area'?30 : 24;
+    /* Norrøn Great Raid: once the raid is over the host cannot break off cleanly */
+    if(e.team==='vikings' && typeof abilityFx==='function'){
+      var fxRaid=abilityFx('vikings');
+      if(fxRaid&&fxRaid.aggro) aggro*=fxRaid.aggro;
+    }
+    /* Nippon Specialist Warfare (L4): scouts see the battle coming */
+    if(e.team==='nippon' && typeof factionHasPassive==='function' && factionHasPassive('nippon','specialist-warfare')) aggro*=1.2;
     if(tdist<aggro) engaged=true;
+  }
+  /* Kemet — Granary (L3): the state replaces its losses; the army recovers out of combat */
+  if(!engaged && e.hp<e.maxHp && e.team==='egypt' && !e.isPlayer
+     && typeof factionHasPassive==='function' && factionHasPassive('egypt','granary')){
+    var rg=2;
+    if(typeof abilityFx==='function'){ var fxK=abilityFx('egypt'); if(fxK&&fxK.regen) rg+=fxK.regen; }
+    var dK=doctrineMod('egypt');
+    if(dK.regen) rg*=dK.regen;
+    e.hp=Math.min(e.maxHp, e.hp+rg*dt);
   }
   var mvx=0, mvz=0, wantYaw=null, spd=e.speed;
   if(engaged && t){
@@ -74,7 +90,8 @@ function updateAI(e, dt){
         } else {
           e.patrolT=(e.patrolT||0)-dt;
           if(e.patrolT<=0 || !e.patrol){
-            e.patrolT=rand(6,10);
+            /* Nippon Rapid Deployment (L3): defenders swing to counterattack without lag */
+            e.patrolT=rand(6,10)*((e.team==='nippon'&&typeof factionHasPassive==='function'&&factionHasPassive('nippon','rapid-deployment'))?0.65:1);
             e.patrol=e.post?freeGoal(e.post.x+rand(-48,48),e.post.z+rand(-48,48)):freeGoal(ex+rand(-30,30),ez+rand(-30,30));
           }
           if(e.patrol){
@@ -201,15 +218,20 @@ function updateAI(e, dt){
   if(mvl>0.05){
     if(e.staggerT>0){ e.movingAmt=0; e.walkRate=0; return; }
     // terrain move cost + kingdom move modifier
-    var terrCost=1;
+    var terrCost=1, terrNow='plains';
     if(typeof zoneTerrain!=='undefined' && typeof terrainMoveCost!=='undefined'){
       var zi=zoneIdxAt(e.group.position.x, e.group.position.z);
-      terrCost=terrainMoveCost(zoneTerrain(zi));
+      terrNow=zoneTerrain(zi);
+      terrCost=terrainMoveCost(terrNow);
     }
     var moveMod=1;
     if(typeof kingdomMod!=='undefined' && e.team){
       var km=kingdomMod(e.team);
       if(km) moveMod=km.move||1;
+      /* faction identity: terrain affinity (spec §14) is a move COST,
+         ability/momentum/doctrine speed (spec §2/§12) is a speed BONUS */
+      if(typeof factionTerrainMoveCost==='function') terrCost*=factionTerrainMoveCost(e.team, terrNow);
+      if(typeof factionMoveMod==='function') moveMod*=factionMoveMod(e.team);
     }
     // morale bonus near king
     var morale= (e.moraleBonusT>0?1.15:1) * (e.dmgMult||1);

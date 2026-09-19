@@ -29,6 +29,7 @@ function autobuyTick(){
   var defs=RECRUIT_DEFS[playerTeam];
   var key=autobuyKey(), d=defs[key];
   if(!d) return;
+  var cost=(typeof musterCost==='function')?musterCost(playerTeam,key):d.cost;
   var reserve=autobuyReservePct();
   var gold=EC[playerTeam].gold;
   var minKeep=0;
@@ -38,10 +39,10 @@ function autobuyTick(){
     minKeep=Math.max(50, inc* (AUTOBUY.mode==='conservative'?18: AUTOBUY.mode==='aggressive'?4:9));
   }
   var effective=gold*(1-reserve);
-  if(effective < d.cost) return;
-  if(gold - d.cost < minKeep && AUTOBUY.mode!=='aggressive') return;
-  if(EC[playerTeam].gold>=d.cost){
-    EC[playerTeam].gold-=d.cost;
+  if(effective < cost) return;
+  if(gold - cost < minKeep && AUTOBUY.mode!=='aggressive') return;
+  if(EC[playerTeam].gold>=cost){
+    EC[playerTeam].gold-=cost;
     doMuster(playerTeam, key, false);
     killFeedMsg('Auto-buy', d.name+' mustered — '+Math.floor(EC[playerTeam].gold)+'g left ('+AUTOBUY.mode+')', '#e9c458');
     if(recruitOpen) buildRecruitList();

@@ -73,12 +73,21 @@ function incomeTick(){
     for(var i=0;i<zones.length;i++){
       if(zones[i].owner===f){
         var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+        // Kemet — Nile Economy (L1): rich territories pay more
+        if(f==='egypt' && inc>=4 && typeof factionHasPassive==='function' && factionHasPassive('egypt','nile-economy')) inc*=1.12;
+        // faction terrain income affinity (spec §14)
+        if(typeof factionTerrainIncome==='function'){
+          var ti=zoneTerrain(i);
+          inc*=factionTerrainIncome(f, ti);
+        }
         // subtract base 2.2 to avoid double counting, keep site/bonus
         baseIncome+=Math.max(0, inc-2.2);
       }
     }
     // kingdom economy modifier
     baseIncome*= (0.7 + mod.economy*0.3);
+    // faction income identity (doctrines, Flood of the Nile, ability strain)
+    if(typeof factionIncomeMod==='function') baseIncome*=factionIncomeMod(f);
     // anti-snowball supply penalty
     if(typeof supplyPenalty!=='undefined') baseIncome*=supplyPenalty(f);
     // upkeep
@@ -103,10 +112,13 @@ function incomeRate(f){
   for(var i=0;i<zones.length;i++){
     if(zones[i].owner===f){
       var inc=typeof zoneIncomeBase!=='undefined'?zoneIncomeBase(i):0;
+      if(f==='egypt' && inc>=4 && typeof factionHasPassive==='function' && factionHasPassive('egypt','nile-economy')) inc*=1.12;
+      if(typeof factionTerrainIncome==='function') inc*=factionTerrainIncome(f, zoneTerrain(i));
       r+=Math.max(0, inc-2.2);
     }
   }
   r*= (0.7 + mod.economy*0.3);
+  if(typeof factionIncomeMod==='function') r*=factionIncomeMod(f);
   if(typeof supplyPenalty!=='undefined') r*=supplyPenalty(f);
   var upkeep=typeof armyUpkeepCost!=='undefined'?armyUpkeepCost(f):0;
   r-=upkeep;
@@ -139,6 +151,10 @@ function captureTick(){
     if(typeof terrainDefenseBonus!=='undefined'){
       defBonus+=terrainDefenseBonus(typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
     }
+    // faction terrain affinity of the DEFENDER (spec §14)
+    if(typeof factionTerrainDefense!=='undefined' && zone.owner){
+      defBonus+=factionTerrainDefense(zone.owner, typeof zoneTerrain!=='undefined'?zoneTerrain(zi2):'plains')*0.12;
+    }
     if(typeof defensiveBonus!=='undefined') defBonus+=defensiveBonus(zi2)*0.18;
     if(zone.owner){
       var km=typeof kingdomMod!=='undefined'?kingdomMod(zone.owner):null;
@@ -153,6 +169,10 @@ function captureTick(){
     FAC_KEYS.forEach(function(f){ if(f!==best && zone.inf[f]>0) zone.inf[f]=Math.max(0,zone.inf[f]-0.5); });
     var need = zone.owner===null ? 4 : (zone.core?16:11);
     need+=defBonus;
+    // faction fortification identity: some walls hold longer than others (spec §2-§7)
+    if(typeof factionZoneNeedMod!=='undefined' && zone.owner){
+      need+=factionZoneNeedMod(zone.owner, zi2, c[zone.owner]||0, bestN);
+    }
     if(zone.owner!==best && zone.inf[best]>=need){
       var old=zone.owner;
       oldOwner=old;
@@ -161,6 +181,10 @@ function captureTick(){
       FAC_KEYS.forEach(function(f){ zone.inf[f]=0; });
       flipped=true;
       reassignWorkers(zi2, best, old);
+      /* faction identity events: raid loot & momentum (Norrøn),
+         fear of the north, Kemet's economic consequences */
+      if(typeof onZoneCaptured!=='undefined') onZoneCaptured(best, old, zi2);
+      if(typeof onZoneLost!=='undefined' && old) onZoneLost(old, best, zi2);
       if(old===playerTeam){
         pendingAlerts.push({zi:zi2, t:gameTime});
         killFeedMsg('City lost', (villageNameAt(zi2)?'Satul '+villageNameAt(zi2):'A territory')+' has fallen — attack forces respond once secure', '#e06666');
@@ -226,9 +250,18 @@ function launchRaids(){
   FAC_KEYS.forEach(function(team){
     var targets=borderTargets(team);
     if(!targets.length) return;
-    /* prefer neutral zones */
-    var neutral=targets.filter(function(z){ return !zones[z].owner; });
-    var target=choice(neutral.length?neutral:targets);
+    /* each kingdom wants different ground (spec §10): score by identity,
+       then roll among the three best so campaigns stay varied */
+    var ranked;
+    if(typeof factionTargetScore==='function'){
+      ranked=targets.map(function(z){ return {z:z, s:0.5+Math.random()}; });
+      ranked.forEach(function(r){ r.s+=factionTargetScore(team, r.z)*0.25; });
+      ranked.sort(function(a,b){ return b.s-a.s; });
+    } else {
+      ranked=targets.map(function(z){ return {z:z}; });
+    }
+    var top=ranked.slice(0, Math.min(3, ranked.length));
+    var target=choice(top).z;
     var c=zoneCenter(target);
     /* send up to 6 idle units of this team */
     var idle=entities.filter(function(e){
@@ -244,47 +277,76 @@ function launchRaids(){
     }
   });
 }
+/* which soldiers each kingdom musters first (spec §11/§21) */
+var FACTION_UNIT_PREFS={
+  rome:['legionarius','veles','sagittarius','princeps'],
+  sparta:['spartiatis','hoplites','champion','toxotes','perioikoi'],
+  moldavia:['viteaz','curtean','lancier','arcas','voievod'],
+  vikings:['berserkr','huscarl','ulfhednar','bogi'],
+  egypt:['warru','setjet','menfyt','medjay'],
+  nippon:['samurai','yumi','ashigaru','sohei']
+};
 function aiBuyTick(){
   FAC_KEYS.forEach(function(team){
     if(team===playerTeam) return;
     var count=0;
     entities.forEach(function(e){ if(!e.dead&&!e.isPlayer&&e.team===team) count++; });
-    if(count>=aiCap(team)) return;
-    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced'};
+    var pers=typeof aiPersonalityFor!=='undefined'?aiPersonalityFor(team):{reserve:0.18, econFocus:0.5, name:'Balanced', cap:1};
+    if(count>=aiCap(team)*(pers.cap||1)) return;
     var defs=RECRUIT_DEFS[team];
     var keys=Object.keys(defs);
     var gold=EC[team].gold;
-    var reserve=gold*pers.reserve;
+    var reserve=gold*(pers.reserve||0.18);
     var canSpend=gold-reserve;
     if(canSpend<20) return;
-    // economic AI keeps more reserve, aggressive spends
-    var key=keys[randi(0,keys.length-1)];
-    if(pers.name==='Aggressive'){
-      // prefer expensive
+    /* the kingdom musters its own kind of soldier */
+    var prefs=(typeof FACTION_UNIT_PREFS!=='undefined'&&FACTION_UNIT_PREFS[team])?FACTION_UNIT_PREFS[team]:keys;
+    var order=[];
+    prefs.forEach(function(k){ if(defs[k]) order.push(k); });
+    keys.forEach(function(k){ if(order.indexOf(k)<0) order.push(k); });
+    var key=order[0];
+    if(pers.name==='Raider'||pers.name==='Lion'){
+      // raiding hosts & Spartans buy their most expensive effective troop they can afford
       var bestCost=-1;
-      keys.forEach(function(k){
+      order.forEach(function(k){
         var d=defs[k];
         if(d.cost>bestCost && d.cost<=canSpend){ bestCost=d.cost; key=k; }
       });
-    } else if(pers.name==='Economic'){
-      // prefer cheap, keep treasury
+    } else if(pers.name==='Pharaoh'){
+      // the granary hires for volume: the cheapest troop it can afford
       var cheapCost=1e9;
-      keys.forEach(function(k){
+      order.forEach(function(k){
         var d=defs[k];
         if(d.cost<cheapCost && d.cost<=canSpend*0.6){ cheapCost=d.cost; key=k; }
       });
-    } else if(pers.name==='Defensive'){
-      // prefer defenders / infantry
-      var pref=keys.filter(function(k){ return k.indexOf('def')>=0 || k.indexOf('guard')>=0 || k.indexOf('hopl')>=0 || k.indexOf('legion')>=0; });
-      if(pref.length && Math.random()<0.6) key=choice(pref);
+    } else if(pers.name==='Shogun'){
+      // the clans rotate through their specialists, favoring the rare
+      key=order[Math.min(order.length-1, Math.floor(Math.random()*Math.min(3,order.length)))];
+    } else {
+      key=order[randi(0, Math.min(2, order.length-1))];
     }
-    if(key==='champion'&&Math.random()<0.7) key=keys[0];
-    var def=defs[key];
-    if(EC[team].gold>=def.cost && canSpend>=def.cost){
-      EC[team].gold-=def.cost;
+    if(key==='champion'&&Math.random()<0.7) key=order[0];
+    var cost=musterCost(team, key);
+    if(EC[team].gold>=cost && canSpend>=cost){
+      EC[team].gold-=cost;
       doMuster(team, key, false);
+      /* Kemet — Granary (L3): replace losses in volume */
+      if(team==='egypt' && typeof factionHasPassive==='function' && factionHasPassive('egypt','granary')
+         && EC[team].gold>=musterCost(team, order[0]) && (battleLoss[team]||0)>0 && Math.random()<0.5){
+        EC[team].gold-=musterCost(team, order[0]);
+        doMuster(team, order[0], false);
+      }
     }
   });
+}
+/* the true price of a recruit: base cost × faction identity
+   (Sparta's elite training, abilities, doctrines, barracks discount) */
+function musterCost(team, key){
+  if(typeof RECRUIT_DEFS==='undefined'||!RECRUIT_DEFS[team]||!RECRUIT_DEFS[team][key]) return Infinity;
+  var cost=RECRUIT_DEFS[team][key].cost;
+  if(typeof factionRecruitCostMod==='function') cost*=factionRecruitCostMod(team);
+  if(typeof _barracksDiscount!=='undefined' && _barracksDiscount) cost*=Math.max(0.5, 1-_barracksDiscount);
+  return Math.ceil(cost);
 }
 function doMuster(team, key, announce){
   var td=townData[team];
@@ -300,6 +362,11 @@ function doMuster(team, key, announce){
       e.hp=e.maxHp;
       e.dmg*=km.infantry;
     }
+  }
+  // faction recruit identity (Sparta Elite Training, doctrines, specialists)
+  if(typeof factionRecruitStrengthMod==='function'){
+    var sm=factionRecruitStrengthMod(team, key);
+    if(sm!==1){ e.maxHp=Math.round(e.maxHp*sm); e.hp=e.maxHp; e.dmg*=sm; }
   }
   // building recruit bonus
   if(typeof zoneBuildingBonus!=='undefined'){

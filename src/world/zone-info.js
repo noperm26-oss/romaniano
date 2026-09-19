@@ -95,14 +95,17 @@ function zonePopulation(zi){
   return Math.round(pop);
 }
 
-/* Kingdom gameplay differences — not just visual */
+/* Kingdom gameplay differences — the base layer of faction identity
+   (full identity, passives, doctrines & AI behavior live in
+   src/system/faction-identity.js). Balance rule: every kingdom keeps
+   a real weakness — none of these rows is uniformly strong. */
 var KINGDOM_MODS={
-  sparta:{ name:'Sparta', infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, desc:'Strong infantry & defense, weaker economy' },
-  rome:{ name:'Roma', infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, desc:'Organized defense & infrastructure, higher upkeep' },
-  moldavia:{ name:'Moldova', infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, desc:'Balanced economy & regional defense' },
-  vikings:{ name:'Norrøn', infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, desc:'Aggressive warfare & mobility' },
-  egypt:{ name:'Kemet', infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, desc:'Economy & ranged/support' },
-  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, desc:'Disciplined specialists & mobility' }
+  sparta:{ name:'Sparta', infantry:1.10, defense:1.16, economy:0.84, upkeep:1.12, move:0.97, desc:'Elite infantry & phalanx defense; expensive, slow to replace' },
+  rome:{ name:'Roma', infantry:1.05, defense:1.12, economy:1.04, upkeep:0.93, move:0.98, desc:'Logistics & fortification: big armies stay affordable, elite units cost extra' },
+  moldavia:{ name:'Moldova', infantry:1.02, defense:1.06, economy:1.08, upkeep:1.0, move:1.06, desc:'Frontier flexibility: fast response, strong on home ground' },
+  vikings:{ name:'Norrøn', infantry:1.12, defense:0.90, economy:0.92, upkeep:0.90, move:1.14, desc:'Raiding host: devastating on the move, weak on the wall' },
+  egypt:{ name:'Kemet', infantry:0.96, defense:1.0, economy:1.24, upkeep:0.92, move:1.0, desc:'The granary: income, population and infrastructure outlast rivals' },
+  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.96, upkeep:0.90, move:1.10, desc:'Clan specialists: precision over raw size' }
 };
 function kingdomMod(f){ return KINGDOM_MODS[f]||KINGDOM_MODS.moldavia; }
 
@@ -123,6 +126,11 @@ function zoneBuildingBonus(zi){
       default: break;
     }
   }
+  /* Kemet — Royal Infrastructure (L2): the state makes every building work harder */
+  if(typeof factionHasPassive==='function' && factionHasPassive('egypt','royal-infrastructure')){
+    var zOwner=zones[zi]?zones[zi].owner:null;
+    if(zOwner==='egypt'){ bonus.treasury*=1.3; bonus.manpower*=1.3; bonus.recruit*=1.3; }
+  }
   var z=zones[zi];
   if(z && z.core){
     bonus.recruit+=0.25; bonus.morale+=0.2; bonus.treasury+=0.15;
@@ -133,7 +141,9 @@ function zoneBuildingBonus(zi){
   return bonus;
 }
 
-/* Anti-snowball: upkeep, supply penalty, defensive bonus for threatened */
+/* Anti-snowball: upkeep, supply penalty, defensive bonus for threatened.
+   Faction identity layers on top (spec §11): Rome's logistics make big
+   armies cheaper, ability strain raises upkeep, doctrines tweak it. */
 function armyUpkeepCost(team){
   var count=0;
   if(typeof entities!=='undefined'){
@@ -148,6 +158,10 @@ function armyUpkeepCost(team){
   // Large army penalty: beyond 80, cost grows 1.5x
   if(count>80) base+= (count-80)*0.015*mod.upkeep;
   if(count>150) base+= (count-150)*0.02;
+  // Roman Military Logistics (L2): the state feeds the legions
+  if(typeof factionHasPassive==='function' && factionHasPassive('rome','military-logistics') && team==='rome') base*=0.92;
+  // Faction upkeep identity (ability strain, doctrine, kingdom upkeepMod)
+  if(typeof factionUpkeepMod==='function') base*=factionUpkeepMod(team);
   return base;
 }
 function supplyPenalty(team){
@@ -155,10 +169,15 @@ function supplyPenalty(team){
   if(!oc) return 1;
   var owned=oc[team]||0;
   // Long-distance penalty: owning >80 zones makes distant zones less efficient
-  if(owned<60) return 1;
-  if(owned<100) return 0.92;
-  if(owned<140) return 0.85;
-  return 0.78;
+  var p=1;
+  if(owned>=60) p=0.92;
+  if(owned>=100) p=0.85;
+  if(owned>=140) p=0.78;
+  // Rome — Imperial Administration (L4): distant provinces still pay
+  if(p<1 && typeof factionHasPassive==='function' && factionHasPassive('rome','imperial-administration') && team==='rome'){
+    p=1-(1-p)*0.35;   /* penalty reduced by two thirds */
+  }
+  return p;
 }
 function defensiveBonus(zi){
   var oc=typeof ownedCounts!=='undefined'?ownedCounts():null;
