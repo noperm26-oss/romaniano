@@ -98,6 +98,11 @@ button:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);}
 button:active{transform:translateY(1px);}
 button.primary{background:linear-gradient(#a8271f,#6e1414);color:#f7ecd0;border-color:#3f0c0a;font-weight:bold;letter-spacing:1px;}
 button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
+.bugreport-link{display:inline-block;font-family:inherit;font-size:15px;padding:10px 22px;border-radius:7px;cursor:pointer;
+  border:2px solid #5a3d1e;background:linear-gradient(#efe2bd,#dcc491);color:#3a2a1a;text-decoration:none;
+  transition:transform 0.08s, box-shadow 0.12s;letter-spacing:0.5px;}
+.bugreport-link:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);color:#3a2a1a;}
+.bugreport-link:active{transform:translateY(1px);}
 .row{display:flex;gap:14px;justify-content:center;margin-top:22px;}
 .row.center{justify-content:center;}
 
@@ -291,6 +296,9 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
       Your kingdom earns <b>gold</b> from the territory it holds; spend it at the muster to <b>buy troops</b>.
       Seize the neutral lands, crush the other kings, and own <b>128 of the 256 zones</b> — half the world — to rule it all.</p>
     <button id="btn-begin" class="primary">Take the Throne</button>
+    <div class="row center" style="margin-top:14px">
+      <a id="btn-bugreport" href="https://forms.gle/unx6BqouwTxsNPHu8" target="_blank" rel="noopener" class="bugreport-link">🐛 Bug Reports &amp; Suggestions</a>
+    </div>
     <div class="controls">
       <span><b>WASD</b> move</span><span><b>Mouse</b> look</span><span><b>LMB</b> attack</span>
       <span><b>RMB</b> block / aim</span><span><b>Shift</b> sprint</span><span><b>Space</b> dodge</span>
