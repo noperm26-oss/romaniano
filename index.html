@@ -547,51 +547,108 @@ function turnTo(cur,tgt,maxD){ var d=angDiff(cur,tgt); return cur+clamp(d,-maxD,
 
 
 // SOURCE: src/world/geography.js
-/* ---------------- the vast world (×1000 the old arena) ---------------- */
-var WORLD = {half:3000};            /* 6,000 × 6,000 units — dense & walkable (v7) */
+/* ---------------- ROMANIAN MEDIEVAL WAR WORLD — EXTENDED 2× EDITION ----------------
+   6000×6000 world, now twice as detailed, twice as expansive.
+   Regions: Carpathian Ridge, Transylvanian Heartland, Wallachian Lowlands,
+   Moldavian Borderlands, Southern Trade Route, Capital Romaria, Battlefields, Secrets
+*/
+var WORLD = {half:3000};            /* 6,000 × 6,000 units — preserved for tests */
 var ZN = 16, ZS = 375;             /* 16×16 ownership zones of 375u = 256 */
 
-var FLATS = [
-  {x:0,    z:0,    r:430, h:0},
-  {x:900,  z:-900, r:160, h:1.2},
-  {x:-900, z:-900, r:160, h:1.2},
-  {x:900,  z:900,  r:160, h:1.2},
-  {x:-900, z:900,  r:160, h:1.2},
-  {x:-250, z:-2250,r:160, h:1.2},
-  {x:250,  z:2250, r:160, h:1.2},
-  {x:575,  z:850,  r:30, h:1.2},
-  {x:915,  z:570,  r:34, h:1.2},
-  {x:990,  z:705,  r:24, h:1.2},
-  {x:635,  z:950,  r:28, h:1.2},
-  {x:805,  z:710,  r:21, h:1.2},
-  {x:710,  z:680,  r:19, h:1.2},
-  {x:580,  z:-850, r:32, h:1.2},
-  {x:-580, z:-850, r:27, h:1.2},
-  {x:-580, z:850,  r:29, h:1.2},
-  {x:-465, z:-2080,r:29, h:1.2},
-  {x:465,  z:2080, r:29, h:1.2}
-];
-var FAC_KEYS_T=['sparta','rome','moldavia','vikings','egypt','nippon'];
-/* six nation homelands (world coords) — roads & territories anchor here */
-var TOWNS={
-  sparta:  {x: 900, z:-900},
-  rome:    {x:-900, z:-900},
-  moldavia:{x: 900, z: 900},
-  vikings: {x:-900, z: 900},
-  egypt:   {x:-250, z:-2250},
-  nippon:  {x: 250, z: 2250}
+/* ---------- REGION DEFINITIONS (extended lore) ---------- */
+var WORLD_REGIONS = {
+  carpathian: { name:'Northern Carpathian Ridge', x0:-3000, x1:3000, z0:-3000, z1:-1800, h:6000, w:1200, color:'mountain' },
+  transylvanian:{ name:'Transylvanian Heartland', x0:-3000, x1:-700, z0:-1800, z1:200, h:2000, w:2300, color:'heartland' },
+  wallachian: { name:'Wallachian Lowlands', x0:-2800, x1:800, z0:200, z1:2200, h:2000, w:3600, color:'lowlands' },
+  moldavian:  { name:'Moldavian Borderlands', x0:700, x1:3000, z0:-1800, z1:400, h:2200, w:2300, color:'border' },
+  trade_route:{ name:'Southern Trade Route', x0:-3000, x1:3000, z0:2000, z1:3000, h:1000, w:6000, color:'trade' },
+  capital:    { name:'Capital City Romaria', x0:-1000, x1:1000, z0:-1000, z1:1000, h:2000, w:2000, color:'capital' },
+  battlefield:{ name:'Scattered Battlefields', x0:-3000, x1:3000, z0:-3000, z1:3000, h:6000, w:6000, color:'battle' }
 };
-/* 24 free villages — the wilds are worth exploring; their fields pay whoever holds the land */
-var VNAMES=['Săcele','Bălți','Rădăuți','Huși','Tecuci','Trotuș','Baia','Siret','Cârlig','Gurahonț','Vama','Oituz','Șomuz','Prut','Sucevița','Humor','Moldovița','Neamț','Tazlău','Bistrița','Horaiț','Agapia','Vorona','Dorna'];
-var VILLAGES=[
-  {x:475,z:-210},{x:-440,z:190},{x:210,z:450},{x:-230,z:-440},
-  {x:1200,z:125},{x:-1225,z:-75},{x:90,z:-1200},{x:-110,z:1175},
-  {x:1300,z:-800},{x:-1300,z:750},{x:750,z:1300},{x:-750,z:-1300},
-  {x:1650,z:-400},{x:-1650,z:350},{x:350,z:1650},{x:-400,z:-1650},
-  {x:1800,z:1000},{x:-1800,z:-1000},{x:1000,z:-1800},{x:-1000,z:1800},
-  {x:1900,z:-1900},{x:-1900,z:1900},{x:-700,z:-1900},{x:700,z:1900}
+
+function getRegion(x,z){
+  if(z <= -1800) return 'carpathian';
+  if(z >= 2000) return 'trade_route';
+  if(Math.abs(x) < 1000 && Math.abs(z) < 1000) return 'capital';
+  if(x < -700 && z < 200) return 'transylvanian';
+  if(x > 700 && z < 400) return 'moldavian';
+  if(z > 100 && x > -2800) return 'wallachian';
+  return 'battlefield';
+}
+function getRegionInfo(x,z){
+  var id = getRegion(x,z);
+  return WORLD_REGIONS[id] || WORLD_REGIONS.battlefield;
+}
+
+/* ---------- FLATS: keep capitals walkable, flatten towns & villages ---------- */
+var FLATS = [
+  {x:0,    z:0,    r:520, h:1.2},   /* Romaria capital — massive flat */
+  {x:-1800,z:-800, r:190, h:2.5},   /* Ardealburg — Transylvanian */
+  {x:-1400,z:1300, r:190, h:0.8},   /* Cetatea Dunarii — Wallachian */
+  {x:1700, z:-700, r:190, h:2.8},   /* Hotarul de Nord — Moldavian */
+  {x:0,    z:-2400,r:200, h:6.5},   /* Stanca de Fier — Carpathian */
+  {x:0,    z:2500, r:180, h:0.5},   /* Drumul Lung — Trade Route */
+  {x:0,    z:0,    r:430, h:0},     /* central field (kept for legacy) */
+  /* extended landmarks flats */
+  {x:575,  z:850,  r:32, h:1.2},
+  {x:915,  z:570,  r:36, h:1.2},
+  {x:990,  z:705,  r:28, h:1.2},
+  {x:635,  z:950,  r:30, h:1.2},
+  {x:805,  z:710,  r:22, h:1.2},
+  {x:710,  z:680,  r:20, h:1.2},
+  {x:580,  z:-850, r:34, h:1.2},
+  {x:-580, z:-850, r:30, h:1.2},
+  {x:-580, z:850,  r:32, h:1.2},
+  {x:-465, z:-2080,r:32, h:5.5},
+  {x:465,  z:2080, r:32, h:0.6},
+  /* new extended flats */
+  {x:-2200,z:-2000,r:110, h:7.2}, /* Carpathian Monastery Sfantul Andrei */
+  {x:2200, z:-1900,r:90,  h:6.8}, /* Frostwind Pass */
+  {x:-2100,z:-400, r:100, h:2.2}, /* Valea Lupilor */
+  {x:2100, z:200,  r:95,  h:1.5}, /* Codrul Vechi */
+  {x:-2200,z:1800, r:110, h:0.9}, /* Wallachian War Camp */
+  {x:2200, z:2200, r:100, h:0.4}, /* Southern caravan */
+  {x:0,    z:-1500,r:85,  h:4.2}, /* Hermit Cave */
+  {x:1200, z:0,    r:80,  h:1.8}  /* Wolf shrine */
 ];
-VNAMES.forEach(function(n,i){ VILLAGES[i].name=n; VILLAGES[i].zone=-1; });
+
+var FAC_KEYS_T=['sparta','rome','moldavia','vikings','egypt','nippon'];
+/* six nation homelands — repositioned to match extended Romanian world */
+var TOWNS={
+  sparta:  {x:-1800, z:-800,  name:'Ardealburg', region:'transylvanian', desc:'Transylvanian Heartland — fortified town, vineyards, scribes'},
+  rome:    {x:-1400, z:1300,  name:'Cetatea Dunarii', region:'wallachian', desc:'Wallachian Lowlands — 20m stone walls, moat, war camps'},
+  moldavia:{x:1700,  z:-700,  name:'Hotarul de Nord', region:'moldavian', desc:'Moldavian Borderlands — border fort, Codrul Vechi forest village'},
+  vikings: {x:0,     z:-2400, name:'Stanca de Fier', region:'carpathian', desc:'Northern Carpathian Ridge — iron-reinforced mountain fort'},
+  egypt:   {x:0,     z:2500,  name:'Drumul Lung', region:'trade_route', desc:'Southern Trade Route — inn, trade post, checkpoint'},
+  nippon:  {x:0,     z:0,     name:'Romaria', region:'capital', desc:'Capital City Romaria — royal palace, cathedral, grand market'}
+};
+
+/* 32 Romanian medieval villages — extended from 24 to fill every region */
+var VNAMES=[
+  'Săcele','Bălți','Rădăuți','Huși','Tecuci','Trotuș','Baia','Siret',
+  'Cârlig','Gurahonț','Vama','Oituz','Șomuz','Prut','Sucevița','Humor',
+  'Moldovița','Neamț','Tazlău','Bistrița','Horaiț','Agapia','Vorona','Dorna',
+  'Valea Lupilor','Codrul Vechi','Ardealburg-Sat','Cetatea-Sat',
+  'Drumul Lung-Sat','Stanca-Sat','Romaria-Sat','Frostwind'
+];
+var VILLAGES=[
+  /* Transylvanian Heartland */
+  {x:-2100,z:-400},{x:-1600,z:-1200},{x:-2200,z:-900},{x:-1200,z:-200},
+  /* Wallachian Lowlands */
+  {x:-1800,z:800},{x:-1200,z:1600},{x:-600,z:900},{x:-2000,z:1300},
+  /* Moldavian Borderlands */
+  {x:1800,z:-1200},{x:2200,z:-400},{x:1600,z:200},{x:2100,z:-900},
+  /* Carpathian Ridge */
+  {x:-800,z:-2200},{x:800,z:-2100},{x:0,z:-1600},{x:-2200,z:-2000},
+  /* Southern Trade Route */
+  {x:-1800,z:2300},{x:1800,z:2400},{x:0,z:2200},{x:-900,z:2600},
+  /* Capital Romaria outskirts */
+  {x:600,z:600},{x:-600,z:600},{x:600,z:-600},{x:-600,z:-600},
+  /* Battlefields & Secrets */
+  {x:1300,z:-800},{x:-1300,z:750},{x:1900,z:-1900},{x:-1900,z:1900},
+  {x:1200,z:125},{x:-1225,z:-75},{x:475,z:-210},{x:-440,z:190}
+];
+VNAMES.forEach(function(n,i){ if(VILLAGES[i]){ VILLAGES[i].name=n; VILLAGES[i].zone=-1; VILLAGES[i].region=getRegion(VILLAGES[i].x,VILLAGES[i].z); } });
 
 function distToSeg(px,pz, ax,az, bx,bz){
   var dx=bx-ax, dz=bz-az;
@@ -602,12 +659,62 @@ function distToSeg(px,pz, ax,az, bx,bz){
   return Math.sqrt(ex*ex+ez*ez);
 }
 function baseH(x,z){
-  return 7*Math.sin(x*0.0022+1.3)*Math.cos(z*0.0019-0.7)
-       + 3.5*Math.sin(x*0.0061-2.1)*Math.sin(z*0.0053+0.4)
-       + 1.1*Math.sin(x*0.017)*Math.cos(z*0.015)
-       + 0.35*Math.sin(x*0.045+3)*Math.sin(z*0.038+1);
+  var region = getRegion(x,z);
+  var base = 0;
+  /* rolling base */
+  base += 7*Math.sin(x*0.0022+1.3)*Math.cos(z*0.0019-0.7)
+        + 3.5*Math.sin(x*0.0061-2.1)*Math.sin(z*0.0053+0.4)
+        + 1.1*Math.sin(x*0.017)*Math.cos(z*0.015)
+        + 0.35*Math.sin(x*0.045+3)*Math.sin(z*0.038+1);
+  /* Carpathian Ridge: jagged limestone peaks, snow, high altitude */
+  if(region==='carpathian'){
+    var ridgeFactor = clamp((-1800 - z)/1200, 0, 1); // 0 at edge, 1 deep north
+    base += ridgeFactor * 18
+          + 9*Math.sin(x*0.0011)*Math.cos(z*0.0014)
+          + 5*Math.sin(x*0.008 + z*0.005)
+          + 2.5*Math.sin(x*0.04)*Math.cos(z*0.03);
+    /* avalanche zones, frozen lakes */
+    base += Math.sin(x*0.009+z*0.007)*1.2*ridgeFactor;
+  }
+  /* Transylvanian Heartland: gentle hills, vineyards */
+  else if(region==='transylvanian'){
+    base += 2.5*Math.sin(x*0.004)*Math.cos(z*0.003)
+          + 1.2*Math.sin(x*0.02+z*0.01);
+  }
+  /* Wallachian Lowlands: flat, marshy, tall grass */
+  else if(region==='wallachian'){
+    base += 0.8*Math.sin(x*0.003+z*0.002)
+          + 0.5*Math.sin(x*0.015)*Math.cos(z*0.012);
+    base *= 0.6; // flatter
+  }
+  /* Moldavian Borderlands: rocky, dense forests, river valleys */
+  else if(region==='moldavian'){
+    base += 3.2*Math.sin(x*0.005)*Math.cos(z*0.004)
+          + 1.8*Math.sin(x*0.018)*Math.cos(z*0.022)
+          + 0.9*Math.sin(x*0.05+z*0.03);
+  }
+  /* Southern Trade Route: dusty, dry, slight dunes */
+  else if(region==='trade_route'){
+    var tradeFactor = clamp((z-2000)/1000,0,1);
+    base += tradeFactor*1.5
+          + 0.6*Math.sin(x*0.006)*Math.cos(z*0.008)
+          + 0.3*Math.sin(x*0.03);
+    base *= 0.5;
+  }
+  /* Capital Romaria: slightly elevated, commanding */
+  else if(region==='capital'){
+    base += 1.5*Math.sin(x*0.002)*Math.cos(z*0.002)
+          + 0.7*Math.sin(x*0.01+z*0.01);
+    base += 1.2; // capital on slight hill
+  }
+  /* Battlefields: scarred, uneven */
+  else {
+    base += 1.2*Math.sin(x*0.007)*Math.cos(z*0.006)
+          + 0.8*Math.sin(x*0.025+z*0.02);
+  }
+  return base;
 }
-VILLAGES.forEach(function(v){ FLATS.push({x:v.x, z:v.z, r:44, h:baseH(v.x,v.z)}); });
+VILLAGES.forEach(function(v){ if(v) FLATS.push({x:v.x, z:v.z, r:48, h:baseH(v.x,v.z)}); });
 function groundH(x,z){
   var h=baseH(x,z);
   for(var i=0;i<FLATS.length;i++){
@@ -624,21 +731,75 @@ function groundH(x,z){
   return h;
 }
 
+/* ---------- EXTENDED LANDMARKS LIST FOR DISTRICTS ---------- */
+var EXTENDED_LANDMARKS = [
+  {x:-2200,z:-2000, name:'Manastirea Sfantul Andrei', type:'monastery', region:'carpathian'},
+  {x:0,    z:-1600, name:'Pestera Pustnicului', type:'cave', region:'carpathian'},
+  {x:800,  z:-2100, name:'Frostwind Pass Outpost', type:'outpost', region:'carpathian'},
+  {x:-1800,z:-800,  name:'Ardealburg', type:'town', region:'transylvanian'},
+  {x:-2100,z:-400,  name:'Valea Lupilor', type:'village', region:'transylvanian'},
+  {x:-1400,z:1300,  name:'Cetatea Dunarii', type:'fortress', region:'wallachian'},
+  {x:-2200,z:1800,  name:'Tabara de Razboi', type:'warcamp', region:'wallachian'},
+  {x:1700, z:-700,  name:'Hotarul de Nord', type:'borderfort', region:'moldavian'},
+  {x:2100, z:200,   name:'Codrul Vechi', type:'forestvillage', region:'moldavian'},
+  {x:0,    z:2500,  name:'Drumul Lung Inn', type:'inn', region:'trade_route'},
+  {x:0,    z:0,     name:'Romaria Palace', type:'capital', region:'capital'},
+  {x:600,  z:600,   name:'Catedrala Sfantul Mihail', type:'cathedral', region:'capital'},
+  {x:0,    z:2200,  name:'Punct Comert', type:'tradepost', region:'trade_route'},
+  {x:1200, z:0,     name:'Altarul Lupului', type:'shrine', region:'moldavian'}
+];
+
 
 // SOURCE: src/world/zone-info.js
 /* ------------------------------------------------------------
    zone-info.js — terrain types, strategic value, kingdom
    modifiers, building bonuses, anti-snowball helpers
+   EXTENDED EDITION: carpathian, transylvanian, wallachian,
+   moldavian, trade_route, capital, battlefield
    ------------------------------------------------------------ */
 
-var ZONE_TERRAINS=['plains','forest','hills','mountains','desert','river'];
-/* deterministic terrain per zone: based on ground height + noise */
+var ZONE_TERRAINS=['plains','forest','hills','mountains','desert','river','carpathian','transylvanian','wallachian','moldavian','trade_route','capital','battlefield','city'];
+/* deterministic terrain per zone: based on region + ground height + noise */
 function zoneTerrain(zi){
   var c=zoneCenter(zi);
+  var region = typeof getRegion!=='undefined' ? getRegion(c.x,c.z) : 'plains';
   var h=groundH(c.x,c.z);
   var n=Math.sin(c.x*0.0017+c.z*0.0023)*0.5 + Math.cos(c.x*0.0031-c.z*0.0027)*0.5;
   var d=Math.sqrt(c.x*c.x+c.z*c.z);
-  if(d<420) return 'city'; /* the Field */
+  if(d<520) return 'capital'; /* Romaria capital */
+  if(d<420) return 'city'; /* the Field legacy */
+  if(region==='carpathian'){
+    if(h>8) return 'mountains';
+    if(h>4) return 'carpathian';
+    return 'forest';
+  }
+  if(region==='transylvanian'){
+    if(n>0.5) return 'forest';
+    if(h>3) return 'hills';
+    return 'transylvanian';
+  }
+  if(region==='wallachian'){
+    if(n<-0.4) return 'river';
+    if(h<1) return 'plains';
+    return 'wallachian';
+  }
+  if(region==='moldavian'){
+    if(h>6) return 'mountains';
+    if(n>0.3) return 'forest';
+    if(h>2.5) return 'moldavian';
+    return 'hills';
+  }
+  if(region==='trade_route'){
+    if(Math.abs(c.x)<120 && Math.abs(c.z-2500)<200) return 'river';
+    if(n<-0.3) return 'desert';
+    return 'trade_route';
+  }
+  if(region==='capital'){
+    return 'capital';
+  }
+  if(region==='battlefield'){
+    return 'battlefield';
+  }
   if(Math.abs(c.x)<120 && Math.abs(c.z)<2600) {
     if(Math.abs(c.x)<24) return 'river';
   }
@@ -657,6 +818,13 @@ function terrainDefenseBonus(t){
     case 'river': return 10;
     case 'city': return 25;
     case 'desert': return -5;
+    case 'carpathian': return 30;
+    case 'transylvanian': return 12;
+    case 'wallachian': return 8;
+    case 'moldavian': return 18;
+    case 'trade_route': return 5;
+    case 'capital': return 28;
+    case 'battlefield': return 10;
     default: return 0;
   }
 }
@@ -669,6 +837,13 @@ function terrainMoveCost(t){
     case 'desert': return 1.15;
     case 'river': return 1.4;
     case 'city': return 0.9;
+    case 'carpathian': return 1.7;
+    case 'transylvanian': return 1.1;
+    case 'wallachian': return 1.05;
+    case 'moldavian': return 1.3;
+    case 'trade_route': return 0.85;
+    case 'capital': return 0.9;
+    case 'battlefield': return 1.15;
     default: return 1.0;
   }
 }
@@ -688,11 +863,18 @@ function zoneIncomeBase(zi){
   var base=2.2;
   switch(t){
     case 'city': base=6; break;
+    case 'capital': base=7.5; break;
     case 'forest': base=3.0; break;
     case 'hills': base=2.8; break;
     case 'mountains': base=3.5; break;
     case 'desert': base=1.2; break;
     case 'river': base=3.2; break;
+    case 'carpathian': base=4.2; break;
+    case 'transylvanian': base=3.8; break;
+    case 'wallachian': base=2.5; break;
+    case 'moldavian': base=3.3; break;
+    case 'trade_route': base=4.5; break;
+    case 'battlefield': base=1.8; break;
     default: base=2.2;
   }
   var z=zones[zi];
@@ -707,12 +889,19 @@ function zonePopulation(zi){
   var pop=0;
   switch(t){
     case 'city': pop=18000; break;
+    case 'capital': pop=25000; break;
     case 'plains': pop=8000; break;
     case 'forest': pop=5200; break;
     case 'hills': pop=4100; break;
     case 'mountains': pop=2200; break;
     case 'desert': pop=1500; break;
     case 'river': pop=9600; break;
+    case 'carpathian': pop=1800; break;
+    case 'transylvanian': pop=9500; break;
+    case 'wallachian': pop=7200; break;
+    case 'moldavian': pop=4800; break;
+    case 'trade_route': pop=11000; break;
+    case 'battlefield': pop=1200; break;
     default: pop=6000;
   }
   var z=zones[zi];
@@ -723,20 +912,19 @@ function zonePopulation(zi){
   return Math.round(pop);
 }
 
-/* Kingdom gameplay differences — not just visual */
+/* Kingdom gameplay differences — not just visual — extended for Romanian world */
 var KINGDOM_MODS={
-  sparta:{ name:'Sparta', infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, desc:'Strong infantry & defense, weaker economy' },
-  rome:{ name:'Roma', infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, desc:'Organized defense & infrastructure, higher upkeep' },
-  moldavia:{ name:'Moldova', infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, desc:'Balanced economy & regional defense' },
-  vikings:{ name:'Norrøn', infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, desc:'Aggressive warfare & mobility' },
-  egypt:{ name:'Kemet', infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, desc:'Economy & ranged/support' },
-  nippon:{ name:'Nippon', infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, desc:'Disciplined specialists & mobility' }
+  sparta:{ name:'Ardealburg', infantry:1.18, defense:1.22, economy:0.82, upkeep:1.08, move:0.98, desc:'Transylvanian fortified town — strong infantry & defense, weaker economy' },
+  rome:{ name:'Cetatea Dunarii', infantry:1.05, defense:1.18, economy:1.05, upkeep:1.15, move:1.0, desc:'Wallachian fortress — organized defense & infrastructure, higher upkeep' },
+  moldavia:{ name:'Moldova — Hotarul de Nord', infantry:1.0, defense:1.08, economy:1.12, upkeep:1.0, move:1.02, desc:'Moldavian Borderlands — balanced economy & regional defense' },
+  vikings:{ name:'Stanca de Fier', infantry:1.12, defense:0.92, economy:0.9, upkeep:0.92, move:1.15, desc:'Carpathian mountain fort — aggressive warfare & mobility' },
+  egypt:{ name:'Drumul Lung', infantry:0.95, defense:1.0, economy:1.22, upkeep:0.95, move:1.0, desc:'Southern Trade Route — economy & ranged/support' },
+  nippon:{ name:'Romaria', infantry:1.08, defense:0.98, economy:0.95, upkeep:0.92, move:1.12, desc:'Capital City — disciplined specialists & mobility' }
 };
 function kingdomMod(f){ return KINGDOM_MODS[f]||KINGDOM_MODS.moldavia; }
 
 /* Building bonuses: if a zone contains a specific building type, give modifiers */
 function zoneBuildingBonus(zi){
-  // Look up nearby building types from SITES
   var bonus={recruit:0, morale:0, treasury:0, manpower:0};
   if(typeof SITES==='undefined') return bonus;
   for(var i=0;i<SITES.length;i++){
@@ -748,6 +936,18 @@ function zoneBuildingBonus(zi){
       case 'forge': bonus.recruit+=0.18; break;
       case 'mine': bonus.treasury+=0.18; break;
       case 'cave': bonus.treasury+=0.12; break;
+      case 'watchtower': bonus.recruit+=0.12; bonus.morale+=0.08; break;
+      case 'fort': bonus.recruit+=0.20; bonus.morale+=0.12; break;
+      case 'shrine': bonus.morale+=0.15; break;
+      case 'inn': bonus.treasury+=0.15; bonus.manpower+=0.10; break;
+      case 'tradepost': bonus.treasury+=0.25; break;
+      case 'warcamp': bonus.recruit+=0.22; break;
+      case 'school': bonus.morale+=0.10; bonus.treasury+=0.08; break;
+      case 'hunter': bonus.manpower+=0.12; break;
+      case 'noble': bonus.treasury+=0.20; bonus.recruit+=0.10; break;
+      case 'library': bonus.morale+=0.12; break;
+      case 'stable': bonus.recruit+=0.10; bonus.manpower+=0.08; break;
+      case 'checkpoint': bonus.treasury+=0.12; bonus.morale+=0.05; break;
       default: break;
     }
   }
@@ -771,9 +971,7 @@ function armyUpkeepCost(team){
     }
   }
   var mod=kingdomMod(team);
-  // Base upkeep 0.02 gold/sec per soldier, scaled by kingdom and size
   var base=count*0.022*mod.upkeep;
-  // Large army penalty: beyond 80, cost grows 1.5x
   if(count>80) base+= (count-80)*0.015*mod.upkeep;
   if(count>150) base+= (count-150)*0.02;
   return base;
@@ -782,7 +980,6 @@ function supplyPenalty(team){
   var oc=typeof ownedCounts!=='undefined'?ownedCounts():null;
   if(!oc) return 1;
   var owned=oc[team]||0;
-  // Long-distance penalty: owning >80 zones makes distant zones less efficient
   if(owned<60) return 1;
   if(owned<100) return 0.92;
   if(owned<140) return 0.85;
@@ -794,10 +991,8 @@ function defensiveBonus(zi){
   var owner=zones[zi].owner;
   if(!owner) return 0;
   var owned=oc[owner]||0;
-  // If owner is losing ( <20 zones), give recovery bonus
   if(owned<15) return 18;
   if(owned<30) return 10;
-  // If zone is core and owner is threatened (<40 zones), extra defense
   if(zones[zi].core && owned<45) return 15;
   return 0;
 }
@@ -836,7 +1031,6 @@ function finalizeBattle(zoneIdx, winner){
     showBanner('BATTLE: '+lastBattle.result,
       'Enemy Losses: '+enemyLoss+' | Our Losses: '+ourLoss+' | Army: '+lastBattle.armyRemaining+' | '+(lastBattle.result==='Victory'?'Gold +'+lastBattle.gold:''),
       4.5);
-    // populate detailed battle report panel
     var br=$('battle-report');
     if(br){
       var terr=typeof zoneTerrain!=='undefined'?zoneTerrain(zoneIdx):'plains';
@@ -1209,39 +1403,115 @@ function makeBannerTex(bg, border, emblem){
 
 
 // SOURCE: src/world/terrain.js
-/* ---------------- terrain (vast) ---------------- */
+/* ---------------- terrain — ROMANIAN MEDIEVAL WAR WORLD EXTENDED ---------------- */
 (function buildGround(){
   var size=WORLD.half*2+400;
-  var geo = new THREE.PlaneGeometry(size,size,170,170);
+  var geo = new THREE.PlaneGeometry(size,size,200,200);
   geo.rotateX(-Math.PI/2);
   var pos = geo.attributes.position;
   var colors = new Float32Array(pos.count*3);
+  /* palette per region — extended edition */
+  var pal = {
+    carpathian: {base:new THREE.Color(0x8a9aa8), snow:new THREE.Color(0xe8f0f8), pine:new THREE.Color(0x2f4a2e), rock:new THREE.Color(0x7a7a82)},
+    transylvanian:{base:new THREE.Color(0x7ea04a), wheat:new THREE.Color(0xc9b24a), vine:new THREE.Color(0x6b8f3a), road:new THREE.Color(0x9a8555)},
+    wallachian:{base:new THREE.Color(0x8aa85a), grass:new THREE.Color(0x6a8a3a), marsh:new THREE.Color(0x5a6a4a), mud:new THREE.Color(0x7a6a4a)},
+    moldavian:{base:new THREE.Color(0x6b8f4a), forest:new THREE.Color(0x3a5a2e), rocky:new THREE.Color(0x7a7a6a), river:new THREE.Color(0x4a6a7a)},
+    trade_route:{base:new THREE.Color(0xa4905f), dust:new THREE.Color(0xc2b08a), dry:new THREE.Color(0x9a8a6a), well:new THREE.Color(0x8a7a5e)},
+    capital:{base:new THREE.Color(0x8a9a6a), stone:new THREE.Color(0x9a9a8a), boulevard:new THREE.Color(0x8a8070), garden:new THREE.Color(0x6a8a5a)},
+    battlefield:{base:new THREE.Color(0x7a8a5a), scar:new THREE.Color(0x6e5f43), burned:new THREE.Color(0x5a4a3a)}
+  };
   var cA=new THREE.Color(0x71983f), cB=new THREE.Color(0x8fae52), cC=new THREE.Color(0x5c7f3b), cD=new THREE.Color(0x9a8555);
   var scar=new THREE.Color(0x6e5f43), dust=new THREE.Color(0xa4905f);
   var tmp=new THREE.Color();
   for(var i=0;i<pos.count;i++){
     var x=pos.getX(i), z=pos.getZ(i);
     pos.setY(i, groundH(x,z));
+    var region = getRegion(x,z);
     var n=Math.sin(x*0.13+z*0.17)*0.5+Math.sin(x*0.031-z*0.043)*0.5;
-    tmp.copy(cA).lerp(cB, n*0.5+0.5);
-    if(n<-0.55) tmp.lerp(cC,0.5);
-    /* the great scarred field at the world's heart */
-    var ds=Math.sqrt(x*x+z*z);
-    if(ds<430){
-      var sf=1-ds/430;
-      tmp.lerp(scar, sf*0.7*(0.6+0.4*Math.sin(x*0.05+z*0.07)));
-      if(sf>0.75 && Math.sin(x*0.4)*Math.cos(z*0.5)>0.55) tmp.lerp(dust,0.4);
+    var h = groundH(x,z);
+    if(region==='carpathian'){
+      tmp.copy(pal.carpathian.base);
+      // snow caps
+      if(h>8) tmp.lerp(pal.carpathian.snow, clamp((h-8)/8,0,1)*0.85);
+      else if(h>4) tmp.lerp(pal.carpathian.rock, 0.3);
+      // pine forest noise
+      if(n>0.2) tmp.lerp(pal.carpathian.pine, 0.25);
+      // frozen lakes
+      if(Math.sin(x*0.008+z*0.009)>0.85 && h<3) tmp.lerp(new THREE.Color(0x8ab4d0),0.35);
+      // avalanche scars
+      if(Math.sin(x*0.05)*Math.cos(z*0.07)>0.75) tmp.lerp(pal.carpathian.rock,0.2);
+    } else if(region==='transylvanian'){
+      tmp.copy(pal.transylvanian.base);
+      tmp.lerp(pal.transylvanian.wheat, clamp(n*0.5+0.3,0,0.6));
+      if(Math.sin(x*0.02+z*0.015)>0.6) tmp.lerp(pal.transylvanian.vine,0.25);
+      // cobblestone roads hint
+      var roadD=1e9;
+      for(var rk=0; rk<FAC_KEYS_T.length; rk++){
+        var T0=TOWNS[FAC_KEYS_T[rk]];
+        roadD=Math.min(roadD, distToSeg(x,z, T0.x,T0.z, 0,0));
+      }
+      if(roadD<28) tmp.lerp(pal.transylvanian.road, (1-roadD/28)*0.6);
+    } else if(region==='wallachian'){
+      tmp.copy(pal.wallachian.base);
+      if(n<-0.3) tmp.lerp(pal.wallachian.marsh,0.35);
+      if(Math.sin(x*0.04)*Math.cos(z*0.03)>0.6) tmp.lerp(pal.wallachian.mud,0.25);
+      tmp.lerp(pal.wallachian.grass, 0.15*Math.sin(x*0.01+z*0.01)+0.15);
+      // reeds near rivers
+      if(Math.abs(x)<400 && z>0) tmp.lerp(pal.wallachian.marsh,0.2);
+    } else if(region==='moldavian'){
+      tmp.copy(pal.moldavian.base);
+      if(n>0.4) tmp.lerp(pal.moldavian.forest,0.45);
+      if(h>5) tmp.lerp(pal.moldavian.rocky,0.3);
+      if(Math.sin(x*0.015+z*0.02)>0.7) tmp.lerp(pal.moldavian.river,0.15);
+      // wolf dens, fallen logs
+      if(Math.sin(x*0.07+z*0.05)>0.8) tmp.lerp(pal.moldavian.rocky,0.15);
+    } else if(region==='trade_route'){
+      tmp.copy(pal.trade_route.base);
+      tmp.lerp(pal.trade_route.dust, 0.5+0.3*Math.sin(x*0.01));
+      if(n<-0.5) tmp.lerp(pal.trade_route.dry,0.3);
+      // dusty road central
+      var rd = Math.abs(z-2500);
+      if(rd<40) tmp.lerp(pal.trade_route.dust, (1-rd/40)*0.85);
+      if(rd<15) tmp.lerp(pal.trade_route.base,0.2);
+    } else if(region==='capital'){
+      tmp.copy(pal.capital.base);
+      var ds=Math.sqrt(x*x+z*z);
+      if(ds<520){
+        tmp.lerp(pal.capital.stone, 0.35*(1-ds/520));
+        if(Math.sin(x*0.08)*Math.cos(z*0.08)>0.5) tmp.lerp(pal.capital.boulevard,0.25);
+      }
+      if(ds<300 && Math.sin(x*0.04+z*0.03)>0.6) tmp.lerp(pal.capital.garden,0.2);
+      // wide boulevards
+      if(Math.abs(x)<30 || Math.abs(z)<30) tmp.lerp(pal.capital.boulevard,0.4);
+    } else {
+      // battlefield / default
+      tmp.copy(pal.battlefield.base);
+      tmp.lerp(pal.battlefield.scar, 0.2+0.2*Math.sin(x*0.02+z*0.02));
+      if(Math.sin(x*0.05+z*0.07)>0.75 && Math.random()<0.1) tmp.lerp(pal.battlefield.burned,0.3);
+      var ds2=Math.sqrt(x*x+z*z);
+      if(ds2<430){
+        var sf=1-ds2/430;
+        tmp.lerp(scar, sf*0.7*(0.6+0.4*Math.sin(x*0.05+z*0.07)));
+        if(sf>0.75 && Math.sin(x*0.4)*Math.cos(z*0.5)>0.55) tmp.lerp(dust,0.4);
+      }
     }
-    /* ancient highways: every homeland is connected to the heart of the world */
-    var roadD=1e9;
-    for(var rk=0; rk<FAC_KEYS_T.length; rk++){
-      var T0=TOWNS[FAC_KEYS_T[rk]];
-      roadD=Math.min(roadD, distToSeg(x,z, T0.x,T0.z, 0,0));
+    /* ancient highways: every homeland is connected to Romaria capital */
+    var roadD2=1e9;
+    for(var rk2=0; rk2<FAC_KEYS_T.length; rk2++){
+      var T02=TOWNS[FAC_KEYS_T[rk2]];
+      roadD2=Math.min(roadD2, distToSeg(x,z, T02.x,T02.z, 0,0));
     }
-    if(roadD<24){
-      var rf=1-clamp((roadD-10)/14,0,1);
+    if(roadD2<24){
+      var rf=1-clamp((roadD2-10)/14,0,1);
       tmp.lerp(dust, rf*0.85);
       tmp.lerp(scar, rf*0.25);
+    }
+    /* trade route dusty road east-west */
+    if(region==='trade_route' || (z>1800 && z<2700)){
+      var tradeRoad = Math.abs(z-2500);
+      if(tradeRoad<18){
+        tmp.lerp(dust, (1-tradeRoad/18)*0.9);
+      }
     }
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
   }
@@ -1255,40 +1525,58 @@ function makeBannerTex(bg, border, emblem){
 
 
 // SOURCE: src/world/scenery.js
-/* ---------------- battlefield props (center field) ---------------- */
+/* ---------------- battlefield props — ROMANIAN MEDIEVAL WAR WORLD EXTENDED ----------------
+   Carpathian peaks, Transylvanian orchards, Wallachian marshes, Moldavian forests,
+   Trade Route caravan stops, Romaria boulevards, battlefields, secret areas
+*/
 var clouds=[], flames=[];
-var waveBanners=[];  /* cloth flags that ripple (v5) */
-var nightLights=[];  /* fire lights that own the night (v5) */
-var LANDMARKS=[];    /* every monument & building carries a story (v5) */
-var critters=[];     /* ambient wildlife: deer, sheep, birds (v5) */
-var chests=[];       /* hidden treasure chests (v5) */
+var waveBanners=[];
+var nightLights=[];
+var LANDMARKS=[];
+var critters=[];
+var chests=[];
 function registerLore(o){ o.idx=LANDMARKS.length; LANDMARKS.push(o); return o; }
 var scenery={};
 (function buildField(){
-  /* mountains ring at the edge of the world */
-  for(var mi=0; mi<22; mi++){
-    var ma=mi/22*TAU+rand(-0.14,0.14), mr=rand(2670,2870), mh=rand(60,120);
-    var mtn=cone(rand(130,230), mh, M(0x7d94a5), 7); mtn.name='always';
+  /* mountains ring at the edge of the world — now Carpathian ridge emphasis north */
+  for(var mi=0; mi<34; mi++){
+    var ma=mi/34*TAU+rand(-0.14,0.14), mr=rand(2670,2870), mh=rand(60,140);
+    // bias north for Carpathian ridge
+    if(mi<14){
+      ma = -Math.PI/2 + rand(-0.9,0.9);
+      mr = rand(2550,2920);
+      mh = rand(90,180);
+    }
+    var mtn=cone(rand(130,260), mh, M(0x7d94a5), 7); mtn.name='always';
     mtn.position.set(Math.cos(ma)*mr, mh*0.32, Math.sin(ma)*mr);
     mtn.castShadow=false;
     scene.add(mtn);
   }
-  /* v6: continuous wall of peaks so the world's rim is SEEN, not felt */
-  for(var wi=0; wi<56; wi++){
-    var wa=wi/56*TAU+rand(-0.03,0.03), wr=rand(2980,3080), wh=rand(95,160);
-    var wall=cone(rand(210,320), wh, M(0x71879a), 7); wall.name='always';
+  /* continuous wall of peaks so the world's rim is SEEN, not felt — extended north */
+  for(var wi=0; wi<72; wi++){
+    var wa=wi/72*TAU+rand(-0.03,0.03), wr=rand(2980,3080), wh=rand(95,180);
+    if(wa>-2.5 && wa<-0.6){ wh+=40; } // north higher
+    var wall=cone(rand(210,360), wh, M(0x71879a), 7); wall.name='always';
     wall.position.set(Math.cos(wa)*wr, wh*0.32, Math.sin(wa)*wr);
     wall.castShadow=false;
     scene.add(wall);
   }
-  /* spent arrows + broken shields on the field */
+  /* spent arrows + broken shields on the field — battlefields scattered */
   try{
     var aGeo=new THREE.CylinderGeometry(0.02,0.02,0.8,4);
     var aMat=new THREE.MeshLambertMaterial({color:0xb59a63});
-    var sticks=new THREE.InstancedMesh(aGeo, aMat, 90);
+    var sticks=new THREE.InstancedMesh(aGeo, aMat, 160);
     var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), e=new THREE.Euler(), v=new THREE.Vector3(), s=new THREE.Vector3(1,1,1);
-    for(var ai=0; ai<90; ai++){
-      var ax=rand(-380,380), az=rand(-380,380);
+    for(var ai=0; ai<160; ai++){
+      var regionPick = rand(0,1);
+      var ax, az;
+      if(regionPick<0.3){
+        ax=rand(-2800,2800); az=rand(200,1800); // Wallachian battlefields
+      } else if(regionPick<0.6){
+        ax=rand(-2000,2000); az=rand(-800,800); // central
+      } else {
+        ax=rand(-380,380); az=rand(-380,380);
+      }
       e.set(rand(-0.5,0.5),rand(0,TAU),rand(0.4,1.1)); q.setFromEuler(e);
       v.set(ax, groundH(ax,az)+0.28, az);
       m4.compose(v,q,s);
@@ -1296,14 +1584,17 @@ var scenery={};
     }
     scene.add(sticks);
   }catch(err){}
-  for(var bi=0; bi<10; bi++){
-    var bx=rand(-330,330), bz=rand(-330,330);
+  for(var bi=0; bi<24; bi++){
+    var bx, bz;
+    if(bi<8){ bx=rand(-2600,2600); bz=rand(300,1800); }
+    else if(bi<16){ bx=rand(-1800,1800); bz=rand(-600,600); }
+    else { bx=rand(-330,330); bz=rand(-330,330); }
     var sh=cyl(0.34,0.34,0.05, M(choice([0x7a3434,0x50565e,0x5b4a86])), 10);
     sh.rotation.set(Math.PI/2+rand(-0.4,0.4), rand(0,TAU), 0);
     sh.position.set(bx, groundH(bx,bz)+0.06, bz);
     scene.add(sh);
   }
-  /* great bonfire at the field's heart */
+  /* great bonfire at Romaria's heart + additional fires per region */
   var fx2=0, fz2=26, fy=groundH(fx2,fz2);
   for(var si=0; si<9; si++){
     var sa=si/9*TAU;
@@ -1320,9 +1611,24 @@ var scenery={};
   flame2.position.set(fx2, fy+1.15, fz2); scene.add(flame2);
   flames.push(flame, flame2);
   scenery.fire={light:fireLight, flame:flame, flame2:flame2, y:fy};
-  /* clouds */
+
+  /* regional bonfires */
+  [
+    [0,-2400, 'Stanca de Fier beacon'],
+    [-1800,-800, 'Ardealburg market fire'],
+    [-1400,1300, 'Cetatea Dunarii war fire'],
+    [1700,-700, 'Hotarul de Nord watchfire'],
+    [0,2500, 'Drumul Lung inn fire']
+  ].forEach(function(f){
+    var fy2=groundH(f[0],f[1]);
+    var fl=new THREE.Mesh(new THREE.ConeGeometry(0.35,0.9,6), new THREE.MeshBasicMaterial({color:0xffa531}));
+    fl.position.set(f[0],fy2+0.8,f[1]); scene.add(fl); flames.push(fl);
+    var li=new THREE.PointLight(0xff9a3c, 0.8, 20, 2); li.position.set(f[0],fy2+1.1,f[1]); scene.add(li); li.userData.base=0.8; nightLights.push(li);
+  });
+
+  /* clouds — more over Carpathians */
   var cm=new THREE.MeshLambertMaterial({color:0xffffff, emissive:0x8a97a8});
-  for(var ci=0; ci<16; ci++){
+  for(var ci=0; ci<22; ci++){
     var cl=new THREE.Group();
     var parts=randi(3,5);
     for(var pi=0; pi<parts; pi++){
@@ -1331,17 +1637,18 @@ var scenery={};
       ps.position.set(rand(-4,4), rand(-0.5,0.5), rand(-2,2));
       cl.add(ps);
     }
-    cl.position.set(rand(-900,900), rand(46,66), rand(-900,900));
+    if(ci<8) cl.position.set(rand(-900,900), rand(56,76), rand(-2400,-1600)); // over Carpathians
+    else cl.position.set(rand(-900,900), rand(46,66), rand(-900,900));
     scene.add(cl); clouds.push(cl);
   }
-  /* trees across the world (avoid towns & field) */
-  function tree(x,z){
+  /* trees across the world — region specific */
+  function tree(x,z, type){
     var y=groundH(x,z);
     var t=new THREE.Group(); t.position.set(x,y,z);
     var trunk=cyl(0.16,0.28,rand(1.5,2.4), M(0x5d4326), 7);
     trunk.position.y=1.1; t.add(trunk);
-    if(Math.random()<0.4){
-      var pc=M(0x2f5233);
+    if(type==='pine' || Math.random()<0.5){
+      var pc=M(type==='pine'?0x2f4a2e:0x2f5233);
       [[1.6,2.2,1.5],[2.8,1.8,1.15],[3.9,1.4,0.9]].forEach(function(l){
         var c=cone(l[2],l[1],pc,8); c.position.y=l[0]; t.add(c);
       });
@@ -1356,29 +1663,59 @@ var scenery={};
     scene.add(t);
   }
   function farFromTowns(x,z){
-    if(x*x+z*z < 480*480) return false;
+    if(x*x+z*z < 580*580) return false; // keep capital clear
     for(var i=1;i<FLATS.length;i++){
       var f=FLATS[i];
       var dx=x-f.x, dz=z-f.z;
-      if(dx*dx+dz*dz < 380*380) return false;
+      if(dx*dx+dz*dz < 360*360) return false;
     }
     return true;
   }
   var placed=0, guard=0;
-  while(placed<170 && guard<1500){
+  while(placed<240 && guard<2500){
     guard++;
     var tx=rand(-WORLD.half+200, WORLD.half-200);
     var tz=rand(-WORLD.half+200, WORLD.half-200);
-    if(Math.random()<0.6){ /* cluster nearer the middle of the world */
-      tx*=0.45; tz*=0.45;
+    var reg = getRegion(tx,tz);
+    if(reg==='carpathian'){
+      if(Math.random()<0.7){ /* dense pine forests */
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz,'pine'); placed++;
+      }
+    } else if(reg==='transylvanian'){
+      if(Math.random()<0.55){
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz,'oak'); placed++;
+      }
+    } else if(reg==='moldavian'){
+      if(Math.random()<0.65){
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz, Math.random()<0.6?'pine':'oak'); placed++;
+      }
+    } else if(reg==='wallachian'){
+      if(Math.random()<0.25){
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz,'oak'); placed++;
+      }
+    } else if(reg==='trade_route'){
+      if(Math.random()<0.12){
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz,'oak'); placed++;
+      }
+    } else {
+      if(Math.random()<0.4){
+        tx*=0.55; tz*=0.55;
+        if(!farFromTowns(tx,tz)) continue;
+        tree(tx,tz); placed++;
+      }
     }
-    if(!farFromTowns(tx,tz)) continue;
-    tree(tx,tz); placed++;
   }
-  for(var ri=0; ri<24; ri++){
+  for(var ri=0; ri<36; ri++){
     var rx2=rand(-2400,2400), rz2=rand(-2400,2400);
     if(!farFromTowns(rx2,rz2)) continue;
-    var rock=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(0.6,1.9),0), M(0x8a8a86));
+    var reg2=getRegion(rx2,rz2);
+    var rockCol = reg2==='carpathian'?0x8a8a86:reg2==='trade_route'?0xa09070:0x8a8a86;
+    var rock=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(0.6,2.2),0), M(rockCol));
     rock.position.set(rx2, groundH(rx2,rz2)+0.2, rz2);
     rock.rotation.set(rand(0,3),rand(0,3),rand(0,3));
     rock.castShadow=true;
@@ -1387,7 +1724,7 @@ var scenery={};
 })();
 
 /* ============================================================
-   BUILDINGS — real walls, doors & interiors
+   BUILDINGS — real walls, doors & interiors — EXTENDED
    ============================================================ */
 
 
@@ -2049,8 +2386,9 @@ function buildSolidStructure(x,z,w,d,h,wallCol,roofCol,roof,opts){
   door openings, plinth, eaves, roof, chimney, porch) comes from
   architecture.js; collision comes from wallColliders; this file only
   furnishes the inside.
+  EXTENDED EDITION: 30+ interior types for Romanian Medieval War World
   o = {x, z, w, d, h, wall, roofCol, roof:'gable'|'thatch'|'church'|'temple'|'long',
-       door:'S'|'N', interior:'hall'|'house'|'barracks'|'temple'|'church'|'long', fac}
+       door:'S'|'N', interior:'hall'|'house'|'barracks'|'temple'|'church'|'long'|..., fac}
 */
 function interiorHearth(cx,cz,fi,w,d){
   var y=groundH(cx,cz);
@@ -2060,21 +2398,37 @@ function interiorHearth(cx,cz,fi,w,d){
   addFlame(cx, y+0.6, cz+fi*0.45, 1.1);
   scene.add(box(2.6,0.16,0.7, M(0x5d4326), cx, y+2.75, cz+fi*0.1));
 }
+function propIconShelf(cx,cz){
+  var y=groundH(cx,cz);
+  scene.add(box(1.8,0.1,0.4, M(0x5d4a38), cx, y+1.2, cz));
+  for(var i=0;i<3;i++) scene.add(box(0.2,0.3,0.05, M(0xc9a227), cx-0.6+i*0.6, y+1.45, cz+0.15));
+}
+function propScrollShelf(cx,cz){
+  var y=groundH(cx,cz);
+  scene.add(box(2.2,1.4,0.5, M(0x5d4a38), cx, y+0.7, cz));
+  for(var i=0;i<4;i++) scene.add(box(0.4,0.08,0.4, M(0xe8dcc0), cx-0.8+i*0.55, y+1.1, cz+0.2));
+}
+function propAnvil(cx,cz){
+  var y=groundH(cx,cz);
+  scene.add(box(0.8,0.5,0.5, M(0x4a4a4a), cx, y+0.5, cz));
+  scene.add(box(0.9,0.2,0.6, M(0x2a2a2a), cx, y+0.85, cz));
+}
 function buildBuilding(o){
   BUILD_COUNT++;
   var cx=o.x, cz=o.z, w=o.w, d=o.d, h=o.h;
   var y=groundH(cx,cz);
   structShell(o);
   wallColliders(cx,cz,w,d,h,o.door);
-  /* ------- interior furnishings ------- */
-  var fi=o.door==='S'?-1:1; /* furniture pushed away from the door */
-  if(o.interior==='house'){
+  var fi=o.door==='S'?-1:1;
+  var interior=o.interior||'house';
+
+  if(interior==='house'){
     propTable(cx - w*0.22, cz - fi*d*0.15, false, 1.6, 0.9);
     propBench(cx - w*0.22, cz - fi*d*0.15 + (o.door==='S'?0.7:-0.7), false);
     propBed(cx + w*0.28, cz + fi*d*0.22, false);
     propCrate(cx + w*0.32, cz - fi*d*0.28, 0.8);
     interiorHearth(cx, cz + fi*(d/2-0.45), -fi, w, d);
-  } else if(o.interior==='hall'){
+  } else if(interior==='hall'){
     propThrone(cx, cz - fi*(d/2-1.6), fi);
     propTable(cx, cz - fi*d*0.05, false, Math.min(w*0.5,4.2), 1.1);
     propBench(cx-1.2, cz + fi*d*0.12, false);
@@ -2083,7 +2437,7 @@ function buildBuilding(o){
     propBrazier(cx + w*0.32, cz + fi*d*0.2, true);
     propRack(cx + w*0.3, cz - fi*(d/2-1.4), false);
     propRack(cx - w*0.3, cz - fi*(d/2-1.4), false);
-  } else if(o.interior==='barracks'){
+  } else if(interior==='barracks'){
     propRack(cx - w*0.25, cz - fi*(d/2-1.2), false);
     propRack(cx + w*0.25, cz - fi*(d/2-1.2), false);
     propCrate(cx - w*0.3, cz + fi*d*0.25, 0.9);
@@ -2091,7 +2445,7 @@ function buildBuilding(o){
     propBench(cx + w*0.2, cz + fi*d*0.2, false);
     propBrazier(cx, cz + fi*d*0.05, false);
     propBed(cx + w*0.3, cz - fi*d*0.3, true);
-  } else if(o.interior==='temple'){
+  } else if(interior==='temple'){
     scene.add(box(2.0,1.0,1.0, M(0xd8d2c0), cx,y+0.62,cz-fi*(d/2-1.6)));
     scene.add(box(2.1,0.12,1.1, M(COL_GOLD), cx,y+1.16,cz-fi*(d/2-1.6)));
     addCollider(cx-1.05,cz-fi*(d/2-1.6)-0.55,cx+1.05,cz-fi*(d/2-1.6)+0.55);
@@ -2100,7 +2454,7 @@ function buildBuilding(o){
     propBench(cx - w*0.28, cz+fi*d*0.05, true);
     propBench(cx + w*0.28, cz+fi*d*0.05, true);
     propBench(cx, cz+fi*d*0.28, false);
-  } else if(o.interior==='church'){
+  } else if(interior==='church'){
     scene.add(box(1.7,1.0,0.9, M(0xe8e0cf), cx,y+0.62,cz-fi*(d/2-1.5)));
     scene.add(box(0.12,0.8,0.12, M(COL_GOLD), cx,y+1.5,cz-fi*(d/2-1.5)));
     scene.add(box(0.5,0.1,0.1, M(COL_GOLD), cx,y+1.62,cz-fi*(d/2-1.5)));
@@ -2111,7 +2465,8 @@ function buildBuilding(o){
     propBench(cx + w*0.25, cz+fi*d*0.1, true);
     propBench(cx - w*0.25, cz+fi*d*0.32, true);
     propBench(cx + w*0.25, cz+fi*d*0.32, true);
-  } else if(o.interior==='long'){
+    propIconShelf(cx, cz-fi*(d/2-1.5)+0.8);
+  } else if(interior==='long'){
     var pit=cyl(1.3,1.5,0.25, M(0x777772), 12); pit.position.set(cx,y+0.2,cz); scene.add(pit);
     addFlame(cx,y+0.75,cz,1.9);
     propBench(cx-2.2, cz, true);
@@ -2120,18 +2475,225 @@ function buildBuilding(o){
     propRack(cx+w*0.32, cz+d*0.2, true);
     propBed(cx - w*0.3, cz + d*0.3, true);
   }
+  /* ---------- EXTENDED INTERIORS ---------- */
+  else if(interior==='watchtower'){
+    // Spiral staircase circling inner wall
+    for(var s=0;s<8;s++){
+      var a=s/8*TAU, rx=Math.cos(a)*(w*0.38), rz=Math.sin(a)*(d*0.38);
+      scene.add(box(0.8,0.15,0.6, M(0x5d4a38), cx+rx, y+0.3+s*0.7, cz+rz));
+    }
+    // Lookout balcony
+    scene.add(box(w*0.9,0.15,d*0.3, M(0x6d5a3e), cx, y+h-0.5, cz+fi*d*0.35));
+    // Weapon racks
+    propRack(cx - w*0.3, cz - fi*(d/2-1.2), false);
+    propRack(cx + w*0.3, cz - fi*(d/2-1.2), false);
+    // Signal fire brazier
+    propBrazier(cx, cz, false);
+    addFlame(cx, y+1.2, cz, 1.0);
+    // Logbook table
+    propTable(cx, cz+fi*d*0.2, false, 1.2, 0.8);
+    scene.add(box(0.4,0.05,0.3, M(0xe8dcc0), cx, y+0.9, cz+fi*d*0.2));
+  } else if(interior==='cave' || interior==='hermit_cave'){
+    // Carved stone alcoves with clay pots
+    for(var a2=0;a2<3;a2++){
+      scene.add(box(0.6,0.4,0.5, M(0x8a7a6a), cx-1.2+a2*1.2, y+0.8, cz-fi*d*0.3));
+      scene.add(box(0.3,0.3,0.3, M(0xb59a63), cx-1.2+a2*1.2, y+1.15, cz-fi*d*0.3));
+    }
+    propCrate(cx + w*0.3, cz + fi*d*0.2, 0.8);
+    propIconShelf(cx - w*0.2, cz+fi*d*0.1);
+    // Fire pit soot-blackened
+    var pit2=cyl(0.9,1.0,0.2, M(0x2a2a2a), 10); pit2.position.set(cx,y+0.15,cz); scene.add(pit2);
+    addFlame(cx,y+0.5,cz,0.9);
+    // Straw bed
+    propBed(cx + w*0.25, cz - fi*d*0.25, false);
+  } else if(interior==='mountain_fort' || interior==='fortress'){
+    // Barracks bunk beds wool blankets
+    propBed(cx - w*0.3, cz - fi*d*0.25, false);
+    propBed(cx - w*0.3, cz + fi*d*0.25, false);
+    // Armory racks swords shields spears
+    propRack(cx + w*0.35, cz - fi*d*0.3, false);
+    propRack(cx + w*0.35, cz + fi*d*0.3, false);
+    // Chapel wooden benches icons candles
+    propBench(cx, cz+fi*d*0.1, true);
+    propIconShelf(cx, cz-fi*d*0.35);
+    addFlame(cx-0.6,y+1.0,cz-fi*d*0.35,0.6); addFlame(cx+0.6,y+1.0,cz-fi*d*0.35,0.6);
+    // War room carved wooden strategy table
+    propTable(cx, cz, false, 2.2, 1.2);
+    scene.add(box(0.8,0.05,0.6, M(0x8a9a6a), cx, y+0.95, cz));
+    // Storage cellar barrels crates dried food
+    propCrate(cx - w*0.35, cz, 0.9); propCrate(cx - w*0.35, cz+0.8, 0.7);
+    scene.add(cyl(0.4,0.4,0.6, M(0x5d4a38), 8).translateX(cx+w*0.35).translateY(y+0.3).translateZ(cz));
+  } else if(interior==='monastery' || interior==='monastery_hall'){
+    // Prayer hall iconostasis
+    scene.add(box(w*0.8,2.2,0.2, M(0x8a7a5e), cx, y+1.1, cz-fi*d*0.4));
+    propIconShelf(cx, cz-fi*d*0.4+0.3);
+    for(var ic=0;ic<5;ic++) scene.add(box(0.2,0.4,0.05, M(0xc9a227), cx-1.0+ic*0.5, y+1.5, cz-fi*d*0.4+0.25));
+    // Monk cells simple beds
+    propBed(cx - w*0.3, cz+fi*d*0.2, true); propBed(cx + w*0.3, cz+fi*d*0.2, true);
+    // Library scrolls manuscripts
+    propScrollShelf(cx - w*0.3, cz);
+    // Candle workshop wax vats
+    scene.add(cyl(0.5,0.5,0.6, M(0xe8dcc0), 8).translateX(cx+w*0.3).translateY(y+0.4).translateZ(cz));
+    addFlame(cx+w*0.3, y+0.9, cz, 0.5);
+  } else if(interior==='outpost' || interior==='frostwind_outpost'){
+    propBed(cx - w*0.3, cz, true); propBed(cx + w*0.3, cz, true);
+    propCrate(cx, cz-fi*d*0.3, 0.8); propCrate(cx+0.8, cz-fi*d*0.3, 0.7);
+    propRack(cx - w*0.35, cz, false);
+    var pit3=cyl(0.8,0.9,0.15, M(0x2a2a2a), 10); pit3.position.set(cx,y+0.15,cz+fi*d*0.2); scene.add(pit3);
+    addFlame(cx,y+0.45,cz+fi*d*0.2,0.8);
+    // Observation deck
+    scene.add(box(w*0.6,0.1,d*0.25, M(0x5d4a38), cx, y+h-0.6, cz+fi*d*0.35));
+  } else if(interior==='townhall'){
+    // Oak floors, banners, council chamber long table
+    propTable(cx, cz, false, w*0.7, 1.2);
+    for(var b=0;b<4;b++){
+      propBench(cx - w*0.3 + b*0.6, cz - d*0.2, false);
+      propBench(cx - w*0.3 + b*0.6, cz + d*0.2, false);
+    }
+    // Banners
+    scene.add(box(0.05,1.2,0.8, M(0xc0272d), cx - w*0.4, y+1.5, cz));
+    scene.add(box(0.05,1.2,0.8, M(0x2a5caa), cx + w*0.4, y+1.5, cz));
+  } else if(interior==='forge' || interior==='blacksmith'){
+    propAnvil(cx, cz);
+    scene.add(box(1.2,1.0,0.8, M(0x4a4a4a), cx+1.2, y+0.5, cz));
+    addFlame(cx+1.2, y+1.2, cz, 0.9);
+    propRack(cx - w*0.3, cz, false);
+    propRack(cx + w*0.3, cz, false);
+  } else if(interior==='tavern'){
+    // Fireplace long tables barrels upstairs straw beds
+    interiorHearth(cx, cz+fi*d*0.35, -fi, w, d);
+    propTable(cx, cz, false, 3.0, 1.0);
+    propTable(cx, cz+fi*d*0.15, false, 2.4, 0.9);
+    propBench(cx-1.5, cz, false); propBench(cx+1.5, cz, false);
+    scene.add(cyl(0.4,0.4,0.6, M(0x5d4a38), 8).translateX(cx-w*0.35).translateY(y+0.3).translateZ(cz));
+    scene.add(cyl(0.4,0.4,0.6, M(0x5d4a38), 8).translateX(cx+w*0.35).translateY(y+0.3).translateZ(cz));
+    // Upstairs hint
+    scene.add(box(w*0.8,0.1,d*0.4, M(0x5d4a38), cx, y+2.2, cz-fi*d*0.25));
+    propBed(cx - w*0.25, cz-fi*d*0.25, true); // straw bed upstairs representation
+  } else if(interior==='scribe' || interior==='school'){
+    for(var desk=0;desk<3;desk++){
+      propTable(cx -1.2+desk*1.2, cz, false, 0.9, 0.6);
+      scene.add(box(0.12,0.12,0.12, M(0x2a2a2a), cx -1.2+desk*1.2, y+0.85, cz));
+      scene.add(box(0.3,0.05,0.4, M(0xe8dcc0), cx -1.2+desk*1.2+0.2, y+0.85, cz));
+    }
+    propScrollShelf(cx - w*0.35, cz+fi*d*0.2);
+    propBench(cx, cz+fi*d*0.3, false);
+  } else if(interior==='guardhouse'){
+    // Jail cells iron bars
+    scene.add(box(0.08,2.0,2.0, M(0x4a4a4a), cx - w*0.3, y+1.0, cz));
+    for(var bar=0;bar<4;bar++) scene.add(box(0.05,2.0,0.05, M(0x2a2a2a), cx - w*0.3+bar*0.4-0.6, y+1.0, cz));
+    propRack(cx + w*0.3, cz, false);
+    propTable(cx, cz+fi*d*0.2, false, 1.0, 0.7);
+    // Duty roster board
+    scene.add(box(1.0,0.7,0.05, M(0x8a7a5e), cx, y+1.2, cz-fi*d*0.4));
+  } else if(interior==='watermill'){
+    scene.add(cyl(1.2,1.2,0.3, M(0x8a8a8a), 12).translateX(cx).translateY(y+0.4).translateZ(cz));
+    scene.add(cyl(0.9,0.9,0.25, M(0x6a6a6a), 12).translateX(cx).translateY(y+0.8).translateZ(cz));
+    for(var sack=0;sack<3;sack++) scene.add(box(0.5,0.4,0.3, M(0xe8dcc0), cx-1.0+sack*1.0, y+0.3, cz+1.0));
+  } else if(interior==='hunter' || interior==='hunters_cabin'){
+    propRack(cx - w*0.3, cz, false);
+    // Pelts
+    scene.add(box(1.2,0.05,0.8, M(0x5d4a38), cx, y+1.0, cz-fi*d*0.35));
+    // Trap storage
+    propCrate(cx + w*0.3, cz, 0.7); propCrate(cx + w*0.3, cz+0.7, 0.6);
+    interiorHearth(cx, cz+fi*d*0.3, -fi, w, d);
+  } else if(interior==='bathhouse'){
+    for(var tub=0;tub<2;tub++){
+      scene.add(cyl(0.7,0.7,0.5, M(0x8a7a5e), 10).translateX(cx-1.0+tub*2.0).translateY(y+0.3).translateZ(cz));
+      scene.add(box(0.6,0.1,0.6, M(0x6a8a7a), cx-1.0+tub*2.0, y+0.35, cz));
+    }
+    // Heated stones
+    for(var st=0;st<5;st++) scene.add(sph(0.15, M(0x5a5a5a), 5,4).translateX(cx-1.0+st*0.5).translateY(y+0.15).translateZ(cz+1.0));
+    addFlame(cx, y+0.3, cz+1.0, 0.5);
+  } else if(interior==='palace' || interior==='royal_palace'){
+    // Throne room golden throne marble columns red banners
+    propThrone(cx, cz-fi*d*0.35, fi);
+    scene.add(box(0.3, h*0.8, 0.3, M(0xd8d2c0), cx-w*0.4, y+h*0.4, cz));
+    scene.add(box(0.3, h*0.8, 0.3, M(0xd8d2c0), cx+w*0.4, y+h*0.4, cz));
+    scene.add(box(0.05,1.5,1.0, M(0xc0272d), cx-w*0.4+0.3, y+1.8, cz));
+    scene.add(box(0.05,1.5,1.0, M(0xc0272d), cx+w*0.4-0.3, y+1.8, cz));
+    // Royal chambers velvet beds
+    propBed(cx - w*0.3, cz+fi*d*0.2, false);
+    // War council maps
+    propTable(cx, cz, false, 2.5, 1.4);
+    scene.add(box(1.0,0.05,0.7, M(0x8a9a6a), cx, y+0.95, cz));
+    // Treasury gold chests
+    scene.add(box(0.8,0.5,0.5, M(0xc9a227), cx+w*0.35, y+0.3, cz-fi*d*0.2));
+    // Library manuscripts garden courtyard fountains
+    propScrollShelf(cx - w*0.35, cz);
+    scene.add(cyl(0.5,0.5,0.1, M(0x3f6a8a), 10).translateX(cx).translateY(y+0.15).translateZ(cz+fi*d*0.3));
+  } else if(interior==='cathedral'){
+    // Iconostasis marble floor choir balcony crypt
+    scene.add(box(w*0.8,2.4,0.2, M(0xe8e0cf), cx, y+1.2, cz-fi*d*0.4));
+    for(var ci2=0;ci2<4;ci2++) scene.add(box(0.25,0.5,0.05, M(0xc9a227), cx-0.9+ci2*0.6, y+1.5, cz-fi*d*0.4+0.15));
+    // Marble floor
+    // Choir balcony
+    scene.add(box(w*0.6,0.1,d*0.25, M(0x5d4a38), cx, y+2.2, cz+fi*d*0.3));
+    // Benches
+    propBench(cx - w*0.25, cz, true); propBench(cx + w*0.25, cz, true);
+    addFlame(cx-1.0,y+1.0,cz-fi*d*0.4+0.3,0.6); addFlame(cx+1.0,y+1.0,cz-fi*d*0.4+0.3,0.6);
+    // Crypt hint
+    scene.add(box(1.0,0.2,0.5, M(0x5a5a5a), cx, y+0.15, cz+fi*d*0.35));
+  } else if(interior==='market' || interior==='grand_market'){
+    propTable(cx, cz, false, 2.0, 1.0);
+    for(var cr=0;cr<3;cr++) propCrate(cx-1.2+cr*1.2, cz+1.0, 0.6);
+    scene.add(box(0.8,0.6,0.4, M(0xc9b24a), cx, y+0.9, cz)); // goods
+    propBench(cx, cz+fi*d*0.25, false);
+  } else if(interior==='inn' || interior==='drumul_inn'){
+    // Beds kitchen stable
+    propBed(cx - w*0.3, cz - fi*d*0.2, false); propBed(cx + w*0.3, cz - fi*d*0.2, false);
+    interiorHearth(cx, cz+fi*d*0.3, -fi, w, d);
+    propTable(cx, cz, false, 2.2, 0.9);
+    scene.add(cyl(0.35,0.35,0.5, M(0x5d4a38), 8).translateX(cx-w*0.35).translateY(y+0.3).translateZ(cz));
+  } else if(interior==='warcamp' || interior==='war_camp'){
+    // Commander tent interior
+    propTable(cx, cz, false, 1.8, 1.0);
+    scene.add(box(0.6,0.05,0.5, M(0x8a9a6a), cx, y+0.95, cz));
+    propCrate(cx - w*0.3, cz, 0.8); propCrate(cx + w*0.3, cz, 0.7);
+    propBed(cx, cz+fi*d*0.25, true);
+    propRack(cx - w*0.35, cz-fi*d*0.2, false);
+  } else if(interior==='forestvillage' || interior==='herbalist' || interior==='woodcutter'){
+    propTable(cx, cz, false, 1.4, 0.8);
+    for(var herb=0;herb<4;herb++) scene.add(box(0.15,0.3,0.15, M(0x4a7a37), cx-0.6+herb*0.4, y+0.9, cz+0.5));
+    propBed(cx + w*0.25, cz, true);
+    scene.add(box(1.0,0.1,0.4, M(0x5d4a38), cx, y+1.2, cz-fi*d*0.3)); // drying rack
+  } else if(interior==='tradepost' || interior==='checkpoint' || interior==='workshop'){
+    propTable(cx, cz, false, 1.6, 0.9);
+    propCrate(cx - w*0.3, cz, 0.9); propCrate(cx + w*0.3, cz, 0.8);
+    propCrate(cx, cz+1.0, 0.7);
+    if(interior==='checkpoint'){
+      propRack(cx - w*0.3, cz-fi*d*0.2, false);
+    }
+  } else if(interior==='secret' || interior==='bandit' || interior==='crypt' || interior==='witch'){
+    // Dark, mysterious
+    var pit4=cyl(0.9,1.0,0.2, M(0x2a2a2a), 10); pit4.position.set(cx,y+0.15,cz); scene.add(pit4);
+    if(Math.random()<0.7) addFlame(cx,y+0.5,cz,0.7);
+    propCrate(cx + w*0.3, cz, 0.8);
+    scene.add(box(0.5,0.4,0.3, M(0xc9a227), cx - w*0.2, y+0.4, cz));
+    propIconShelf(cx, cz-fi*d*0.3);
+  } else {
+    // fallback house
+    propTable(cx - w*0.22, cz - fi*d*0.15, false, 1.6, 0.9);
+    propBench(cx - w*0.22, cz - fi*d*0.15 + (o.door==='S'?0.7:-0.7), false);
+    propBed(cx + w*0.28, cz + fi*d*0.22, false);
+    propCrate(cx + w*0.32, cz - fi*d*0.28, 0.8);
+    interiorHearth(cx, cz + fi*(d/2-0.45), -fi, w, d);
+  }
 }
 
 
 // SOURCE: src/world/decoration.js
-/* ---------------- map decoration: ruins, towers, hamlets, ponds ---------------- */
+/* ---------------- map decoration: ruins, towers, hamlets, ponds — EXTENDED EDITION ---------------- */
 (function buildMapDeco(){
   var stoneM=M(0xcfc9b8);
-  for(var ri=0; ri<9; ri++){
-    var ra=ri/9*TAU, rr=150+((ri%3)*26);
+  // Ancient ruins — more scattered across battlefields
+  for(var ri=0; ri<16; ri++){
+    var ra=ri/16*TAU, rr=150+((ri%4)*32);
     var rx=Math.cos(ra)*rr, rz=Math.sin(ra)*rr-20;
+    // bias some to Wallachian battlefields
+    if(ri%3===0){ rx=rand(-2000,2000); rz=rand(200,1800); }
     var ry=groundH(rx,rz);
-    var hgt=choice([2.2,3.6,4.4]);
+    var hgt=choice([2.2,3.6,4.4,5.2]);
     var col=cyl(0.55,0.7,hgt, stoneM, 9);
     if(ri%3===2){
       col.rotation.z=Math.PI/2; col.rotation.y=rand(0,TAU);
@@ -2145,41 +2707,74 @@ function buildBuilding(o){
     scene.add(col);
     addCollider(rx-0.7,rz-0.7,rx+0.7,rz+0.7);
   }
-  for(var si=0; si<7; si++){
-    var sa=si/7*TAU;
-    var sx=Math.cos(sa)*70, sz=-160+Math.sin(sa)*70;
+  // Small shrine ring around Romaria capital
+  for(var si=0; si<12; si++){
+    var sa=si/12*TAU;
+    var sx=Math.cos(sa)*580, sz=Math.sin(sa)*580;
     var sy=groundH(sx,sz);
     var m0=box(1.4,rand(2.6,3.6),0.9, M(0xa8a294), sx,sy+1.5,sz);
     m0.rotation.y=sa+rand(-0.2,0.2);
     scene.add(m0);
     addCollider(sx-0.8,sz-0.8,sx+0.8,sz+0.8);
+    if(si%3===0){
+      registerLore({key:'romaria_shrine_'+si, x:sx, z:sz, r:22, icon:'🕯️',
+        name:'Troiță de hotar — Romaria', sub:'Boundary shrine of the capital',
+        story:'Orthodox roadside shrine marking the old border of Romaria. Candles burn here for travelers, soldiers and shepherds — faith and war share the same road.'});
+    }
   }
-  [[0,-1750],[0,1750],[-1750,0],[1750,0]].forEach(function(tp){
+  // Watchtowers — Carpathian + trade route + border
+  [
+    [0,-1750, 'Frostwind Watch'],
+    [0,1750, 'Drumul Lung Watch'],
+    [-1750,0, 'Ardealburg Watch'],
+    [1750,0, 'Hotarul Watch'],
+    [-2200,-2000, 'Sfantul Andrei Monastery Tower'],
+    [2200,2200, 'Southern Caravan Tower'],
+    [-2200,1800, 'Cetatea Dunarii Outpost'],
+    [2100,-400, 'Codrul Vechi Lookout']
+  ].forEach(function(tp){
     var ty=groundH(tp[0],tp[1]);
-    var twr=cyl(2.3,2.8,9, M(0x8f8a80), 10); twr.position.set(tp[0],ty+4.5,tp[1]); scene.add(twr);
-    var ring=cyl(2.6,2.6,0.5, M(0x837d72), 10); ring.position.set(tp[0],ty+9.1,tp[1]); scene.add(ring);
+    var twr=cyl(2.3,2.8,11, M(0x8f8a80), 10); twr.position.set(tp[0],ty+5.5,tp[1]); scene.add(twr);
+    var ring=cyl(2.6,2.6,0.5, M(0x837d72), 10); ring.position.set(tp[0],ty+11.1,tp[1]); scene.add(ring);
     for(var ci=0; ci<8; ci++){
       var ca=ci/8*TAU;
-      scene.add(box(0.6,0.7,0.6, M(0x837d72), tp[0]+Math.cos(ca)*2.3, ty+9.8, tp[1]+Math.sin(ca)*2.3));
+      scene.add(box(0.6,0.7,0.6, M(0x837d72), tp[0]+Math.cos(ca)*2.3, ty+11.8, tp[1]+Math.sin(ca)*2.3));
     }
-    var pole=cyl(0.06,0.08,2.6, M(0x5d4326), 5); pole.position.set(tp[0],ty+11.4,tp[1]); scene.add(pole);
+    var pole=cyl(0.06,0.08,2.6, M(0x5d4326), 5); pole.position.set(tp[0],ty+13.4,tp[1]); scene.add(pole);
     var fl=new THREE.Mesh(new THREE.PlaneGeometry(1.3,2.0), new THREE.MeshLambertMaterial({color:0x57544e, side:THREE.DoubleSide}));
-    fl.position.set(tp[0]+0.7,ty+12.2,tp[1]); scene.add(fl);
+    fl.position.set(tp[0]+0.7,ty+14.2,tp[1]); scene.add(fl);
     addCollider(tp[0]-2.4,tp[1]-2.4,tp[0]+2.4,tp[1]+2.4);
+    registerLore({key:'tower_'+tp[2], x:tp[0], z:tp[1], r:28, icon:'🗼',
+      name:tp[2], sub:'Watchtower — '+getRegion(tp[0],tp[1]),
+      story:'A wooden watchtower with stone foundation, used to spot invaders. Signal fires, weapon racks, logbooks — the frontier never sleeps.'});
   });
-  [[900,900],[-900,900],[900,-900],[-900,-900]].forEach(function(hp,i){
+  // Hamlet wells near faction towns — extended
+  [
+    [0,0, 'Romaria'],[-1800,-800,'Ardealburg'],[-1400,1300,'Cetatea Dunarii'],
+    [1700,-700,'Hotarul de Nord'],[0,-2400,'Stanca de Fier'],[0,2500,'Drumul Lung'],
+    [-2100,-400,'Valea Lupilor'],[2100,200,'Codrul Vechi']
+  ].forEach(function(hp,i){
     [[-16,-8],[14,6]].forEach(function(off,j){
       var hx=hp[0]+off[0], hz=hp[1]+off[1];
-      buildBuilding({x:hx,z:hz,w:8,d:7,h:3.6, wall:i%2?0xc2b89a:0xb5a98c, roofCol:0x7a5c39, roof:'thatch', door:j?'S':'N', interior:'house'});
+      if(Math.hypot(hx-hp[0],hz-hp[1])<40) buildBuilding({x:hx,z:hz,w:8,d:7,h:3.6, wall:i%2?0xc2b89a:0xb5a98c, roofCol:0x7a5c39, roof:'thatch', door:j?'S':'N', interior:'house'});
     });
     var by=groundH(hp[0],hp[1]);
     var wr2=cone(1.4,0.8, M(0x7a5c39), 4); wr2.rotation.y=Math.PI/4; wr2.position.set(hp[0],by+2.6,hp[1]); scene.add(wr2);
     var wc=cyl(1.0,1.2,0.9, M(0x8f8a80), 9); wc.position.set(hp[0],by+0.45,hp[1]); scene.add(wc);
     addCollider(hp[0]-1.1,hp[1]-1.1,hp[0]+1.1,hp[1]+1.1);
   });
-  [[1300,620],[-700,1500],[320,-1420]].forEach(function(pp){
+  // Ponds, marshes, frozen lakes — region specific
+  [
+    [1300,620,'Wallachian Marsh'],
+    [-700,1500,'Dunarii Swamp'],
+    [320,-1420,'Carpathian Tarn'],
+    [-2200,-2000,'Frozen Lake — Sfantul Andrei'],
+    [0,-1600,'Hermit Cave Spring'],
+    [1800,2400,'Southern Oasis']
+  ].forEach(function(pp){
     var py=groundH(pp[0],pp[1]);
-    var pond=new THREE.Mesh(new THREE.CircleGeometry(38,18), new THREE.MeshLambertMaterial({color:0x3f6a8a, transparent:true, opacity:0.85}));
+    var col = pp[2].includes('Frozen')?0x8ab4d0:pp[2].includes('Swamp')||pp[2].includes('Marsh')?0x4a6a4a:0x3f6a8a;
+    var pond=new THREE.Mesh(new THREE.CircleGeometry(pp[2].includes('Frozen')?22:38,18), new THREE.MeshLambertMaterial({color:col, transparent:true, opacity:0.85}));
     pond.rotation.x=-Math.PI/2;
     pond.position.set(pp[0],py+0.14,pp[1]);
     scene.add(pond);
@@ -2190,15 +2785,20 @@ function buildBuilding(o){
       reed.position.set(rx2, groundH(rx2,rz2)+0.4, rz2);
       scene.add(reed);
     }
+    registerLore({key:'water_'+pp[0]+'_'+pp[1], x:pp[0], z:pp[1], r:38, icon:pp[2].includes('Frozen')?'❄️':'💧',
+      name:pp[2], sub:'Water source — '+getRegion(pp[0],pp[1]),
+      story:'A vital water source in '+getRegion(pp[0],pp[1])+' — marsh, lake or oasis that decides where armies can march and villages can live.'});
   });
   try{
     var bGeo=new THREE.SphereGeometry(0.55,7,5);
     var bMat=new THREE.MeshLambertMaterial({color:0x4a7a37});
-    var bushes=new THREE.InstancedMesh(bGeo,bMat,90);
+    var bushes=new THREE.InstancedMesh(bGeo,bMat,160);
     var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), e=new THREE.Euler(), v=new THREE.Vector3(), s=new THREE.Vector3();
-    for(var bi=0; bi<90; bi++){
+    for(var bi=0; bi<160; bi++){
       var a2=rand(0,TAU), r2=rand(240,1600);
       var bx=Math.cos(a2)*r2, bz=Math.sin(a2)*r2;
+      if(getRegion(bx,bz)==='trade_route' && Math.random()<0.7) continue;
+      if(getRegion(bx,bz)==='carpathian' && Math.random()<0.3){ r2=rand(1800,2600); bx=Math.cos(a2)*r2; bz=Math.sin(a2)*r2; }
       e.set(0,rand(0,TAU),0); q.setFromEuler(e);
       v.set(bx, groundH(bx,bz)+0.3, bz);
       var bs=rand(0.6,1.4); s.set(bs,bs*0.75,bs);
@@ -2208,27 +2808,55 @@ function buildBuilding(o){
     bushes.castShadow=false;
     scene.add(bushes);
   }catch(err){}
+  // Secret locations — extended
+  [
+    [-1200,-1800, 'Hidden Cave Shrine', '🕯️', 'Candles, icons, ancient carvings — a hermit’s refuge'],
+    [1400,1800, 'Abandoned Monastery', '⛪', 'Collapsed roof, vines, old library with scrolls'],
+    [0,1200, 'Bandit Hideout', '🏴', 'Tents, stolen goods, lookout posts in Wallachian reeds'],
+    [-800,-2200, 'Underground Crypt Maze', '💀', 'Stone coffins, dark tunnels beneath Carpathian monastery'],
+    [900,-2000, 'Hidden Waterfall Cave', '🌊', 'Behind a frozen waterfall — whispers and icons'],
+    [-2000,2000, 'Forgotten Watchtower', '🗼', 'Overgrown, broken, but still watching the trade route'],
+    [2200,-600, 'Smuggler Tunnels', '🕳️', 'Moldavian border — salt, gold and secrets move unseen'],
+    [-600,2100, 'Witch’s Hut Deep in Forest', '🧙', 'Herbs, potions, drying racks — Codrul Vechi whispers']
+  ].forEach(function(sec){
+    var sy=groundH(sec[0],sec[1]);
+    var marker=sph(0.6, M(0x6a6a6a), 6,5);
+    marker.position.set(sec[0],sy+0.6,sec[1]);
+    scene.add(marker);
+    registerLore({key:'secret_'+sec[0]+'_'+sec[1], x:sec[0], z:sec[1], r:26, icon:sec[3],
+      name:sec[2], sub:'Secret Location — '+getRegion(sec[0],sec[1]),
+      story:sec[4]});
+  });
 })();
 
 
 // SOURCE: src/buildings/towns.js
-/* ---------------- faction towns ---------------- */
-/* local->world: wx = x + mx*lx ; wz = z + fz*lz ; front door faces the field */
+/* ---------------- faction towns — ROMANIAN MEDIEVAL WAR WORLD EXTENDED 2× EDITION ----------------
+   Six nations reimagined as Romanian medieval regions:
+   - sparta: Ardealburg (Transylvanian Heartland)
+   - rome: Cetatea Dunarii (Wallachian Lowlands)
+   - moldavia: Hotarul de Nord / Codrul Vechi (Moldavian Borderlands)
+   - vikings: Stanca de Fier (Carpathian Ridge)
+   - egypt: Drumul Lung (Southern Trade Route)
+   - nippon: Romaria (Capital City)
+*/
 function townT(facKey){
   var T=TOWNS[facKey];
-  return {mx: T.x>0?1:-1, fz: T.z<0?1:-1, x:T.x, z:T.z};
+  return {mx: T.x>0?1:-1, fz: T.z<0?1:-1, x:T.x, z:T.z, name:T.name, region:T.region};
 }
 function tw(T,lx,lz){ return {x:T.x+T.mx*lx, z:T.z+T.fz*lz}; }
-var townData={}; /* fac -> {hall:{x,z,doorWorld:{x,z}}} */
+var townData={};
 function buildTown(facKey){
   var F=FACS[facKey];
   var T=townT(facKey);
   var door = T.fz>0 ? 'S' : 'N';
   var data={hall:{}};
   var P=F.townPalette;
-  /* palisade ring (instanced posts, decorative) */
+
+  /* palisade ring — varies by region */
   (function(){
-    var R=165, n=Math.floor(TAU*R/4.6);
+    var R= facKey==='nippon'?210 : facKey==='rome'?195 : 165;
+    var n=Math.floor(TAU*R/4.6);
     var post=new THREE.CylinderGeometry(0.5,0.62,7.5,6);
     var pm=new THREE.MeshLambertMaterial({color:P.palisade});
     var im=new THREE.InstancedMesh(post,pm,n);
@@ -2239,11 +2867,12 @@ function buildTown(facKey){
     for(var i=0;i<n;i++){
       var a=i/n*TAU;
       var px=T.x+Math.cos(a)*R, pz=T.z+Math.sin(a)*R*0.92;
-      /* gaps toward the field + two side gates */
-      var fa=Math.atan2(-T.z*0.2,-T.x); /* rough direction to field */
+      var fa=Math.atan2(-T.z*0.2,-T.x);
       var da=angDiff(a,fa);
       if(Math.abs(da)<0.24) continue;
       if(Math.abs(Math.abs(da)-Math.PI/2)<0.14) continue;
+      // Wallachian fortress has full stone walls later, skip palisade gaps for stone
+      if(facKey==='rome' && Math.abs(da)<0.6) continue;
       var y=groundH(px,pz);
       e.set(0,-a+Math.PI/2,0); q.setFromEuler(e);
       v.set(px,y+3.6,pz); m4.compose(v,q,s); im.setMatrixAt(idx,m4);
@@ -2254,54 +2883,283 @@ function buildTown(facKey){
     im.castShadow=true; im2.castShadow=true;
     scene.add(im); scene.add(im2);
   })();
-  /* the great hall (throne room — where recruits muster) */
-  var hallP=tw(T,-26,-42);
-  buildBuilding({x:hallP.x, z:hallP.z, w:26, d:15, h:6.4, wall:P.wall, roofCol:P.roof, roof:'gable',
-    door:door, interior:'hall', fac:facKey});
-  data.hall={x:hallP.x, z:hallP.z};
-  data.hall.door={x:hallP.x, z:hallP.z+T.fz*(15/2+3)};
-  /* temple / church / longhouse */
-  var temP=tw(T,26,-46);
-  if(facKey==='moldavia'){
+
+  /* ---------- REGION-SPECIFIC TOWN LAYOUT ---------- */
+  if(facKey==='vikings'){
+    // STANCA DE FIER — Carpathian mountain fort: iron-reinforced gates, murder holes, battlements, spikes
+    var hallP=tw(T,-26,-42);
+    buildBuilding({x:hallP.x, z:hallP.z, w:26, d:15, h:6.4, wall:0x6e6e6e, roofCol:0x4a4238, roof:'gable', door:door, interior:'mountain_fort', fac:facKey});
+    data.hall={x:hallP.x, z:hallP.z}; data.hall.door={x:hallP.x, z:hallP.z+T.fz*(15/2+3)};
+    // Iron gates + murder holes
+    var gateP=tw(T,0,66);
+    buildBuilding({x:gateP.x, z:gateP.z, w:14, d:6, h:5.5, wall:0x5a5a5a, roofCol:0x3a3a3a, roof:'flat', door:door, interior:'guardhouse'});
+    // Barracks bunk beds wool blankets
+    var barP=tw(T,-52,4);
+    buildBuilding({x:barP.x,z:barP.z,w:14,d:11,h:4.4,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'barracks'});
+    // Armory, Chapel, War room, Storage, Commander quarters
+    var armP=tw(T,26,-46);
+    buildBuilding({x:armP.x,z:armP.z,w:12,d:10,h:4.6,wall:0x6e6152,roofCol:0x4a4238,roof:'gable',door:door,interior:'forge'});
+    var chapP=tw(T,50,-10);
+    buildBuilding({x:chapP.x,z:chapP.z,w:10,d:14,h:4.8,wall:0xe8e0cf,roofCol:0x6d4a34,roof:'church',door:door,interior:'monastery'});
+    var warP=tw(T,-14,16);
+    buildBuilding({x:warP.x,z:warP.z,w:11,d:9,h:4.2,wall:P.wallAlt,roofCol:P.roof,roof:'gable',door:door,interior:'townhall'});
+    var stoP=tw(T,0,40);
+    buildBuilding({x:stoP.x,z:stoP.z,w:10,d:9,h:3.6,wall:P.wallAlt,roofCol:P.roof,roof:'thatch',door:door,interior:'tradepost'});
+    // Watchtower
+    var wtP=tw(T,48,-42);
+    solidBuilding(wtP.x, wtP.z, 4.5,4.5,11.5, P.wallAlt, P.roof, 'flat');
+    var twy=groundH(wtP.x,wtP.z);
+    scene.add(cyl(0.06,0.08,2.2, NM(0x4a3520), 6).translateX(wtP.x).translateY(twy+12.6).translateZ(wtP.z));
+    var twFlag=new THREE.Mesh(new THREE.PlaneGeometry(1.6,2.4,6,8), new THREE.MeshLambertMaterial({map:F.bannerTex, side:THREE.DoubleSide}));
+    twFlag.position.set(wtP.x+0.85, twy+13.6, wtP.z); scene.add(twFlag); waveBanners.push({m:twFlag, ph:rand(0,6)});
+    // Hermit cave nearby
+    var caveP=tw(T,26,14);
+    buildBuilding({x:caveP.x,z:caveP.z,w:8,d:8,h:3.2,wall:0x6e6152,roofCol:0x5a5a5a,roof:'thatch',door:door,interior:'cave'});
+    // Monastery Sfantul Andrei bell tower
+    var monP=tw(T,-8,56);
+    buildBuilding({x:monP.x,z:monP.z,w:16,d:18,h:5.2,wall:0xd8d2c0,roofCol:0x2a5caa,roof:'church',door:door,interior:'monastery'});
+    var monY=groundH(monP.x,monP.z);
+    scene.add(cyl(1.3,1.5,1.1, M(0x8f8a80), 10).translateX(monP.x+12).translateY(monY+0.55).translateZ(monP.z));
+    // Defensive spikes
+    for(var sp=0;sp<6;sp++){
+      var spP=tw(T,-30+sp*12,70);
+      scene.add(cone(0.4,1.2, M(0x4a4a4a), 6).translateX(spP.x).translateY(groundH(spP.x,spP.z)+0.6).translateZ(spP.z));
+    }
+    data.temple=chapP; data.barracks=barP; data.well=tw(T,0,6);
+  } else if(facKey==='sparta'){
+    // ARDEALBURG — Transylvanian Heartland: stone walls round towers, portcullis, market, blacksmith, noble quarter
+    var hallP2=tw(T,-26,-42);
+    buildBuilding({x:hallP2.x, z:hallP2.z, w:26, d:15, h:6.4, wall:P.wall, roofCol:P.roof, roof:'gable', door:door, interior:'townhall', fac:facKey});
+    data.hall={x:hallP2.x, z:hallP2.z}; data.hall.door={x:hallP2.x, z:hallP2.z+T.fz*(15/2+3)};
+    // Church Orthodox
+    var temP=tw(T,26,-46);
     buildBuilding({x:temP.x,z:temP.z,w:12,d:18,h:4.6,wall:0xe8e0cf,roofCol:0x6d4a34,roof:'church',door:door,interior:'church'});
-  } else if(facKey==='vikings'){
-    buildBuilding({x:temP.x,z:temP.z,w:14,d:20,h:5.4,wall:P.wall,roofCol:P.roof,roof:'long',door:door,interior:'long'});
+    // Barracks
+    var barP2=tw(T,-52,4);
+    buildBuilding({x:barP2.x,z:barP2.z,w:14,d:11,h:4.4,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'barracks'});
+    // Blacksmith Forge anvil furnace racks
+    var forgeP=tw(T,6,-10);
+    buildBuilding({x:forgeP.x,z:forgeP.z,w:12,d:10,h:4.2,wall:P.wallAlt,roofCol:P.roof,roof:'gable',door:door,interior:'forge'});
+    // Merchant Homes two-story balconies flower pots
+    [[-14,16,9,8],[26,14,10,9],[50,-10,9,8],[0,40,10,9]].forEach(function(hd,i){
+      var p=tw(T,hd[0],hd[1]);
+      buildBuilding({x:p.x,z:p.z,w:hd[2],d:hd[3],h:5.2, wall:i%2?P.wallAlt:P.wall, roofCol:P.roof, roof:i%3===0?'thatch':'gable', door:door, interior:'house'});
+      // balcony
+      var by=groundH(p.x,p.z);
+      scene.add(box(2.0,0.1,0.8, M(0x5d4a38), p.x, by+2.6, p.z+2.0));
+      scene.add(box(0.2,0.2,0.2, M(0xc94f4f), p.x-0.6, by+2.75, p.z+2.1));
+      scene.add(box(0.2,0.2,0.2, M(0xe9c458), p.x+0.6, by+2.75, p.z+2.1));
+    });
+    // Tavern Lupul Rosu fireplace long tables barrels upstairs straw beds
+    var tavP=tw(T,44,32);
+    buildBuilding({x:tavP.x,z:tavP.z,w:14,d:11,h:4.8,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'tavern'});
+    // School of Scribes writing desks ink pots scrolls classroom benches
+    var scriP=tw(T,4,-64);
+    buildBuilding({x:scriP.x,z:scriP.z,w:13,d:10,h:4.2,wall:0xd8d2c0,roofCol:0x2a5caa,roof:'gable',door:door,interior:'scribe'});
+    // Guardhouse jail cells weapon racks duty roster captain office
+    var guardP=tw(T,48,-42);
+    buildBuilding({x:guardP.x,z:guardP.z,w:12,d:10,h:4.0,wall:P.wallAlt,roofCol:P.roof,roof:'gable',door:door,interior:'guardhouse'});
+    // Watermill grinding stones flour sacks
+    var millP=tw(T,56,14);
+    buildBuilding({x:millP.x,z:millP.z,w:10,d:10,h:4.0,wall:P.wallAlt,roofCol:P.roof,roof:'thatch',door:door,interior:'watermill'});
+    // Hunter cabin bow racks pelts trap storage fireplace
+    var huntP=tw(T,-8,56);
+    buildBuilding({x:huntP.x,z:huntP.z,w:9,d:8,h:3.8,wall:0x6e6152,roofCol:0x4a4238,roof:'thatch',door:door,interior:'hunter'});
+    // Bathhouse tubs heated stones steam room
+    var bathP=tw(T,16,58);
+    buildBuilding({x:bathP.x,z:bathP.z,w:11,d:9,h:3.8,wall:0x8a7a5e,roofCol:0x6d5a3e,roof:'thatch',door:door,interior:'bathhouse'});
+    data.temple=temP; data.barracks=barP2; data.well=tw(T,0,6);
+  } else if(facKey==='rome'){
+    // CETATEA DUNARII — Wallachian: 20m stone walls 4 corner towers moat drawbridge
+    var hallP3=tw(T,-26,-42);
+    buildBuilding({x:hallP3.x, z:hallP3.z, w:28, d:18, h:7.2, wall:0x8d8578, roofCol:0x6d4a34, roof:'gable', door:door, interior:'fortress', fac:facKey});
+    data.hall={x:hallP3.x, z:hallP3.z}; data.hall.door={x:hallP3.x, z:hallP3.z+T.fz*(15/2+3)};
+    // Massive stone walls 20m
+    (function(){
+      var wallM=NM(0x8d8578);
+      var y0=groundH(T.x,T.z);
+      // 4 corner towers
+      [[-100,-100],[100,-100],[-100,100],[100,100]].forEach(function(c){
+        var tx=T.x+c[0], tz=T.z+c[1];
+        var twr=cyl(4.5,5.0,20, wallM, 10); twr.position.set(tx, groundH(tx,tz)+10, tz); scene.add(twr);
+        var top=cone(5.5,4, M(0x7a3b32), 10); top.position.set(tx, groundH(tx,tz)+22, tz); scene.add(top);
+        addCollider(tx-5,tz-5,tx+5,tz+5);
+      });
+      // walls
+      scene.add(box(200,20,3, wallM, T.x, y0+10, T.z-100));
+      scene.add(box(200,20,3, wallM, T.x, y0+10, T.z+100));
+      scene.add(box(3,20,200, wallM, T.x-100, y0+10, T.z));
+      scene.add(box(3,20,200, wallM, T.x+100, y0+10, T.z));
+      // moat
+      var moat=new THREE.Mesh(new THREE.RingGeometry(108,122,32), new THREE.MeshLambertMaterial({color:0x3f6a8a, transparent:true, opacity:0.7, side:THREE.DoubleSide}));
+      moat.rotation.x=-Math.PI/2; moat.position.set(T.x, y0+0.05, T.z); scene.add(moat);
+      // drawbridge
+      scene.add(box(12,0.5,18, M(0x5d4a38), T.x, y0+1.5, T.z+100));
+    })();
+    // Grand Hall pillars barracks bunks dungeon iron bars stable horses
+    var barP3=tw(T,-52,4);
+    buildBuilding({x:barP3.x,z:barP3.z,w:16,d:12,h:4.8,wall:0x8d8578,roofCol:0x6d4a34,roof:'gable',door:door,interior:'barracks'});
+    var dungP=tw(T,26,-46);
+    buildBuilding({x:dungP.x,z:dungP.z,w:10,d:10,h:3.5,wall:0x5a5a5a,roofCol:0x4a4238,roof:'flat',door:door,interior:'guardhouse'});
+    var stabP=tw(T,56,14);
+    buildBuilding({x:stabP.x,z:stabP.z,w:14,d:10,h:4.0,wall:P.wallAlt,roofCol:P.roof,roof:'thatch',door:door,interior:'forestvillage'});
+    // Kitchen cauldrons ovens
+    var kitP=tw(T,6,-10);
+    buildBuilding({x:kitP.x,z:kitP.z,w:11,d:9,h:4.0,wall:P.wall,roofCol:P.roof,roof:'gable',door:door,interior:'tavern'});
+    // Armory vault locked chests
+    var armP3=tw(T,-14,16);
+    buildBuilding({x:armP3.x,z:armP3.z,w:10,d:8,h:4.0,wall:0x6e6152,roofCol:0x4a4238,roof:'gable',door:door,interior:'forge'});
+    // War balcony archive room
+    var warP3=tw(T,0,40);
+    buildBuilding({x:warP3.x,z:warP3.z,w:12,d:10,h:5.0,wall:P.wall,roofCol:P.roof,roof:'gable',door:door,interior:'townhall'});
+    // War camp tents
+    [[-8,56],[16,58],[30,70],[-20,70]].forEach(function(sp){
+      var p=tw(T,sp[0],sp[1]);
+      buildBuilding({x:p.x,z:p.z,w:8,d:8,h:3.2,wall:0x8a7a5e,roofCol:0x6d5a3e,roof:'thatch',door:door,interior:'warcamp'});
+    });
+    // Siege workshop catapult parts mess hall drum tower
+    var siegP=tw(T,44,32);
+    buildBuilding({x:siegP.x,z:siegP.z,w:13,d:11,h:4.2,wall:P.wallAlt,roofCol:P.roof,roof:'gable',door:door,interior:'workshop'});
+    var messP=tw(T,4,-64);
+    buildBuilding({x:messP.x,z:messP.z,w:14,d:10,h:4.0,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'tavern'});
+    var drumP=tw(T,48,-42);
+    solidBuilding(drumP.x, drumP.z, 5,5,9, P.wallAlt, P.roof, 'flat');
+    data.temple=dungP; data.barracks=barP3; data.well=tw(T,0,6);
+  } else if(facKey==='moldavia'){
+    // HOTARUL DE NORD — Moldavian Borderlands: wooden palisade watchtowers mess hall etc + Codrul Vechi
+    var hallP4=tw(T,-26,-42);
+    buildBuilding({x:hallP4.x, z:hallP4.z, w:22, d:14, h:5.5, wall:P.wall, roofCol:P.roof, roof:'gable', door:door, interior:'borderfort', fac:facKey});
+    data.hall={x:hallP4.x, z:hallP4.z}; data.hall.door={x:hallP4.x, z:hallP4.z+T.fz*(15/2+3)};
+    var barP4=tw(T,-52,4);
+    buildBuilding({x:barP4.x,z:barP4.z,w:14,d:11,h:4.4,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'barracks'});
+    // Archery tower scout barracks lookout
+    var archP=tw(T,26,-46);
+    solidBuilding(archP.x, archP.z, 4.5,4.5,9.5, P.wallAlt, P.roof, 'flat');
+    var scoutP=tw(T,6,-10);
+    buildBuilding({x:scoutP.x,z:scoutP.z,w:12,d:9,h:4.0,wall:P.wallAlt,roofCol:P.roof,roof:'thatch',door:door,interior:'barracks'});
+    var lookP=tw(T,50,-10);
+    solidBuilding(lookP.x, lookP.z, 3.5,3.5,8, P.wall, P.roof, 'flat');
+    // Codrul Vechi forest village wooden huts smokehouses
+    [[-14,16,9,8],[26,14,10,9],[0,40,10,9],[44,32,9,8]].forEach(function(hd,i){
+      var p=tw(T,hd[0],hd[1]);
+      buildBuilding({x:p.x,z:p.z,w:hd[2],d:hd[3],h:4.2, wall:0x5d4a38, roofCol:0x3a5a2e, roof:'thatch', door:door, interior:'forestvillage'});
+    });
+    // Hunter lodge pelts bows traps
+    var huntP2=tw(T,-8,56);
+    buildBuilding({x:huntP2.x,z:huntP2.z,w:11,d:9,h:4.0,wall:0x5d4a38,roofCol:0x3a5a2e,roof:'thatch',door:door,interior:'hunter'});
+    // Herbalist hut herbs potions drying racks
+    var herbP=tw(T,16,58);
+    buildBuilding({x:herbP.x,z:herbP.z,w:9,d:8,h:3.6,wall:0x6e6152,roofCol:0x4a4238,roof:'thatch',door:door,interior:'herbalist'});
+    // Woodcutter cabin mushroom cellar wolf shrine
+    var woodP=tw(T,4,-64);
+    buildBuilding({x:woodP.x,z:woodP.z,w:9,d:8,h:3.5,wall:0x5d4a38,roofCol:0x4a4238,roof:'thatch',door:door,interior:'woodcutter'});
+    var mushP=tw(T,48,-42);
+    buildBuilding({x:mushP.x,z:mushP.z,w:8,d:8,h:3.0,wall:0x6e6152,roofCol:0x5a5a5a,roof:'flat',door:door,interior:'cave'});
+    var wolfP=tw(T,56,14);
+    buildBuilding({x:wolfP.x,z:wolfP.z,w:7,d:7,h:3.8,wall:0x70685a,roofCol:0x5a5a5a,roof:'thatch',door:door,interior:'secret'});
+    data.temple=archP; data.barracks=barP4; data.well=tw(T,0,6);
+  } else if(facKey==='egypt'){
+    // DRUMUL LUNG — Southern Trade Route: trade post, inn, checkpoint, shrine, repair workshop
+    var hallP5=tw(T,-26,-42);
+    buildBuilding({x:hallP5.x, z:hallP5.z, w:24, d:14, h:5.5, wall:0xb09a6e, roofCol:0xc9b24a, roof:'gable', door:door, interior:'tradepost', fac:facKey});
+    data.hall={x:hallP5.x, z:hallP5.z}; data.hall.door={x:hallP5.x, z:hallP5.z+T.fz*(15/2+3)};
+    // Inn Drumul Lung beds kitchen stable
+    var innP=tw(T,26,-46);
+    buildBuilding({x:innP.x,z:innP.z,w:18,d:14,h:5.0,wall:0x8a7a5e,roofCol:0x6d4a34,roof:'gable',door:door,interior:'inn'});
+    // Checkpoint gate guards spears log barriers
+    var checkP=tw(T,-52,4);
+    buildBuilding({x:checkP.x,z:checkP.z,w:14,d:6,h:4.5,wall:0x6e6152,roofCol:0x4a4238,roof:'flat',door:door,interior:'checkpoint'});
+    // Roadside Orthodox shrine
+    var shrP=tw(T,6,-10);
+    buildBuilding({x:shrP.x,z:shrP.z,w:6,d:6,h:3.5,wall:0x6b4f2e,roofCol:0x5d4a38,roof:'church',door:door,interior:'church'});
+    // Caravan repair workshop merchant stables guard barracks
+    var repP=tw(T,-14,16);
+    buildBuilding({x:repP.x,z:repP.z,w:12,d:10,h:4.0,wall:0x6e6152,roofCol:0x4a4238,roof:'gable',door:door,interior:'workshop'});
+    var stabP2=tw(T,26,14);
+    buildBuilding({x:stabP2.x,z:stabP2.z,w:12,d:9,h:3.8,wall:P.wallAlt,roofCol:P.roof,roof:'thatch',door:door,interior:'forestvillage'});
+    var gbarP=tw(T,0,40);
+    buildBuilding({x:gbarP.x,z:gbarP.z,w:12,d:10,h:4.0,wall:P.wall,roofCol:P.roof,roof:'gable',door:door,interior:'barracks'});
+    // Trade post crates
+    [[-8,56],[16,58]].forEach(function(sp){
+      var p=tw(T,sp[0],sp[1]);
+      buildBuilding({x:p.x,z:p.z,w:10,d:8,h:3.6,wall:0xb09a6e,roofCol:0xc9b24a,roof:'thatch',door:door,interior:'tradepost'});
+    });
+    // Dusty road market stalls
+    var marketP=tw(T,4,-64);
+    buildBuilding({x:marketP.x,z:marketP.z,w:12,d:10,h:4.0,wall:0xc2b89a,roofCol:0x7a5c39,roof:'thatch',door:door,interior:'market'});
+    data.temple=shrP; data.barracks=checkP; data.well=tw(T,0,6);
   } else {
-    buildBuilding({x:temP.x,z:temP.z,w:13,d:19,h:5.2,wall:P.wall,roofCol:P.roof,roof:'temple',door:door,interior:'temple',colCol:P.col});
+    // ROMARIA — Capital City: massive stone walls, grand gate lion carvings, boulevards, noble estates etc
+    // Royal Palace marble columns red banners
+    var hallP6=tw(T,-26,-42);
+    buildBuilding({x:hallP6.x, z:hallP6.z, w:32, d:20, h:8.0, wall:0xd8d2c0, roofCol:0xc0272d, roof:'gable', door:door, interior:'palace', fac:facKey});
+    data.hall={x:hallP6.x, z:hallP6.z}; data.hall.door={x:hallP6.x, z:hallP6.z+T.fz*(15/2+3)};
+    // Massive stone walls grand gate lion carvings
+    (function(){
+      var y0=groundH(T.x,T.z);
+      var wallM=NM(0x9a9a8a);
+      scene.add(box(240,12,4, wallM, T.x, y0+6, T.z-120));
+      scene.add(box(240,12,4, wallM, T.x, y0+6, T.z+120));
+      scene.add(box(4,12,240, wallM, T.x-120, y0+6, T.z));
+      scene.add(box(4,12,240, wallM, T.x+120, y0+6, T.z));
+      // Grand gate lion carvings
+      scene.add(box(4,10,6, M(0xd8cfa8), T.x-6, y0+5, T.z+120));
+      scene.add(box(4,10,6, M(0xd8cfa8), T.x+6, y0+5, T.z+120));
+      scene.add(box(14,3,6, M(0xd8cfa8), T.x, y0+11.5, T.z+120));
+      // Lion carvings
+      scene.add(box(1.2,1.5,0.8, M(0xc9a227), T.x-5, y0+12.5, T.z+123));
+      scene.add(box(1.2,1.5,0.8, M(0xc9a227), T.x+5, y0+12.5, T.z+123));
+      addCollider(T.x-120,T.z-120,T.x+120,T.z-116);
+      addCollider(T.x-120,T.z+116,T.x+120,T.z+120);
+      addCollider(T.x-120,T.z-120,T.x-116,T.z+120);
+      addCollider(T.x+116,T.z-120,T.x+120,T.z+120);
+    })();
+    // Cathedral Sfantul Mihail tall spires iconostasis marble floor choir balcony crypt bell tower priest study
+    var cathP=tw(T,26,-46);
+    buildBuilding({x:cathP.x,z:cathP.z,w:20,d:28,h:8.5,wall:0xe8e0cf,roofCol:0x6d4a34,roof:'church',door:door,interior:'cathedral'});
+    // Noble estates merchant districts artisan quarter river docks
+    var houses=[[6,-10,10,9],[-14,16,9,8],[26,14,10,9],[50,-10,9,8],[0,40,10,9],[44,32,9,8]];
+    houses.forEach(function(hd,i){
+      var p=tw(T,hd[0],hd[1]);
+      var inter = i%3===0?'market':i%3===1?'forge':'house';
+      buildBuilding({x:p.x,z:p.z,w:hd[2]+2,d:hd[3]+2,h:4.8, wall:i%2?0xd8d2c0:0xc2b89a, roofCol:i%2?0xc0272d:P.roof, roof:i%3===0?'thatch':'gable', door:door, interior:inter});
+    });
+    // Market stalls butcher tailor blacksmith tavern spice merchant book seller armor craftsman horse trader
+    [[-8,56],[16,58],[0,72],[24,72],[-24,72]].forEach(function(sp,i){
+      var p=tw(T,sp[0],sp[1]);
+      var y=groundH(p.x,p.z);
+      scene.add(box(0.14,2.4,0.14, M(0x5d4326), p.x-1.5,y+1.2,p.z));
+      scene.add(box(0.14,2.4,0.14, M(0x5d4326), p.x+1.5,y+1.2,p.z));
+      var can=box(3.6,0.1,2.4, M(P.stall), p.x,y+2.4,p.z);
+      can.rotation.z=0.08; scene.add(can);
+      scene.add(box(3.0,0.9,1.0, M(i%2?0x8a6a3c:0xc9a83a), p.x,y+0.45,p.z+0.4));
+      propCrate(p.x+2.3,p.z-0.8,0.7);
+    });
+    // Wide boulevards
+    var wellP=tw(T,0,6);
+    var wy=groundH(wellP.x,wellP.z);
+    var well=cyl(1.3,1.5,1.1, M(0x8f8a80), 10); well.position.set(wellP.x,wy+0.55,wellP.z); scene.add(well);
+    scene.add(box(0.14,2.6,0.14, M(0x5d4326), wellP.x-1,wy+1.3,wellP.z));
+    scene.add(box(0.14,2.6,0.14, M(0x5d4326), wellP.x+1,wy+1.3,wellP.z));
+    var wr=cone(1.7,0.9, M(P.roof), 4); wr.rotation.y=Math.PI/4; wr.position.set(wellP.x,wy+3.0,wellP.z); scene.add(wr);
+    addCollider(wellP.x-1.4,wellP.z-1.4,wellP.x+1.4,wellP.z+1.4);
+    data.well=wellP;
+    // Royal library manuscripts garden courtyard fountains servant quarters kitchen ovens
+    var libP=tw(T,4,-64);
+    buildBuilding({x:libP.x,z:libP.z,w:14,d:10,h:5.0,wall:0xe8e0cf,roofCol:0x6d4a34,roof:'gable',door:door,interior:'scribe'});
+    var gardP=tw(T,48,-42);
+    buildBuilding({x:gardP.x,z:gardP.z,w:12,d:12,h:4.0,wall:0xd8d2c0,roofCol:0x6d5a3e,roof:'gable',door:door,interior:'market'});
+    // Fountain
+    var fountP=tw(T,56,14);
+    var fy=groundH(fountP.x,fountP.z);
+    scene.add(cyl(2.0,2.2,0.5, M(0x8f8a80), 12).translateX(fountP.x).translateY(fy+0.25).translateZ(fountP.z));
+    scene.add(cyl(0.3,0.3,1.2, M(0x8f8a80), 8).translateX(fountP.x).translateY(fy+0.8).translateZ(fountP.z));
+    scene.add(sph(0.4, M(0x3f6a8a), 8,6).translateX(fountP.x).translateY(fy+1.5).translateZ(fountP.z));
+    data.temple=cathP;
+    data.barracks=tw(T,-52,4);
   }
-  data.temple=temP;
-  /* barracks */
-  var barP=tw(T,-52,4);
-  buildBuilding({x:barP.x,z:barP.z,w:14,d:11,h:4.4,wall:P.wall,roofCol:P.roof,roof:'thatch',door:door,interior:'barracks'});
-  data.barracks=barP;
-  /* houses */
-  var houses=[[6,-10,10,9],[-14,16,9,8],[26,14,10,9],[50,-10,9,8],[0,40,10,9],[44,32,9,8]];
-  houses.forEach(function(hd,i){
-    var p=tw(T,hd[0],hd[1]);
-    buildBuilding({x:p.x,z:p.z,w:hd[2],d:hd[3],h:4.2,
-      wall:i%2?P.wallAlt:P.wall, roofCol:P.roof, roof:i%3===0?'thatch':'gable', door:door, interior:'house'});
-  });
-  /* market stalls */
-  [[-8,56],[16,58]].forEach(function(sp){
-    var p=tw(T,sp[0],sp[1]);
-    var y=groundH(p.x,p.z);
-    scene.add(box(0.14,2.4,0.14, M(0x5d4326), p.x-1.5,y+1.2,p.z));
-    scene.add(box(0.14,2.4,0.14, M(0x5d4326), p.x+1.5,y+1.2,p.z));
-    var can=box(3.6,0.1,2.4, M(P.stall), p.x,y+2.4,p.z);
-    can.rotation.z=0.08; scene.add(can);
-    scene.add(box(3.0,0.9,1.0, M(0x8a6a3c), p.x,y+0.45,p.z+0.4));
-    propCrate(p.x+2.3,p.z-0.8,0.7);
-  });
-  /* well */
-  var wellP=tw(T,0,6);
-  var wy=groundH(wellP.x,wellP.z);
-  var well=cyl(1.3,1.5,1.1, M(0x8f8a80), 10); well.position.set(wellP.x,wy+0.55,wellP.z); scene.add(well);
-  scene.add(box(0.14,2.6,0.14, M(0x5d4326), wellP.x-1,wy+1.3,wellP.z));
-  scene.add(box(0.14,2.6,0.14, M(0x5d4326), wellP.x+1,wy+1.3,wellP.z));
-  var wr=cone(1.7,0.9, M(P.roof), 4); wr.rotation.y=Math.PI/4; wr.position.set(wellP.x,wy+3.0,wellP.z); scene.add(wr);
-  addCollider(wellP.x-1.4,wellP.z-1.4,wellP.x+1.4,wellP.z+1.4);
-  data.well=wellP;
-  /* banners along the front */
+
+  /* common: banners, bonfire */
   [[-16,66],[16,66],[0,72]].forEach(function(bp,i){
     var p=tw(T,bp[0],bp[1]);
     var pole=cyl(0.07,0.09,6.4, M(0x5d4326), 6);
@@ -2312,7 +3170,6 @@ function buildTown(facKey){
     scene.add(flag);
     waveBanners.push({m:flag, ph:rand(0,6)});
   });
-  /* bonfire near the front */
   var bfP=tw(T,26,52);
   var by=groundH(bfP.x,bfP.z);
   for(var si=0; si<7; si++){
@@ -2323,22 +3180,7 @@ function buildTown(facKey){
   var bl=new THREE.PointLight(0xff9a3c, 0.9, 22, 2);
   bl.position.set(bfP.x,by+1.3,bfP.z); scene.add(bl);
   bl.userData.base=0.9; nightLights.push(bl);
-  /* v7 capital extras: warehouse, watchtower, stable */
-  var wh0=tw(T,4,-64);
-  solidBuilding(wh0.x, wh0.z, 11,7,4.5, P.wall, P.roof, 'gable');
-  var tx0=tw(T,48,-42);
-  solidBuilding(tx0.x, tx0.z, 4.5,4.5,9.5, P.wallAlt, P.roof, 'flat');
-  var twy=groundH(tx0.x,tx0.z);
-  scene.add(cyl(0.06,0.08,2.2, NM(0x4a3520), 6).translateX(tx0.x).translateY(twy+10.6).translateZ(tx0.z));
-  var twFlag=new THREE.Mesh(new THREE.PlaneGeometry(1.6,2.4,6,8), new THREE.MeshLambertMaterial({map:F.bannerTex, side:THREE.DoubleSide}));
-  twFlag.position.set(tx0.x+0.85, twy+11.6, tx0.z);
-  scene.add(twFlag); waveBanners.push({m:twFlag, ph:rand(0,6)});
-  var sx0=tw(T,56,14);
-  solidBuilding(sx0.x, sx0.z, 9,6,3.6, P.wallAlt, P.roof, 'thatch');
-  for(var sf2=0; sf2<5; sf2++){
-    scene.add(box(0.12,1,0.12, NM(0x4a3520), sx0.x-4.5+sf2*2.2, groundH(sx0.x,sx0.z)+0.5, sx0.z+4));
-  }
-  scene.add(box(9,0.09,0.09, NM(0x4a3520), sx0.x, groundH(sx0.x,sx0.z)+0.95, sx0.z+4));
+
   registerTownLore(facKey, data);
   townData[facKey]=data;
   return data;
@@ -2346,7 +3188,7 @@ function buildTown(facKey){
 
 /* ============================================================
    v5 LANDMARKS & WONDERS — every stone here has a story.
-   Walk close to any monument and its tale appears.
+   Extended for Romanian Medieval War World
    ============================================================ */
 
 
@@ -2457,26 +3299,21 @@ function bannerOn(g,x,y,z,tex){
 /* ---------- 1. Mănăstirea Voroneț — the "Sistine Chapel of the East" ---------- */
 function wonderVoronet(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
-  /* nave: white stone base, the famous blue band with frescoes */
   g.add(box(15,3,9.5, NM(0xd8d2c0), 0,1.5,0));
   g.add(box(15,2.8,9.5, NM(0x2a5caa), 0,4.4,0));
   var fres=new THREE.Mesh(new THREE.PlaneGeometry(14.4,2.2), new THREE.MeshLambertMaterial({map:frescoTex('#2a5caa','#1d3f7a')}));
   fres.position.set(0,4.4,4.78); g.add(fres);
   var fres2=fres.clone(); fres2.position.z=-4.78; fres2.rotation.y=Math.PI; g.add(fres2);
   lmGable(g,0,5.8,0,11.5,3.4,10.5,0x5d4a38);
-  /* apse (east) */
   var apse=cyl(3,3,5.6, NM(0x2a5caa), 10); apse.position.set(9,2.8,0); g.add(apse);
   var apseR=cone(3.4,2.2, NM(0x5d4a38), 10); apseR.position.set(9,6.7,0); g.add(apseR);
-  /* bell tower (west front) */
   g.add(box(5,11,5, NM(0xd8d2c0), -9.5,5.5,0));
   g.add(box(5.4,1.2,5.4, NM(0x2a5caa), -9.5,8.6,0));
   var tRoof=cone(3.9,3.4, NM(0x5d4a38), 4); tRoof.rotation.y=Math.PI/4; tRoof.position.set(-9.5,12.8,0); g.add(tRoof);
   g.add(box(0.14,1.1,0.14, NM(0xc9a227), -9.5,15.2,0));
   g.add(box(0.6,0.14,0.14, NM(0xc9a227), -9.5,15.35,0));
-  /* windows + door */
   g.add(box(1.1,2.2,0.2, NM(0x3a2c1c), 0,2.4,4.8));
   g.add(box(0.8,1.4,0.16, NM(0x2a1d10), -4,5.2,4.8)); g.add(box(0.8,1.4,0.16, NM(0x2a1d10), 4,5.2,4.8));
-  /* candle pines + lamps around the church */
   for(var i=0;i<5;i++){ var a=i/5*TAU; g.add(cyl(0.05,0.05,rand(0.8,1.4), NM(0xe8dcc0), 5).translateX(Math.cos(a)*13).translateY(0.6).translateZ(Math.sin(a)*9)); }
   torchPost(g,-13,0,4); torchPost(g,-13,0,-4);
   lmLight(gx-13, y+3.2, gz+4, 0.85, 22); lmLight(gx-13, y+3.2, gz-4, 0.85, 22);
@@ -2484,37 +3321,32 @@ function wonderVoronet(gx,gz){
   addCollider(gx-7,gz-4.8,gx+7,gz+4.8);
   addCollider(gx+7,gz-3,gx+11,gz+3);
   registerLore({key:'voronet', x:gx, z:gz, r:46, icon:'⛪',
-    name:'Mănăstirea Voroneț', sub:'Voroneț Monastery · 1488',
-    story:'Raised by Ștefan cel Mare to keep a vow after the disaster at Războieni, painted in 1547 under Petru Rareș. Its last judgment fresco glows in the legendary "Voroneț blue" — a pigment whose recipe was buried with its monks. People call it the Sistine Chapel of the East.'});
+    name:'Mănăstirea Voroneț', sub:'Voroneț Monastery · 1488 — Transylvanian Heartland',
+    story:'Raised by Ștefan cel Mare to keep a vow after Războieni, painted in 1547 under Petru Rareș. Its last judgment fresco glows in legendary Voroneț blue — pigment whose recipe was buried with monks. Sistine Chapel of the East, now overlooking Ardealburg vineyards.'});
 }
 
-/* ---------- 2. Cetatea de Scaun — fortress throne of Moldavia ---------- */
+/* ---------- 2. Cetatea de Scaun ---------- */
 function wonderCetatea(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   var wallM=NM(0x8d8578), wallD=NM(0x6f695e);
-  /* ring walls (gap = south gate) */
   g.add(box(26,6,2.2, wallM, 0,3,-13));
   g.add(box(9,6,2.2, wallM, -8.5,3,13));
   g.add(box(9,6,2.2, wallM, 8.5,3,13));
   g.add(box(2.2,6,26, wallM, -13,3,0));
   g.add(box(2.2,6,26, wallM, 13,3,0));
-  /* battlements */
   for(var i=-11;i<=11;i+=2.2){
     g.add(box(1.1,1,1.4, wallD, i,6.5,-13));
     if(Math.abs(i)>4.2){ g.add(box(1.1,1,1.4, wallD, i,6.5,13)); g.add(box(1.4,1,1.1, wallD, -13,6.5,i)); g.add(box(1.4,1,1.1, wallD, 13,6.5,i)); }
   }
-  /* gate: pillars, lintel, portcullis (walk through!) */
   g.add(box(2.6,7.5,3, wallD, -4.7,3.75,13));
   g.add(box(2.6,7.5,3, wallD, 4.7,3.75,13));
   g.add(box(7,1.6,3, wallD, 0,8.3,13));
   for(var b=-1.5;b<=1.5;b+=0.75) g.add(box(0.14,5.6,0.14, NM(0x4a4038), b,2.9,13.6));
-  /* corner drum towers */
   [[-13,-13],[13,-13],[-13,13],[13,13]].forEach(function(c){
     var t=cyl(2.9,3.2,9.5, wallM, 10); t.position.set(c[0],4.75,c[1]); g.add(t);
     var r=cone(3.6,3, NM(0x7a3b32), 10); r.position.set(c[0],11,c[1]); g.add(r);
     addCollider(gx+c[0]-2.6,gz+c[1]-2.6,gx+c[0]+2.6,gz+c[1]+2.6);
   });
-  /* inner keep + banner */
   g.add(box(10,11.5,8, wallD, 0,5.75,-2));
   for(var k=-4;k<=4;k+=2) g.add(box(1,1,1.2, wallM, k,12,-2));
   g.add(box(1.6,2.6,0.3, NM(0x3a2c1c), 0,2,2.05));
@@ -2528,11 +3360,11 @@ function wonderCetatea(gx,gz){
   addCollider(gx+11.8,gz-14.2,gx+14.2,gz+14.2);
   addCollider(gx-5,gz-6,gx+5,gz+2);
   registerLore({key:'cetatea', x:gx, z:gz, r:52, icon:'🏰',
-    name:'Cetatea de Scaun a Sucevei', sub:'Seat Fortress of Suceava · 1388',
-    story:'The stone seat of Moldavian princes, rebuilt by Petru II Mușat and braced by Ștefan cel Mare. In 1476 Sultan Mehmed II — the conqueror of Constantinople — sat before these walls for days and left with his banners unfed. The fortress was never taken by storm.'});
+    name:'Cetatea de Scaun a Sucevei', sub:'Seat Fortress of Suceava · 1388 — Moldavian Borderlands',
+    story:'Stone seat of Moldavian princes, rebuilt by Petru II Mușat and braced by Ștefan cel Mare. In 1476 Sultan Mehmed II sat before these walls and left unfed. Never taken by storm — now guards Hotarul de Nord.'});
 }
 
-/* ---------- 3. Putna — where Stephen the Great sleeps ---------- */
+/* ---------- 3. Putna ---------- */
 function wonderPutna(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   g.add(box(11,2.8,7.5, NM(0xd8d2c0), 0,1.4,0));
@@ -2543,7 +3375,6 @@ function wonderPutna(gx,gz){
   g.add(box(4,9,4, NM(0xd8d2c0), -6.5,4.5,0));
   var tr=cone(3.1,2.8, NM(0x5d4a38), 4); tr.rotation.y=Math.PI/4; tr.position.set(-6.5,10.4,0); g.add(tr);
   g.add(box(0.12,0.9,0.12, NM(0xc9a227), -6.5,12.2,0));
-  /* the voivode's tomb slab + votive cross */
   g.add(box(2.3,0.55,1.1, NM(0x8d8578), 2,0.28,6.6));
   g.add(box(2.0,0.12,0.9, NM(0xc9a227), 2,0.58,6.6));
   g.add(box(0.34,2.6,0.34, NM(0x9a9284), -3.5,1.3,6.8));
@@ -2554,25 +3385,22 @@ function wonderPutna(gx,gz){
   addCollider(gx-5.5,gz-3.8,gx+5.5,gz+3.8);
   addCollider(gx-8.5,gz-2,gx-4.5,gz+2);
   registerLore({key:'putna', x:gx, z:gz, r:40, icon:'✝️',
-    name:'Mănăstirea Putna', sub:'Putna Monastery · 1469',
-    story:'"My vineyard of prayer" — that is how Ștefan cel Mare called Putna, built on a hill he chose himself. His tomb lies just inside: the king who reigned forty-seven years sleeps beneath a stone slab, crowned in stone, facing the sunrise.'});
+    name:'Mănăstirea Putna', sub:'Putna Monastery · 1469 — Carpathian foothills',
+    story:'My vineyard of prayer — Ștefan cel Mare built Putna on a hill he chose himself. Tomb inside: king who reigned 47 years sleeps beneath stone slab, crowned in stone, facing sunrise over Carpathians.'});
 }
 
-/* ---------- 4. Curtea Domnească & Turnul lui Ștefan ---------- */
+/* ---------- 4. Curtea Domnească ---------- */
 function wonderCurtea(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
-  /* princely hall */
   g.add(box(16,5.2,8, NM(0xa89a80), 0,2.6,4));
   lmGable(g,0,5.2,4,13,2.6,9,0x6d4a34);
   g.add(box(1.8,2.6,0.3, NM(0x3a2c1c), 0,1.3,8.2));
   for(var i=-6;i<=6;i+=3) g.add(box(0.7,1.2,0.15, NM(0x2a1d10), i,3.6,8.1));
-  /* Stephen's tower — tall, thin, gold crown */
   g.add(box(5,14,5, NM(0x8d8578), -9,7,-4));
   for(var lv=7;lv<=14;lv+=3.5) g.add(box(5.5,0.5,5.5, NM(0x6f695e), -9,lv,-4));
   var tRoof=cone(4,3, NM(0x5d4a38), 4); tRoof.rotation.y=Math.PI/4; tRoof.position.set(-9,17,-4); g.add(tRoof);
   g.add(box(0.12,1,0.12, NM(0xc9a227), -9,19.2,-4));
   bannerOn(g,-9,13.5,-1.2, FACS.moldavia.bannerTex2);
-  /* low courtyard walls */
   g.add(box(2,2.6,14, NM(0x8d8578), 9,1.3,-2));
   g.add(box(10,2.6,2, NM(0x8d8578), 3,1.3,-8));
   torchPost(g,7,0,9);
@@ -2582,44 +3410,39 @@ function wonderCurtea(gx,gz){
   addCollider(gx+8,gz-9,gx+10,gz+5);
   addCollider(gx-2,gz-9,gx+8,gz-7);
   registerLore({key:'curtea', x:gx, z:gz, r:44, icon:'👑',
-    name:'Curtea Domnească', sub:'Princely Court & Stephen\'s Tower',
-    story:'Where the princes of Moldavia were raised onto the throne on a shield and given the sword of the land. The tall tower kept the treasury, the archives and the watch — and from its balcony the chronicles say you can count three lands on a clear day.'});
+    name:'Curtea Domnească', sub:'Princely Court & Stephen Tower — Romaria outskirts',
+    story:'Where princes were raised onto throne on shield and given sword of land. Tall tower kept treasury, archives and watch — from balcony chronicles say you can count three lands on clear day.'});
 }
 
-/* ---------- 5. Hanul Vechi — the inn on the trade road ---------- */
+/* ---------- 5. Hanul Vechi ---------- */
 function wonderHan(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   g.add(box(11,3.2,7, NM(0xb09a6e), 0,1.6,0));
-  g.add(box(11.6,2.6,6, NM(0x9c8760), 0,4.5,0.5));     /* overhung upper floor */
+  g.add(box(11.6,2.6,6, NM(0x9c8760), 0,4.5,0.5));
   lmGable(g,0,5.8,0.5,10.5,2.6,7.2,0x5d4a38);
-  /* balcony rail + posts */
   g.add(box(11,0.09,0.09, NM(0x4a3520), 0,5.7,3.4));
   for(var i=-5;i<=5;i+=2.2) g.add(box(0.09,0.9,0.09, NM(0x4a3520), i,5.3,3.4));
-  /* stairs + door + windows */
   g.add(box(1.6,0.22,1, NM(0x7a5c39), 0,0.35,3.9));
   g.add(box(1.6,0.22,0.8, NM(0x7a5c39), 0,0.68,3.6));
   g.add(box(1.4,2.2,0.2, NM(0x3a2c1c), 0,1.2,3.55));
   g.add(box(1,0.9,0.14, NM(0x2a1d10), -3.4,1.8,3.52)); g.add(box(1,0.9,0.14, NM(0x2a1d10), 3.4,1.8,3.52));
-  /* the HAN sign */
   var sign=new THREE.Mesh(new THREE.PlaneGeometry(1.7,0.64), new THREE.MeshLambertMaterial({map:glyphTex('#3a2c1c','#e9c458','HAN')}));
   sign.position.set(2.6,3.1,3.6); sign.rotation.z=-0.06; g.add(sign);
-  /* stable fence + cart */
   for(var f=0;f<5;f++) g.add(box(0.12,1.0,0.12, NM(0x4a3520), 7, 0.5, -2.5+f*1.1));
   g.add(box(0.12,0.12,5.0, NM(0x4a3520), 7, 1.0, -0.4));
   torchPost(g,-6.5,0,4.2);
   lmLight(gx-6.5,y+3.2,gz+4.2,0.8,20);
   addCollider(gx-5.5,gz-3.5,gx+5.5,gz+3.5);
   registerLore({key:'han', x:gx, z:gz, r:36, icon:'🍺',
-    name:'Hanul Vechi', sub:'The Old Inn on the Moldavian Road',
-    story:'Salt from the Ocna mines, wax, hides and tall tales all changed hands under this roof. Moldavian hans fed the merchants who walked the road to Lviv — and any soldier of any banner paid the same for a bed, as long as he left his quarrel at the door.'});
+    name:'Hanul Vechi — Drumul Lung', sub:'The Old Inn on Trade Route — Southern Trade Route',
+    story:'Salt from Ocna mines, wax, hides and tall tales all changed hands under this roof. Moldavian hans fed merchants who walked road to Lviv — any soldier paid same for bed, as long as he left quarrel at door.'});
 }
 
-/* ---------- 6. Statuia lui Ștefan cel Mare ---------- */
+/* ---------- 6. Statuia lui Ștefan ---------- */
 function wonderStatue(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   g.add(box(3.2,0.5,3.2, NM(0x8d8578), 0,0.25,0));
   g.add(box(2.4,2,2.4, NM(0x9a9284), 0,1.5,0));
-  /* bronze voivode: cloak, crown, raised sword */
   var br=NM(0x4e5a52);
   g.add(box(0.62,0.28,0.62, NM(0x4a4038), -0.7,3.6,0));
   g.add(box(0.7,1,0.5, br, 0,4.3,0));
@@ -2634,24 +3457,21 @@ function wonderStatue(gx,gz){
   pl.position.set(0,1.55,1.21); g.add(pl);
   addCollider(gx-1.4,gz-1.4,gx+1.4,gz+1.4);
   registerLore({key:'stefan', x:gx, z:gz, r:30, icon:'⚔️',
-    name:'Statuia lui Ștefan cel Mare', sub:'Stephen the Great · 1457–1504',
-    story:'Forty-seven years on the throne, thirty-six battles fought. He raised forty thousand viteji with a word, beat the greatest army of his age at Vaslui, and was buried a monk. "Ștefan cel Mare și Sfânt" — the Great and the Holy.'});
+    name:'Statuia lui Ștefan cel Mare', sub:'Stephen the Great · 1457–1504 — Romaria',
+    story:'47 years on throne, 36 battles fought. Raised 40k viteji with a word, beat greatest army of age at Vaslui, buried a monk. Ștefan cel Mare și Sfânt — Great and Holy, in heart of Romaria capital.'});
 }
 
-/* ---------- 7. Troiță & the Salt Road camp ---------- */
+/* ---------- 7. Troiță ---------- */
 function wonderTroita(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
-  /* wayside cross: post + upper + slanted lower bar + little roof */
   g.add(box(0.22,3.4,0.22, NM(0x6d4a34), 0,1.7,0));
   g.add(box(1.5,0.2,0.2, NM(0x6d4a34), 0,2.9,0));
   var low=box(1.3,0.18,0.18, NM(0x6d4a34), 0,1.5,0); low.rotation.z=0.28; g.add(low);
   var roof=cone(0.85,0.5, NM(0x5d4a38), 4); roof.rotation.y=Math.PI/4; roof.position.set(0,3.6,0); g.add(roof);
-  /* flowers at the foot */
   for(var i=0;i<7;i++){ var a=rand(0,TAU), rr=rand(0.4,1.1);
     g.add(cyl(0.03,0.03,0.3, NM(0x3f6b35), 4).translateX(Math.cos(a)*rr).translateY(0.15).translateZ(Math.sin(a)*rr));
     g.add(sph(0.06, NM(choice([0xc94f4f,0xe9c458,0xd8d2c0])), 5,4).translateX(Math.cos(a)*rr).translateY(0.34).translateZ(Math.sin(a)*rr));
   }
-  /* salt carts + sacks + fire ring */
   [[5.5,1.5,-0.4],[7.6,-1,0.5]].forEach(function(c){
     var cy=groundH(gx+c[0],gz+c[1])-y;
     g.add(box(2.2,0.5,1.3, NM(0x7a5c39), c[0],cy+0.7,c[1]));
@@ -2668,11 +3488,11 @@ function wonderTroita(gx,gz){
   lmLight(gx-2.5,y+3.2,gz+2.5,0.75,18); lmLight(gx+fx,y+1.6,gz+fz,0.9,20);
   addCollider(gx-0.5,gz-0.5,gx+0.5,gz+0.5);
   registerLore({key:'troita', x:gx, z:gz, r:32, icon:'🪵',
-    name:'Troiță și Drumul Sării', sub:'Wayside Cross on the Salt Road',
-    story:'Ocna salt fed half of Europe through this road, carted night and day toward Poland. Shepherds and merchants raised troițe at the crossroads — slanted lower bar and all — to bless the journey. Lean a hand here and travel easy.'});
+    name:'Troiță și Drumul Sării', sub:'Wayside Cross on Salt Road — Trade Route',
+    story:'Ocna salt fed half Europe through this road, carted night and day toward Poland. Shepherds and merchants raised troițe at crossroads — slanted lower bar and all — to bless journey.'});
 }
 
-/* ---------- 8. Temple of Apollo at Amyclae (SPARTA) ---------- */
+/* ---------- 8-12 legacy wonders ---------- */
 function wonderTemple(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   g.add(box(19,0.5,13, NM(0xcfc8b8), 0,0.25,0));
@@ -2680,37 +3500,33 @@ function wonderTemple(gx,gz){
   g.add(box(16.2,0.5,10.2, NM(0xcfc8b8), 0,1.25,0));
   var colM=NM(0xe4ddc8);
   for(var i=-2;i<=2;i++) for(var j=-1;j<=1;j++){
-    if(Math.abs(i)<2 && j===0) continue;                     /* door gap front/back rows center */
+    if(Math.abs(i)<2 && j===0) continue;
     var c=cyl(0.42,0.48,4.6, colM, 8); c.position.set(i*3.4,3.8,j*4.2); g.add(c);
     g.add(box(0.95,0.18,0.95, NM(0xcfc8b8), i*3.4,1.55,j*4.2));
     addCollider(gx+i*3.4-0.55, gz+j*4.2-0.55, gx+i*3.4+0.55, gz+j*4.2+0.55);
   }
   g.add(box(17,0.8,9.6, colM, 0,6.5,0));
   lmGable(g,0,6.9,0,15,2,10.4,0xb59a63);
-  /* pediment decorations + cult statue */
   g.add(box(2.2,1,0.4, NM(0xc9a227), 0,7.2,4.6));
   g.add(box(0.7,2.6,0.7, NM(0xd8cfa8), 0,3,0));
   g.add(box(1.1,1.4,0.7, NM(0xd8cfa8), 0,5.1,0));
   g.add(box(0.3,0.3,0.3, NM(0xc9a227), 0,6.05,0));
   addCollider(gx-1.4,gz-1.4,gx+1.4,gz+1.4);
   registerLore({key:'apollo', x:gx, z:gz, r:46, icon:'🏛️',
-    name:'Temple of Apollo Amyklaios', sub:'Sanctuary south of Sparta',
-    story:'Every summer Spartan youths danced the paean here for Apollo, the far-shooter who listened. On the ancient throne of Amyclae, older than the city\'s walls, the god\'s face was a bronze beam of light — the Spartans needed no golden idol to know him.'});
+    name:'Temple of Apollo Amyklaios', sub:'Sanctuary — Transylvanian adaptation',
+    story:'Spartan youths danced paean for Apollo. In Romanian world, this temple became Orthodox church with ancient stones — faith layers upon faith.'});
 }
-
-/* ---------- 9. Arch of Triumph (ROME) ---------- */
 function wonderArch(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   var mar=NM(0xe0dac8), marD=NM(0xcfc8b8);
   g.add(box(3,9,4.4, mar, -5.5,4.5,0));
   g.add(box(3,9,4.4, mar, 5.5,4.5,0));
-  g.add(box(8,3.4,4.4, mar, 0,7.3,0));           /* attic over the arch */
+  g.add(box(8,3.4,4.4, mar, 0,7.3,0));
   g.add(box(11,1.4,4.8, marD, 0,9.7,0));
   g.add(box(0.5,7,0.4, marD, -3.6,3.5,2.25)); g.add(box(0.5,7,0.4, marD, 3.6,3.5,2.25));
   var insc=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.1), new THREE.MeshLambertMaterial({map:glyphTex('#e0dac8','#6e5a36','SENATVS|POPVLVSQVE·ROMANVS')}));
   insc.position.set(0,7.3,2.25); g.add(insc);
   var insc2=insc.clone(); insc2.position.z=-2.25; insc2.rotation.y=Math.PI; g.add(insc2);
-  /* quadriga — four horses + chariot */
   g.add(box(2.4,0.9,1.4, NM(0xc9a227), 0,10.8,0));
   for(var hI=0;hI<4;hI++){
     var hx=-1.7+hI*1.15;
@@ -2721,27 +3537,21 @@ function wonderArch(gx,gz){
   addCollider(gx-7,gz-2.2,gx-4,gz+2.2);
   addCollider(gx+4,gz-2.2,gx+7,gz+2.2);
   registerLore({key:'arch', x:gx, z:gz, r:42, icon:'🏛️',
-    name:'Arcus Triumphalis', sub:'Gateway of the Victors',
-    story:'Under this arch marched the legions with spoils, captives and painted faces of the vanquished. The Senate raised arches wherever a triumph passed — for one day the victor was a god, and Rome never let its soldiers forget what glory cost.'});
+    name:'Arcus Triumphalis — Cetatea Dunarii Gate', sub:'Gateway of Victors — Wallachian',
+    story:'Under this arch marched legions with spoils. Now gate of Cetatea Dunarii — 20m stone walls, moat, drawbridge. Victory arch became fortress gate.'});
 }
-
-/* ---------- 10. Viking ship burial & runestone ---------- */
 function wonderBurial(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   var stoneM=NM(0x8a9096);
-  /* stone ship setting: two curved rows of standing stones */
   for(var i=0;i<9;i++){
-    var a=(i/8)*Math.PI;                       /* half circle arcs */
+    var a=(i/8)*Math.PI;
     var lx=Math.cos(a)*7, lz=-Math.sin(a)*3.2;
     g.add(box(0.7,rand(1.2,1.9),0.5, stoneM, lx,0.7,lz));
     g.add(box(0.7,rand(1.2,1.9),0.5, stoneM, lx,0.7,-lz));
   }
-  /* prow + stern stones taller */
   g.add(box(0.8,2.6,0.6, stoneM, -7,1.3,0));
   g.add(box(0.8,2.9,0.6, stoneM, 7,1.45,0));
-  /* burial mound */
   var mound=sph(3.4, NM(0x67804a), 10,7); mound.scale.y=0.42; mound.position.set(0,0.3,0); g.add(mound);
-  /* runestone */
   g.add(box(1.6,3.4,0.5, NM(0x9aa0a6), -5.5,1.7,0.5));
   var rs=new THREE.Mesh(new THREE.PlaneGeometry(1.5,2.6), new THREE.MeshLambertMaterial({map:glyphTex('#5b6570','#d8dce0','ᚱᚢᚾᛖᛋ|ᛁᚴ·ᚹᚨᚱᚨ')}));
   rs.position.set(-5.5,1.8,0.78); rs.rotation.y=0.25; g.add(rs);
@@ -2749,31 +3559,25 @@ function wonderBurial(gx,gz){
   lmLight(gx+5.8,y+3.2,gz+1.5,0.8,20);
   addCollider(gx-6.4,gz-0.4,gx-4.6,gz+1.4);
   registerLore({key:'burial', x:gx, z:gz, r:40, icon:'🛡️',
-    name:'Skibssætning — Ship Burial', sub:'Stones that sail the last sea',
-    story:'The Northmen raised ships of stone for those who could not be given to the fire. Sail a ship of rocks around the dead, they said, and the voyage continues even on land. The runes beside it still speak a name the wind remembers.'});
+    name:'Skibssætning — Ship Burial — Carpathian adaptation', sub:'Stones that sail last sea — now wolf shrine',
+    story:'Northmen raised ships of stone for dead. In Moldavian Borderlands, this became wolf shrine with carved stones — Codrul Vechi hunters still leave offerings.'});
 }
-
-/* ---------- 11. Great Sphinx (KEMET) ---------- */
 function wonderSphinx(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   var sand=new THREE.Mesh(new THREE.CircleGeometry(16,18), new THREE.MeshLambertMaterial({color:0xd9c08c}));
   sand.rotation.x=-Math.PI/2; sand.position.y=0.05; g.add(sand);
   var lm=NM(0xc7a86a), lmD=NM(0xb08d55);
-  /* lion body lying, facing +z */
   g.add(box(3.4,2.4,8.5, lm, 0,1.5,-1.5));
-  g.add(box(3.0,1.5,2.6, lmD, 0,0.75,3.4));      /* chest */
-  g.add(box(1.1,1,2.8, lmD, -1.15,0.5,4.6));     /* front legs */
+  g.add(box(3.0,1.5,2.6, lmD, 0,0.75,3.4));
+  g.add(box(1.1,1,2.8, lmD, -1.15,0.5,4.6));
   g.add(box(1.1,1,2.8, lmD, 1.15,0.5,4.6));
-  g.add(box(2.6,0.9,2.2, lm, 0,0.45,-5.2));      /* haunch */
-  /* head + nemes + uraeus */
+  g.add(box(2.6,0.9,2.2, lm, 0,0.45,-5.2));
   g.add(box(1.7,1.5,1.7, lmD, 0,3.35,2.6));
   g.add(box(2.1,1.1,2.0, NM(0x1f4e79), 0,3.9,2.5));
   g.add(box(0.55,1.3,0.5, NM(0x1f4e79), 0.85,3.1,2.7));
   g.add(box(0.55,1.3,0.5, NM(0x1f4e79), -0.85,3.1,2.7));
   g.add(box(0.14,0.4,0.12, NM(0xc9a227), 0,4.35,3.3));
-  /* tail up the flank */
   var tail=cyl(0.16,0.2,2.6, lmD, 6); tail.position.set(1.7,1.8,-4.6); tail.rotation.x=0.7; g.add(tail);
-  /* obelisks */
   [[-7,4],[7,4]].forEach(function(o){
     var ob=cyl(0.35,0.55,7, NM(0xc7a86a), 4); ob.rotation.y=Math.PI/4; ob.position.set(o[0],3.5,o[1]); g.add(ob);
     var py=cone(0.5,0.8, NM(0xc9a227), 4); py.rotation.y=Math.PI/4; py.position.set(o[0],7.4,o[1]); g.add(py);
@@ -2781,11 +3585,9 @@ function wonderSphinx(gx,gz){
   });
   addCollider(gx-2,gz-6,gx+2,gz+5);
   registerLore({key:'sphinx', x:gx, z:gz, r:44, icon:'🐪',
-    name:'Hor-m-akhet', sub:'"Horus in the Horizon" — the Great Sphinx',
-    story:'A lion with the king\'s face, carved from a single ridge of living rock to guard the horizon where the sun is born. Strangers asked it riddles; kings left offerings between its paws. Two thousand years of sand once buried it to the neck — the dreamer-king Thutmose dug it free.'});
+    name:'Hor-m-akhet — Trade Route Guardian', sub:'Sphinx — Southern Trade Route',
+    story:'Lion with king face, carved from living rock to guard horizon. Now guards Drumul Lung trade route — caravans leave offerings between paws for safe passage.'});
 }
-
-/* ---------- 12. Great vermilion Torii (NIPPON) ---------- */
 function wonderTorii(gx,gz){
   var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
   var verm=NM(0xd03a26), vermD=NM(0xb02f1e);
@@ -2796,11 +3598,10 @@ function wonderTorii(gx,gz){
     g.add(cyl(0.7,0.7,0.5, NM(0x3a3a3a), 10).translateX(p[0]).translateY(0.25));
     addCollider(gx+p[0]-0.6,gz-0.6,gx+p[0]+0.6,gz+0.6);
   });
-  g.add(box(11.4,0.55,0.7, vermD, 0,7.7,0));     /* nuki */
+  g.add(box(11.4,0.55,0.7, vermD, 0,7.7,0));
   var kasagi=box(13,0.6,1.1, verm, 0,8.75,0); kasagi.rotation.z=-0.015; g.add(kasagi);
-  g.add(box(12,0.3,0.85, vermD, 0,8.25,0));      /* shimaki */
-  g.add(box(0.4,0.9,0.4, NM(0xc9a227), 0,7.15,0)); /* gakuzuka */
-  /* stone lanterns + zen rocks */
+  g.add(box(12,0.3,0.85, vermD, 0,8.25,0));
+  g.add(box(0.4,0.9,0.4, NM(0xc9a227), 0,7.15,0));
   [[-6.5,3.5],[6.5,3.5]].forEach(function(o){
     g.add(cyl(0.3,0.4,0.9, NM(0x9a958a), 6).translateX(o[0]).translateY(0.45).translateZ(o[1]));
     g.add(box(0.75,0.6,0.75, NM(0x9a958a), o[0],1.2,o[1]));
@@ -2809,42 +3610,249 @@ function wonderTorii(gx,gz){
   });
   [[-2.5,-3],[1.8,-4],[3.4,-2.4]].forEach(function(r){ var rk=sph(rand(0.5,0.9), NM(0x6f7a72), 7,5); rk.scale.y=0.7; rk.position.set(r[0],0.25,r[1]); g.add(rk); });
   registerLore({key:'torii', x:gx, z:gz, r:44, icon:'⛩️',
-    name:'Ō-torii', sub:'Gate between the worlds',
-    story:'Vermilion wards off misfortune; the gate marks where the mundane ends and the sacred begins. Pass beneath it and you walk in the presence of kami. The greatest of them stands in the sea itself — the tide bows twice a day before the shrine of Itsukushima.'});
+    name:'Ō-torii — Romaria Gate', sub:'Gate between worlds — Capital',
+    story:'Vermilion wards off misfortune; gate marks where mundane ends and sacred begins. In Romaria, great torii became triumphal arch with lion carvings — where royal road meets sacred.'});
 }
 
-/* ---------- town lore: every building tells its own story ---------- */
+/* ---------- EXTENDED WONDERS ---------- */
+function wonderCarpathianMonastery(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Stone walls wooden roofs bell tower
+  g.add(box(18,4,12, NM(0xd8d2c0), 0,2,0));
+  g.add(box(18,3,12, NM(0x6d4a34), 0,5.5,0));
+  lmGable(g,0,7,0,14,3,13,0x5d4a38);
+  // Bell tower overlooking valley
+  g.add(box(5,12,5, NM(0xd8d2c0), -10,6,0));
+  var troof=cone(4,3.5, NM(0x5d4a38), 4); troof.rotation.y=Math.PI/4; troof.position.set(-10,14.2,0); g.add(troof);
+  // Prayer hall iconostasis monk cells library candle workshop
+  g.add(box(1.5,2.5,0.2, NM(0xe8e0cf), 0,2.5,5.8));
+  for(var ic=0;ic<3;ic++) g.add(box(0.3,0.5,0.05, NM(0xc9a227), -0.6+ic*0.6, 2.8, 6.0));
+  torchPost(g,-12,0,5); torchPost(g,12,0,5);
+  lmLight(gx-12,y+3.2,gz+5,0.85,22); lmLight(gx+12,y+3.2,gz+5,0.85,22);
+  addCollider(gx-9,gz-6,gx+9,gz+6);
+  registerLore({key:'carpathian_monastery', x:gx, z:gz, r:48, icon:'⛪',
+    name:'Mănăstirea Sfântul Andrei — Carpathian Ridge', sub:'Stone walls, wooden roofs, bell tower overlooking valley',
+    story:'Carpathian Monastery Sfantul Andrei — prayer hall with iconostasis, monk cells with simple beds, library with scrolls and manuscripts, candle workshop with wax vats. Stone walls, wooden roofs, bell tower overlooking valley. Hermits guard northern passes.'});
+}
+function wonderFrostwindOutpost(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Wooden palisade watchtower guard bunks supply racks fire pit observation deck
+  for(var i=0;i<8;i++){
+    var a=i/8*TAU;
+    g.add(box(0.4,3.5,0.4, NM(0x5d4a38), Math.cos(a)*6, 1.75, Math.sin(a)*6));
+  }
+  g.add(box(12,0.2,12, NM(0x8a7a5e), 0,0.1,0));
+  var tower=cyl(1.8,2.0,8, NM(0x8f8a80), 8); tower.position.set(0,4,0); g.add(tower);
+  var plat=cyl(2.5,2.5,0.3, NM(0x5d4a38), 8); plat.position.set(0,8.2,0); g.add(plat);
+  torchPost(g,0,0,0);
+  lmLight(gx,y+3.5,gz,0.8,18);
+  addCollider(gx-6,gz-6,gx+6,gz+6);
+  registerLore({key:'frostwind', x:gx, z:gz, r:32, icon:'❄️',
+    name:'Frostwind Pass Outpost', sub:'Wooden palisade, watchtower, guard bunks',
+    story:'Frostwind Pass Outpost — northernmost watch. Wooden palisade, watchtower, guard bunks, supply racks, fire pit, observation deck. Winds howl, avalanches mark broken trees, but guards watch for northern invaders.'});
+}
+function wonderArdealburgMarket(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Market square stalls selling food tools cloth
+  for(var m=0;m<4;m++){
+    var mx=-6+m*4, mz=0;
+    g.add(box(0.12,2.2,0.12, NM(0x5d4326), mx-1.2,1.1,mz));
+    g.add(box(0.12,2.2,0.12, NM(0x5d4326), mx+1.2,1.1,mz));
+    var can=box(2.8,0.1,1.8, NM(0x9c8760), mx,2.2,mz); g.add(can);
+    g.add(box(2.2,0.6,0.8, NM(m%2?0x8a6a3c:0xc9a83a), mx,0.45,mz+0.3));
+  }
+  registerLore({key:'ardealburg_market', x:gx, z:gz, r:36, icon:'🏘️',
+    name:'Ardealburg Market Square', sub:'Transylvanian Heartland — food, tools, cloth',
+    story:'Ardealburg market square — stalls selling food, tools, cloth. Blacksmith district smoke rising from chimneys, noble quarter large wooden houses. School of scribes writing desks ink pots scrolls classroom benches. Guardhouse jail cells weapon racks duty roster captain office.'});
+}
+function wonderValeaLupilor(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Wooden cottages chicken coops pig pens church watermill hunter cabin bathhouse
+  g.add(box(6,3,5, NM(0x8a7a5e), -4,1.5,0));
+  g.add(box(6.5,1.5,5.5, NM(0x6d5a3e), -4,3.8,0));
+  g.add(box(5,2.8,4, NM(0x7a6a50), 4,1.4,0));
+  g.add(box(1.2,0.8,1.2, NM(0x8a7a5e), -4,0.4,4)); // chicken coop
+  g.add(box(1.5,0.8,1.5, NM(0x6e6152), 4,0.4,-4)); // pig pen
+  torchPost(g,-4,0,3);
+  lmLight(gx-4,y+3,gz+3,0.7,16);
+  addCollider(gx-4,gz-2,gx-2,gz+2);
+  registerLore({key:'valea_lupilor', x:gx, z:gz, r:34, icon:'🐺',
+    name:'Valea Lupilor — Valley of Wolves', sub:'Wooden cottages, chicken coops, pig pens, Orthodox church, watermill, hunter cabin, bathhouse',
+    story:'Valea Lupilor — wooden cottages, chicken coops, pig pens. Orthodox church iconostasis candles wooden benches. Watermill grinding stones flour sacks. Hunter cabin bow racks animal pelts trap storage fireplace. Bathhouse wooden tubs heated stones steam room.'});
+}
+function wonderCetateaDunarii(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  var wallM=NM(0x8d8578);
+  // 20-meter stone walls four corner towers moat drawbridge
+  g.add(box(32,8,2.5, wallM, 0,4,-16));
+  g.add(box(12,8,2.5, wallM, -10,4,16));
+  g.add(box(12,8,2.5, wallM, 10,4,16));
+  g.add(box(2.5,8,32, wallM, -16,4,0));
+  g.add(box(2.5,8,32, wallM, 16,4,0));
+  [[-16,-16],[16,-16],[-16,16],[16,16]].forEach(function(c){
+    var t=cyl(3.5,4.0,12, wallM, 10); t.position.set(c[0],6,c[1]); g.add(t);
+    var r=cone(4.5,3.5, NM(0x7a3b32), 10); r.position.set(c[0],13.5,c[1]); g.add(r);
+  });
+  // Grand hall stone pillars
+  g.add(box(12,10,8, wallM, 0,5,0));
+  for(var p=0;p<4;p++){
+    var px=-4.5+p*3, pz=-2;
+    g.add(cyl(0.5,0.5,10, NM(0xd8d2c0), 8).translateX(px).translateY(5).translateZ(pz));
+  }
+  torchPost(g,-8,0,16); torchPost(g,8,0,16);
+  lmLight(gx-8,y+3.2,gz+16,0.9,24); lmLight(gx+8,y+3.2,gz+16,0.9,24);
+  addCollider(gx-16,gz-16,gx+16,gz+16);
+  registerLore({key:'cetatea_dunarii', x:gx, z:gz, r:54, icon:'🏰',
+    name:'Cetatea Dunării — Fortress of Danube', sub:'20-meter stone walls, 4 towers, moat drawbridge — Wallachian Lowlands',
+    story:'Cetatea Dunarii — 20-meter stone walls, four corner towers, moat with drawbridge. Grand hall stone pillars, barracks bunk beds, dungeon iron bars, stable horses. Kitchen cauldrons ovens, armory vault locked chests, war balcony overlooking plains, archive room scrolls maps.'});
+}
+function wonderWarCamp(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Commander tent soldier tents training grounds archery range horse doctor siege workshop mess hall drum tower
+  for(var t=0;t<5;t++){
+    var tx=-8+t*4, tz=t%2?3:-3;
+    g.add(cone(2.5,2.0, NM(0x8f6f4a), 4).translateX(tx).translateY(1.2).translateZ(tz));
+  }
+  // Drum tower
+  var drum=cyl(1.5,1.5,6, NM(0x8f8a80), 8); drum.position.set(10,3,0); g.add(drum);
+  var drumTop=cyl(1.7,1.7,0.4, NM(0x5d4a38), 8); drumTop.position.set(10,6.2,0); g.add(drumTop);
+  torchPost(g,0,0,0);
+  lmLight(gx,y+2,gz,0.8,20);
+  addCollider(gx-8,gz-4,gx+8,gz+4);
+  registerLore({key:'warcamp', x:gx, z:gz, r:40, icon:'⛺',
+    name:'Wallachian War Camp', sub:'Commander tent, soldier tents, training grounds, archery range',
+    story:'Wallachian War Camp — commander tent, soldier tents, training grounds, archery range. Horse doctor tent, siege workshop catapult parts, mess hall long tables, drum tower signaling troops. Tall grass fields, swamps fog, dirt roads, muddy riverbanks, reed-filled marshes.'});
+}
+function wonderMoldavianFort(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  for(var i=0;i<10;i++){
+    var a=i/10*TAU;
+    g.add(box(0.5,4,0.5, NM(0x5d4a38), Math.cos(a)*8, 2, Math.sin(a)*8));
+  }
+  g.add(box(16,0.2,16, NM(0x8a7a5e), 0,0.1,0));
+  var twr1=cyl(2.0,2.2,7, NM(0x8f8a80), 8); twr1.position.set(-6,3.5,0); g.add(twr1);
+  var twr2=cyl(2.0,2.2,7, NM(0x8f8a80), 8); twr2.position.set(6,3.5,0); g.add(twr2);
+  torchPost(g,-6,0,0); torchPost(g,6,0,0);
+  lmLight(gx-6,y+3.5,gz,0.8,18); lmLight(gx+6,y+3.5,gz,0.8,18);
+  addCollider(gx-8,gz-8,gx+8,gz+8);
+  registerLore({key:'hotarul_nord', x:gx, z:gz, r:42, icon:'🛡️',
+    name:'Hotarul de Nord — Northern Border Fort', sub:'Wooden palisade, watchtowers, mess hall, archery tower, scout barracks',
+    story:'Border Fort Hotarul de Nord — wooden palisade, watchtowers, mess hall, sleeping quarters, storage cellar, archery tower, scout barracks, forest lookout platform. Rocky fields, dense forests, river valleys, wolf dens, fallen log bridges.'});
+}
+function wonderCodrulVechi(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  g.add(box(7,3.2,6, NM(0x5d4a38), -3,1.6,0));
+  g.add(box(6,2.8,5, NM(0x6e6152), 4,1.4,0));
+  // Wolf shrine carved stones
+  g.add(box(1.1,2.6,0.9, NM(0x70685a), 0,1.3,6));
+  g.add(sph(0.8, NM(0x8a7a5e), 6,5).translateX(0).translateY(3.0).translateZ(6));
+  for(var t2=0;t2<3;t2++) g.add(box(0.6,0.4,0.4, NM(0xb59a63), -3+t2*3,0.3,3));
+  torchPost(g,0,0,6);
+  lmLight(gx,y+3,gz+6,0.7,16);
+  addCollider(gx-4,gz-3,gx+4,gz+3);
+  registerLore({key:'codrul_vechi', x:gx, z:gz, r:36, icon:'🌲',
+    name:'Codrul Vechi — Old Forest Village', sub:'Wooden huts, smokehouses, hunter lodge, herbalist, woodcutter, wolf shrine',
+    story:'Forest Village Codrul Vechi — wooden huts, smokehouses. Hunter lodge animal pelts bows traps. Herbalist hut herbs potions drying racks. Woodcutter cabin, mushroom cellar, wolf shrine carved stones. Dense forests, river valleys, wolf dens.'});
+}
+function wonderRomariaPalace(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  // Royal Palace marble columns red banners throne golden royal chambers velvet beds war council treasury library garden fountains
+  g.add(box(28,6,18, NM(0xd8d2c0), 0,3,0));
+  for(var c=0;c<6;c++){
+    var cx2=-12.5+c*5;
+    g.add(cyl(0.6,0.6,6, NM(0xffffff), 10).translateX(cx2).translateY(3).translateZ(9));
+    g.add(box(0.05,2.5,1.5, NM(0xc0272d), cx2+0.7,4.5,9));
+  }
+  g.add(box(32,2,20, NM(0xc0272d), 0,6.5,0));
+  // Golden throne
+  g.add(box(1.2,1.5,1.0, NM(0xc9a227), 0,1.2, -4));
+  g.add(box(1.4,0.2,1.2, NM(0xc9a227), 0,2.0, -4));
+  // Garden courtyard fountain
+  var fount=cyl(1.8,2.0,0.4, NM(0x8f8a80), 12); fount.position.set(12,0.3,0); g.add(fount);
+  var water=sph(0.5, NM(0x3f6a8a), 8,6); water.position.set(12,0.8,0); g.add(water);
+  torchPost(g,-12,0,9); torchPost(g,12,0,9);
+  lmLight(gx-12,y+3.2,gz+9,1.0,26); lmLight(gx+12,y+3.2,gz+9,1.0,26);
+  addCollider(gx-14,gz-9,gx+14,gz+9);
+  registerLore({key:'romaria_palace', x:gx, z:gz, r:60, icon:'👑',
+    name:'Palatul Regal — Royal Palace of Romaria', sub:'Marble columns, red banners, golden throne — Capital City',
+    story:'Royal Palace — marble columns, red banners. Throne room golden throne, royal chambers velvet beds, war council maps, treasury gold chests. Royal library manuscripts, garden courtyard fountains, servant quarters, royal kitchen ovens. Massive stone walls, grand gate lion carvings, wide boulevards, noble estates.'});
+}
+function wonderRomariaCathedral(gx,gz){
+  var g=new THREE.Group(); var y=groundH(gx,gz); g.position.set(gx,y,gz); scene.add(g);
+  g.add(box(16,5,10, NM(0xe8e0cf), 0,2.5,0));
+  g.add(box(16,4,10, NM(0xd8d2c0), 0,7,0));
+  lmGable(g,0,9,0,12,4,11,0x5d4a38);
+  // Tall spires
+  g.add(box(3,14,3, NM(0xe8e0cf), -5,7,0));
+  g.add(box(3,14,3, NM(0xe8e0cf), 5,7,0));
+  var sp1=cone(2.2,4, NM(0x5d4a38), 4); sp1.rotation.y=Math.PI/4; sp1.position.set(-5,16,0); g.add(sp1);
+  var sp2=cone(2.2,4, NM(0x5d4a38), 4); sp2.rotation.y=Math.PI/4; sp2.position.set(5,16,0); g.add(sp2);
+  // Iconostasis marble floor choir balcony crypt bell tower priest study
+  g.add(box(2,2,0.2, NM(0xc9a227), 0,2.5,4.8));
+  torchPost(g,-8,0,4); torchPost(g,8,0,4);
+  lmLight(gx-8,y+3.2,gz+4,0.9,22); lmLight(gx+8,y+3.2,gz+4,0.9,22);
+  addCollider(gx-8,gz-5,gx+8,gz+5);
+  registerLore({key:'romaria_cathedral', x:gx, z:gz, r:50, icon:'⛪',
+    name:'Catedrala Sfântul Mihail — Romaria', sub:'Tall spires, iconostasis, marble floor, choir balcony, crypt, bell tower',
+    story:'Great Cathedral Sfantul Mihail — tall spires. Iconostasis, marble floor, choir balcony. Crypt stone coffins, bell tower interior, priest study. Noble estates, merchant districts, training grounds, artisan quarter, river docks. Grand market butcher tailor blacksmith tavern spice merchant book seller armor craftsman horse trader.'});
+}
+
+/* ---------- town lore ---------- */
 function registerTownLore(facKey, data){
   var F=FACS[facKey];
   var nat=F.name;
-  registerLore({key:facKey+'_hall', x:data.hall.x, z:data.hall.z, r:26, icon:'🏯',
-    name:nat+' Great Hall', sub:'Throne room & muster court',
-    story:'The heart of '+nat+'\'s power. From this hall the rulers hold court, count their gold, and send fresh troops to the front. Lose this hall and the nation loses its voice.'});
+  var regionDesc = TOWNS[facKey] ? TOWNS[facKey].desc : '';
+  registerLore({key:facKey+'_hall', x:data.hall.x, z:data.hall.z, r:26, icon:facKey==='nippon'?'👑':facKey==='vikings'?'🏔️':facKey==='egypt'?'🐪':'🏯',
+    name:nat+' — '+TOWNS[facKey].name, sub:'Great Hall — '+regionDesc,
+    story:'The heart of '+nat+' in '+regionDesc+'. From this hall rulers hold court, count gold, and send fresh troops to front. Lose this hall and nation loses its voice. Extended interiors: '+
+      (facKey==='vikings'?'barracks bunk beds wool blankets, armory racks swords shields spears, chapel wooden benches icons candles, war room carved wooden strategy table, storage cellar barrels crates dried food, commander quarters desk maps bed':
+       facKey==='sparta'?'town hall oak floors banners council chamber long table, blacksmith forge anvil furnace weapon racks, merchant homes two-story balconies flower pots, tavern Lupul Rosu fireplace long tables barrels upstairs straw beds, school scribes writing desks ink pots scrolls classroom benches, guardhouse jail cells weapon racks duty roster captain office, Valea Lupilor cottages chicken coops pig pens Orthodox church iconostasis candles benches watermill grinding stones flour sacks hunter cabin bow racks pelts trap storage fireplace bathhouse tubs heated stones steam room':
+       facKey==='rome'?'20m stone walls 4 corner towers moat drawbridge, grand hall stone pillars, barracks bunk beds, dungeon iron bars, stable horses, kitchen cauldrons ovens, armory vault locked chests, war balcony overlooking plains, archive room scrolls maps, war camp commander tent soldier tents training grounds archery range horse doctor tent siege workshop catapult parts mess hall long tables drum tower':
+       facKey==='moldavia'?'wooden palisade watchtowers, mess hall sleeping quarters storage cellar, archery tower scout barracks forest lookout platform, forest village wooden huts smokehouses hunter lodge pelts bows traps herbalist hut herbs potions drying racks woodcutter cabin mushroom cellar wolf shrine carved stones':
+       facKey==='egypt'?'wooden building storage crates, beds kitchen stable, guards spears log barriers, roadside Orthodox shrine, caravan repair workshop merchant stables guard barracks, dusty road caravan stops guard posts desert dry patches roadside wells':
+       'marble columns red banners, throne room golden throne royal chambers velvet beds war council maps treasury gold chests, royal library manuscripts garden courtyard fountains servant quarters royal kitchen ovens, cathedral tall spires iconostasis marble floor choir balcony crypt coffins bell tower priest study, grand market butcher tailor blacksmith tavern spice merchant book seller armor craftsman horse trader')});
   registerLore({key:facKey+'_temple', x:data.temple.x, z:data.temple.z, r:24, icon:'🕯️',
-    name:nat+' Sanctuary', sub:'Where soldiers pray before the march',
-    story:'Every company of '+nat+' passes this sanctuary on the way to the field. Banners are dipped at the threshold; wounds are washed and blessed here. Priests say the walls remember every name that never came home.'});
+    name:nat+' Sanctuary — '+TOWNS[facKey].name, sub:'Where soldiers pray before march — '+regionDesc,
+    story:'Every company of '+nat+' passes this sanctuary on way to field. Banners dipped at threshold; wounds washed and blessed here. Priests say walls remember every name that never came home. Orthodox spirituality, Carpathian wilderness, brutal wartime realism.'});
   registerLore({key:facKey+'_barracks', x:data.barracks.x, z:data.barracks.z, r:22, icon:'⚔️',
-    name:nat+' Barracks', sub:'Home of the garrison',
-    story:'Spartan bunks, whetstone-dulled mornings, the smell of oil and leather. The garrison of '+nat+' drills on the square at dawn so that the road-dust never has time to settle.'});
-  registerLore({key:facKey+'_well', x:data.well.x, z:data.well.z, r:18, icon:'💧',
-    name:nat+' Town Well', sub:'The meeting place',
-    story:'All roads of a town lead to its well. Here the news is traded dearer than salt, children are scolded, and in war-time the elders count the men who are still standing.'});
+    name:nat+' Barracks — '+TOWNS[facKey].name, sub:'Home of garrison — '+regionDesc,
+    story:'Spartan bunks, whetstone-dulled mornings, smell of oil and leather. Garrison of '+nat+' drills on square at dawn so road-dust never has time to settle. Extended: training grounds, archery range, siege workshops.'});
+  if(data.well){
+    registerLore({key:facKey+'_well', x:data.well.x, z:data.well.z, r:18, icon:'💧',
+      name:nat+' Well — '+TOWNS[facKey].name, sub:'Meeting place — '+regionDesc,
+      story:'All roads of town lead to well. Here news is traded dearer than salt, children scolded, and in war-time elders count men still standing. Wells in Southern Trade Route are guarded — water is gold.'});
+  }
 }
 
-/* ---------- build them all ---------- */
+/* ---------- build them all — EXTENDED ---------- */
 function buildLandmarks(){
+  // Historical Romanian
   wonderVoronet(575,850);
   wonderCetatea(915,570);
   wonderPutna(990,705);
   wonderCurtea(635,950);
   wonderHan(805,710);
-  wonderStatue(760,760);
+  wonderStatue(0,0); // moved to Romaria center — will be near palace
   wonderTroita(710,680);
+
+  // Faction legacy adapted
   wonderTemple(580,-850);
   wonderArch(-580,-850);
   wonderBurial(-580,850);
   wonderSphinx(-465,-2080);
   wonderTorii(465,2080);
+
+  // NEW EXTENDED WONDERS — per region spec
+  wonderCarpathianMonastery(-2200,-2000); // Sfantul Andrei
+  wonderFrostwindOutpost(800,-2100);      // Frostwind Pass
+  wonderArdealburgMarket(-1800,-800);     // Ardealburg market
+  wonderValeaLupilor(-2100,-400);         // Valea Lupilor
+  wonderCetateaDunarii(-1400,1300);       // Cetatea Dunarii fortress
+  wonderWarCamp(-2200,1800);              // Wallachian War Camp
+  wonderMoldavianFort(1700,-700);         // Hotarul de Nord
+  wonderCodrulVechi(2100,200);            // Codrul Vechi
+  wonderRomariaPalace(0,0);               // Romaria Royal Palace (overlaps statue, but distinct)
+  wonderRomariaCathedral(600,600);        // Catedrala Sfantul Mihail
 }
 
 
@@ -2927,8 +3935,9 @@ function buildSettlementHouse(batch,x,z,type){
 
 
 // SOURCE: src/world/settlements.js
-/* Four spaced homesteads per territory, rather than one prop claiming a whole zone.
-   Planned streets, courtyards and orchards preserve walkable gaps between buildings. */
+/* Four spaced homesteads per territory, plus region-specific Romanian medieval hamlets
+   — EXTENDED 2× EDITION: every region has distinct settlement types
+*/
 var SETTLEMENTS=[],settlementStats={buildings:0,hamlets:0,chunks:0,zones:0},settlementRoadGrid=new Map();
 function settlementRoadNear(x,z,r){
   var gx=Math.floor(x/32),gz=Math.floor(z/32);
@@ -2942,35 +3951,86 @@ function buildSettlements(){
   var batch=createBuildingBatch(),covered=new Set();
   for(var zi=0;zi<ZN*ZN;zi++){
     var center=zoneCenter(zi);
+    var region = getRegion(center.x, center.z);
     for(var quadrant=0;quadrant<4;quadrant++){
       var x=center.x+(quadrant%2?88:-88),z=center.z+(quadrant>1?88:-88);
-      var protectedSite=FAC_KEYS.some(function(f){return Math.hypot(x-TOWNS[f].x,z-TOWNS[f].z)<210;})||LANDMARKS.some(function(l){return Math.hypot(x-l.x,z-l.z)<Math.max(45,l.r||0);});
+      var protectedSite=FAC_KEYS.some(function(f){return Math.hypot(x-TOWNS[f].x,z-TOWNS[f].z)<240;})||LANDMARKS.some(function(l){return Math.hypot(x-l.x,z-l.z)<Math.max(55,l.r||0);});
       if(protectedSite)continue;
       var added=0;
-      for(var h=0;h<6;h++){
-        var hx=x+(h<3?-13:13),hz=z+((h%3)-1)*18;
-        var type=h===0&&quadrant===0?'chapel':h===1?'farm':h===4?'workshop':'cottage';
+      for(var h=0;h<8;h++){
+        var hx=x+(h<4?-16:16),hz=z+((h%4)-1.5)*18;
+        var type;
+        if(region==='carpathian'){
+          type = h===0?'chapel':h===1?'workshop':h===2?'cottage':h===5?'farm':'cottage';
+        } else if(region==='transylvanian'){
+          type = h===0?'chapel':h===1?'farm':h===2?'workshop':h===4?'cottage':'cottage';
+        } else if(region==='wallachian'){
+          type = h===0?'workshop':h===1?'farm':h===2?'cottage':'cottage';
+        } else if(region==='moldavian'){
+          type = h===0?'chapel':h===1?'farm':h===3?'workshop':'cottage';
+        } else if(region==='trade_route'){
+          type = h===0?'workshop':h===1?'cottage':h===2?'farm':'cottage';
+        } else if(region==='capital'){
+          type = h===0?'chapel':h===1?'workshop':h===2?'cottage':h===3?'cottage':'farm';
+        } else {
+          type = h===0&&quadrant===0?'chapel':h===1?'farm':h===4?'workshop':'cottage';
+        }
         if(buildSettlementHouse(batch,hx,hz,type)){added++;settlementStats.buildings++;}
       }
       if(!added)continue;
       covered.add(zi);settlementStats.hamlets++;
-      SETTLEMENTS.push({x:x,z:z,zi:zi,name:VNAMES[zi%VNAMES.length]+' — cătun '+(quadrant+1),buildings:added});
+      var regionLabel = WORLD_REGIONS[region] ? WORLD_REGIONS[region].name : region;
+      SETTLEMENTS.push({x:x,z:z,zi:zi,region:region,name:VNAMES[zi%VNAMES.length]+' — '+regionLabel+' cătun '+(quadrant+1),buildings:added});
       // Street segments are tested against actual walls, including legacy buildings.
-      for(var step=-30;step<=30;step+=6){
+      for(var step=-36;step<=36;step+=6){
         if(!insideSolid(x,z+step,4)){
-          batch.add('box',x,groundH(x,z+step)+0.04,z+step,6,0.08,6.2,0x9b8866);
+          var roadCol = region==='carpathian'?0x7a7a82:region==='trade_route'?0xc2b08a:region==='capital'?0x9a9a8a:0x9b8866;
+          batch.add('box',x,groundH(x,z+step)+0.04,z+step,6,0.08,6.2,roadCol);
           window.__roadPts.push([x,z+step]);
         }
       }
-      for(var tree=0;tree<8;tree++){
-        var tx=x+(tree<4?-33:33),tz=z+(tree%4-1.5)*14;
+      // Region-specific decoration
+      for(var tree=0;tree<10;tree++){
+        var tx=x+(tree<5?-36:36),tz=z+(tree%5-2)*14;
         if(insideSolid(tx,tz,3)||settlementRoadNear(tx,tz,7))continue;
         var y=groundH(tx,tz);
-        batch.add('box',tx,y+1,tz,0.5,2,0.5,0x66472e);
-        batch.add('tree',tx,y+3,tz,4.5,4.5,4.5,tree%2?0x556b38:0x657940);
+        if(region==='carpathian'){
+          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x4a3a2a);
+          batch.add('tree',tx,y+3.5,tz,3.5,5,3.5,tree%2?0x2f4a2e:0x3a5a3a);
+        } else if(region==='transylvanian'){
+          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x66472e);
+          batch.add('tree',tx,y+3,tz,4.5,4.5,4.5,tree%2?0x556b38:0x657940);
+          if(tree%3===0) batch.add('box',tx+2,y+0.3,tz,2,0.6,2,0x6b8f3a); // vineyard
+        } else if(region==='wallachian'){
+          batch.add('box',tx,y+0.8,tz,0.4,1.5,0.4,0x5a4a3a);
+          batch.add('tree',tx,y+2.5,tz,3,3,3,0x6a8a3a);
+        } else if(region==='moldavian'){
+          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x3a2a1a);
+          batch.add('tree',tx,y+3,tz,4,4.5,4,tree%2?0x2a4a2a:0x3a5a2e);
+        } else if(region==='trade_route'){
+          if(tree%2===0){
+            batch.add('box',tx,y+0.5,tz,0.6,1.2,0.6,0x8a7a5e);
+            batch.add('tree',tx,y+2,tz,2.5,2.5,2.5,0x7a8a5a);
+          }
+        } else {
+          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x66472e);
+          batch.add('tree',tx,y+3,tz,4.5,4.5,4.5,tree%2?0x556b38:0x657940);
+        }
       }
       if(!insideSolid(x,z+43,9)){
-        for(var furrow=0;furrow<6;furrow++)batch.add('box',x-7.5+furrow*3,groundH(x,z+43)+0.07,z+43,1.8,0.14,12,furrow%2?0x928047:0x667743);
+        for(var furrow=0;furrow<6;furrow++){
+          var cropCol = region==='transylvanian'? (furrow%2?0xc9b24a:0x6b8f3a) : region==='wallachian'? (furrow%2?0x5a6a4a:0x6a8a3a) : (furrow%2?0x928047:0x667743);
+          batch.add('box',x-7.5+furrow*3,groundH(x,z+43)+0.07,z+43,1.8,0.14,12,cropCol);
+        }
+      }
+      // Extra: Orthodox shrine per hamlet in trade_route / transylvanian
+      if((region==='trade_route' || region==='transylvanian') && quadrant===0){
+        var sx=x+20, sz=z+20;
+        if(!insideSolid(sx,sz,3)){
+          batch.add('box',sx,groundH(sx,sz)+1.1,sz,0.22,2.2,0.22,0x6b4f2e);
+          batch.add('box',sx+1.8,groundH(sx,sz)+1.1,sz,0.22,2.2,0.22,0x6b4f2e);
+          batch.add('box',sx+0.9,groundH(sx,sz)+2.3,sz,2.4,0.24,0.3,0x7a5a36);
+        }
       }
       window.__contentZi[zi]=1;
     }
@@ -2980,38 +4040,57 @@ function buildSettlements(){
 
 
 // SOURCE: src/world/districts.js
-/* ---------------- districts (v8): farms, mines, markets, caves, ruins — instanced ---------------- */
+/* ---------------- districts — ROMANIAN MEDIEVAL WAR WORLD EXTENDED 2× EDITION ----------------
+   Farms, mines, markets, caves, ruins, plus NEW: watchtowers, monasteries, outposts,
+   war camps, trade posts, inns, shrines, secret crypts — per region, instanced
+*/
 var SITES=[];
 var zoneSiteRate=null;
 var DISTRICT_C=[];
-var LMS=[[575,850],[915,570],[990,705],[635,950],[805,710],[710,680],[580,-850],[-580,-850],[-580,850],[-465,-2080],[465,2080],[0,0]];
+var LMS=[
+  [0,0],           /* Romaria capital */
+  [-1800,-800],    /* Ardealburg */
+  [-1400,1300],    /* Cetatea Dunarii */
+  [1700,-700],     /* Hotarul de Nord */
+  [0,-2400],       /* Stanca de Fier */
+  [0,2500],        /* Drumul Lung */
+  [575,850],[915,570],[990,705],[635,950],[805,710],[710,680],
+  [580,-850],[-580,-850],[-580,850],
+  [-465,-2080],[465,2080],
+  [-2200,-2000],[2200,-1900],[-2100,-400],[2100,200],
+  [-2200,1800],[2200,2200],[0,-1600],[1200,0]
+];
 (function(){
-  for(var i=0;i<260;i++){
-    if(DISTRICT_C.length>=150) break;
-    var a=i*2.39996, r=200+Math.pow((i%65)/65,0.72)*2650;
+  // Generate districts across all regions, avoiding towns & landmarks
+  for(var i=0;i<400;i++){
+    if(DISTRICT_C.length>=220) break;
+    var a=i*2.39996, r=220+Math.pow((i%85)/85,0.68)*2700;
     var x=Math.cos(a)*r, z=Math.sin(a)*r;
-    if(x*x+z*z<560*560) continue;
     if(Math.abs(x)>2920||Math.abs(z)>2920) continue;
+    var reg = getRegion(x,z);
+    if(reg==='capital' && Math.sqrt(x*x+z*z)<620) continue; // keep capital clear for hand-placed palace
     var bad=false;
     FAC_KEYS_T.forEach(function(fk){
       var T=TOWNS[fk];
-      if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<300*300) bad=true;
+      if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<320*320) bad=true;
     });
     for(var v=0;v<VILLAGES.length;v++){ var V=VILLAGES[v];
-      if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<100*100) bad=true; }
-    for(var L=0;L<LMS.length;L++){ if((x-LMS[L][0])*(x-LMS[L][0])+(z-LMS[L][1])*(z-LMS[L][1])<110*110) bad=true; }
+      if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<110*110) bad=true; }
+    for(var L=0;L<LMS.length;L++){ if((x-LMS[L][0])*(x-LMS[L][0])+(z-LMS[L][1])*(z-LMS[L][1])<130*130) bad=true; }
     for(var d=0;d<DISTRICT_C.length;d++){ var D=DISTRICT_C[d];
-      if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<150*150) bad=true; }
-    if(!bad) DISTRICT_C.push({x:x, z:z});
+      if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<140*140) bad=true; }
+    if(!bad) DISTRICT_C.push({x:x, z:z, region:reg});
   }
 })();
 function buildDistricts(){
   var wallMats=[], wallCols=[], roofMats=[], roofCols=[], cylMats=[], moundMats=[], darkMats=[], flatMats=[], flatCols=[];
   var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), eu=new THREE.Euler(), v3=new THREE.Vector3(), s3=new THREE.Vector3();
   function pushM(arr,x,y,z,ry,sx,sy,sz){ eu.set(0,ry||0,0); q.setFromEuler(eu); v3.set(x,y,z); s3.set(sx,sy,sz); m4.compose(v3,q,s3); arr.push(m4.clone()); if(arr===wallMats)wallCols.push(0x8a7a5e); if(arr===roofMats)roofCols.push(0x6d5a3e); if(arr===flatMats)flatCols.push(0x7a8f4a); }
-  function site(x,z,type,rate){ var zi=zoneIdxAt(x,z); SITES.push({zi:zi, rate:rate, type:type}); }
+  function site(x,z,type,rate){ var zi=zoneIdxAt(x,z); SITES.push({zi:zi, rate:rate, type:type, region:getRegion(x,z)}); }
+
   DISTRICT_C.forEach(function(D, di){
-    var n=42+(di*7)%24;
+    var n=36+(di*7)%28;
+    var region = D.region || getRegion(D.x,D.z);
     for(var b=0;b<n;b++){
       var row=Math.floor(b/8),col=b%8;
       var x=D.x+(col-3.5)*15+(col>=4?6:-6), z=D.z+(row-3.5)*15;
@@ -3019,64 +4098,267 @@ function buildDistricts(){
       var y=groundH(x,z), ry=0;
       var roll=(b*29+di*17)%100;
       var hb=choice([0x8a7a5e,0x7a6a50,0x94826a,0x6e6152]), rb=choice([0x6d5a3e,0x5d4a38,0x4a4238]);
-      if(roll<40){
-        addCollider(x-2.5,z-2,x+2.5,z+2);
-        pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=hb;
-        pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=rb;
-        BUILD_COUNT++;
-      } else if(roll<55){
-        addCollider(x-3.2,z-2.2,x+3.2,z+2.2);
-        pushM(wallMats,x,y+1.6,z,ry,6.5,3.2,4.5); wallCols[wallCols.length-1]=hb;
-        pushM(roofMats,x,y+3.9,z,ry+0.78,9.2,1.8,9.2); roofCols[roofCols.length-1]=rb;
-        pushM(cylMats,x+4.2,y+2.2,z-2.6,0,1.5,4.4,1.5);
-        pushM(flatMats,x-5,y+0.08,z+4,ry,9,1,7); flatCols[flatCols.length-1]=0x7a8f4a;
-        BUILD_COUNT++; BUILD_COUNT++;
-        site(x,z,'farm',0.08);
-      } else if(roll<65){
-        addCollider(x-3,z-2.5,x+3,z+2.5);
-        pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=hb;
-        pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc0272d;
-        pushM(wallMats,x+3.6,y+0.9,z+2.6,ry,0.14,1.8,0.14);
-        pushM(wallMats,x-3.6,y+0.9,z-2.6,ry,0.14,1.8,0.14);
-        BUILD_COUNT++;
-        site(x,z,'market',0.15);
-      } else if(roll<73){
-        addCollider(x-2.7,z-2.2,x+2.7,z+2.2);
-        pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x6e6152;
-        pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
-        BUILD_COUNT++;
-        site(x,z,'forge',0.12);
-      } else if(roll<80){
-        pushM(wallMats,x,y+1.4,z,ry,0.22,2.8,0.22);
-        pushM(wallMats,x-1.8,y+1.4,z,ry,0.22,2.8,0.22);
-        pushM(wallMats,x-0.9,y+2.9,z,ry,2.6,0.24,0.24);
-        pushM(moundMats,x,y+1.6,z+2.2,ry,8.4,2.6,7.2);
-        BUILD_COUNT++;
-        site(x,z,'mine',0.22);
-      } else if(roll<85){
-        pushM(moundMats,x,y+1.4,z,ry,14,3.4,12);
-        pushM(darkMats,x+Math.cos(ry)*3.4,y+1.1,z+Math.sin(ry)*3.4,ry,2.2,2.2,0.6);
-        BUILD_COUNT++;
-        site(x,z,'cave',0.28);
-      } else if(roll<95){
-        pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5);
-        pushM(wallMats,x+2.4,y+0.9,z+1.4,ry+1.1,0.5,1.8,3.2);
-        pushM(moundMats,x-1.5,y+0.3,z-1,0,3.2,0.8,2.8);
-        BUILD_COUNT++; BUILD_COUNT++;
+
+      /* ---------- REGION-SPECIFIC STRUCTURES ---------- */
+      if(region==='carpathian'){
+        if(roll<25){
+          // Carpathian Watchtower — tall wooden tower with stone foundation
+          addCollider(x-2.2,z-2.2,x+2.2,z+2.2);
+          pushM(wallMats,x,y+3.5,z,ry,4.5,7,4.5); wallCols[wallCols.length-1]=0x8a7a6e;
+          pushM(roofMats,x,y+8.2,z,ry+0.78,6.2,2.2,6.2); roofCols[roofCols.length-1]=0x5d4a38;
+          pushM(cylMats,x,y+0.6,z,0,3.2,1.2,3.2);
+          BUILD_COUNT+=2;
+          site(x,z,'watchtower',0.18);
+        } else if(roll<45){
+          // Hermit's Cave / Monastery cell
+          pushM(moundMats,x,y+1.4,z,ry,12,3.2,10);
+          pushM(darkMats,x+Math.cos(ry)*2.8,y+1.0,z+Math.sin(ry)*2.8,ry,1.8,1.8,0.5);
+          BUILD_COUNT++;
+          site(x,z,'cave',0.32);
+        } else if(roll<65){
+          // Mountain Fort Stanca de Fier — iron-reinforced
+          addCollider(x-3.5,z-3,x+3.5,z+3);
+          pushM(wallMats,x,y+2.2,z,ry,7,4.4,5.5); wallCols[wallCols.length-1]=0x6e6e6e;
+          pushM(wallMats,x,y+5.2,z,ry,0.22,2.8,0.22);
+          pushM(roofMats,x,y+5.5,z,ry,8.5,1.2,6.5); roofCols[roofCols.length-1]=0x4a4238;
+          BUILD_COUNT++;
+          site(x,z,'fort',0.25);
+        } else if(roll<80){
+          // Frozen shrine
+          pushM(wallMats,x,y+1.1,z,ry,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
+          pushM(wallMats,x+1.8,y+1.1,z,ry,0.22,2.2,0.22);
+          pushM(wallMats,x,y+2.3,z,ry,2.4,0.24,0.3);
+          BUILD_COUNT+=3;
+          site(x,z,'shrine',0.15);
+        } else {
+          // Avalanche debris + boulders
+          pushM(moundMats,x,y+0.9,z,wr,3.4,2.2,3);
+          pushM(moundMats,x+2.4,y+0.6,z-1.4,wr+1,2.2,1.5,2);
+          BUILD_COUNT+=2;
+        }
+      } else if(region==='transylvanian'){
+        if(roll<35){
+          // Transylvanian cottage — vineyard house
+          addCollider(x-2.5,z-2,x+2.5,z+2);
+          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=hb;
+          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=rb;
+          pushM(flatMats,x-5,y+0.08,z+4,ry,9,1,7); flatCols[flatCols.length-1]=0x6b8f3a; // vineyard
+          BUILD_COUNT++;
+          site(x,z,'farm',0.12);
+        } else if(roll<50){
+          // School of Scribes
+          addCollider(x-3.2,z-2.2,x+3.2,z+2.2);
+          pushM(wallMats,x,y+1.6,z,ry,6.5,3.2,4.5); wallCols[wallCols.length-1]=0xd8d2c0;
+          pushM(roofMats,x,y+3.9,z,ry+0.78,9.2,1.8,9.2); roofCols[roofCols.length-1]=0x2a5caa;
+          BUILD_COUNT++;
+          site(x,z,'school',0.18);
+        } else if(roll<65){
+          // Hunter's Cabin
+          addCollider(x-2.7,z-2.2,x+2.7,z+2.2);
+          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
+          pushM(roofMats,x,y+3.5,z,ry,6.5,1.2,6); roofCols[roofCols.length-1]=0x4a4238;
+          BUILD_COUNT++;
+          site(x,z,'hunter',0.14);
+        } else if(roll<80){
+          // Bathhouse
+          addCollider(x-3,z-2.5,x+3,z+2.5);
+          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0x8a7a5e;
+          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0x8a9a8a;
+          BUILD_COUNT++;
+          site(x,z,'bath',0.12);
+        } else {
+          // Orchards
+          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5);
+          pushM(moundMats,x-1.5,y+0.3,z-1,0,3.2,0.8,2.8);
+          BUILD_COUNT+=2;
+          site(x,z,'orchard',0.08);
+        }
+      } else if(region==='wallachian'){
+        if(roll<30){
+          // Wallachian War Camp tent + training
+          pushM(roofMats,x,y+1.3,z,ry,3.2,2.6,3.2); roofCols[roofCols.length-1]=0x8f6f4a;
+          pushM(flatMats,x+2.2,y+0.06,z+1.6,ry,2.4,1,2.4); flatCols[flatCols.length-1]=0x5a4a38;
+          BUILD_COUNT+=2;
+          site(x,z,'warcamp',0.22);
+        } else if(roll<50){
+          // Siege workshop
+          addCollider(x-3,z-2.5,x+3,z+2.5);
+          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0x7a6a50;
+          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc0272d;
+          BUILD_COUNT++;
+          site(x,z,'forge',0.18);
+        } else if(roll<70){
+          // Horse doctor / stable
+          addCollider(x-2.5,z-2,x+2.5,z+2);
+          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x6d5a3e;
+          BUILD_COUNT++;
+          site(x,z,'stable',0.15);
+        } else if(roll<85){
+          // Marsh reed + mine
+          pushM(moundMats,x,y+1.6,z+2.2,ry,8.4,2.6,7.2);
+          BUILD_COUNT++;
+          site(x,z,'mine',0.20);
+        } else {
+          // Muddy farm
+          addCollider(x-3.2,z-2.2,x+3.2,z+2.2);
+          pushM(wallMats,x,y+1.6,z,ry,6.5,3.2,4.5); wallCols[wallCols.length-1]=hb;
+          pushM(flatMats,x-5,y+0.08,z+4,ry,9,1,7); flatCols[flatCols.length-1]=0x5a6a4a;
+          BUILD_COUNT++;
+          site(x,z,'farm',0.10);
+        }
+      } else if(region==='moldavian'){
+        if(roll<30){
+          // Border fort palisade
+          addCollider(x-3,z-3,x+3,z+3);
+          pushM(wallMats,x,y+2,z,ry,6,4,5); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(cylMats,x,y+0.6,z,0,4,1.2,4);
+          BUILD_COUNT++;
+          site(x,z,'borderfort',0.22);
+        } else if(roll<55){
+          // Forest village Codrul Vechi — wooden hut
+          addCollider(x-2.5,z-2,x+2.5,z+2);
+          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x5d4a38;
+          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x3a5a2e;
+          BUILD_COUNT++;
+          site(x,z,'forestvillage',0.16);
+        } else if(roll<70){
+          // Woodcutter + mushroom cellar
+          pushM(wallMats,x,y+1.4,z,ry,0.22,2.8,0.22);
+          pushM(moundMats,x,y+0.3,z-1,0,3.2,0.8,2.8);
+          pushM(darkMats,x,y+0.5,z,ry,1.5,1.2,1.5);
+          BUILD_COUNT+=3;
+          site(x,z,'woodcutter',0.12);
+        } else if(roll<85){
+          // Wolf shrine carved stones
+          pushM(wallMats,x,y+2.6,z,ry,1.1,5.2,0.9); wallCols[wallCols.length-1]=0x70685a;
+          pushM(moundMats,x,y+0.3,z,0,2.2,0.8,2);
+          BUILD_COUNT+=2;
+          site(x,z,'shrine',0.18);
+        } else {
+          // Herbalist
+          pushM(wallMats,x,y+1.4,z,ry,4.5,2.8,4); wallCols[wallCols.length-1]=0x7a6a50;
+          pushM(roofMats,x,y+3.2,z,ry,6,1.2,5.5); roofCols[roofCols.length-1]=0x6d5a3e;
+          BUILD_COUNT++;
+          site(x,z,'herbalist',0.10);
+        }
+      } else if(region==='trade_route'){
+        if(roll<35){
+          // Trade post wooden building + crates
+          addCollider(x-3,z-2.5,x+3,z+2.5);
+          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0xb09a6e;
+          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc9b24a;
+          pushM(cylMats,x+2,y+0.55,z+1,0,0.8,1.1,0.8);
+          BUILD_COUNT++;
+          site(x,z,'market',0.20);
+        } else if(roll<60){
+          // Inn Drumul Lung — beds, kitchen, stable
+          addCollider(x-3.5,z-2.5,x+3.5,z+2.5);
+          pushM(wallMats,x,y+2,z,ry,7.5,4,5.5); wallCols[wallCols.length-1]=0x8a7a5e;
+          pushM(roofMats,x,y+5,z,ry+0.78,11,2.2,11); roofCols[roofCols.length-1]=0x5d4a38;
+          BUILD_COUNT++;
+          site(x,z,'inn',0.18);
+        } else if(roll<75){
+          // Checkpoint gate
+          pushM(wallMats,x,y+2.2,z,ry,0.5,4.4,5.5); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(wallMats,x+4,y+2.2,z,ry,0.5,4.4,5.5);
+          pushM(wallMats,x+2,y+4.5,z,ry,5,0.5,0.5);
+          BUILD_COUNT+=3;
+          site(x,z,'checkpoint',0.15);
+        } else if(roll<90){
+          // Roadside Orthodox shrine
+          pushM(wallMats,x-0.9,y+1.1,z,ry,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
+          pushM(wallMats,x+0.9,y+1.1,z,ry,0.22,2.2,0.22);
+          pushM(wallMats,x,y+2.3,z,ry,2.4,0.24,0.3);
+          BUILD_COUNT+=3;
+          site(x,z,'shrine',0.12);
+        } else {
+          // Caravan repair workshop
+          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
+          BUILD_COUNT++;
+          site(x,z,'workshop',0.14);
+        }
+      } else if(region==='capital'){
+        if(roll<30){
+          // Romaria noble estate / merchant
+          addCollider(x-3.5,z-2.5,x+3.5,z+2.5);
+          pushM(wallMats,x,y+2.2,z,ry,7,4.4,5.5); wallCols[wallCols.length-1]=0xd8d2c0;
+          pushM(roofMats,x,y+5.2,z,ry+0.78,9.2,2.2,9.2); roofCols[roofCols.length-1]=0xc0272d;
+          BUILD_COUNT++;
+          site(x,z,'noble',0.25);
+        } else if(roll<55){
+          // Grand market spice / book / armor
+          addCollider(x-3,z-2.5,x+3,z+2.5);
+          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0xc2b89a;
+          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc9a83a;
+          BUILD_COUNT++;
+          site(x,z,'market',0.22);
+        } else if(roll<70){
+          // Artisan quarter
+          addCollider(x-2.7,z-2.2,x+2.7,z+2.2);
+          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x8a7a5e;
+          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
+          BUILD_COUNT++;
+          site(x,z,'forge',0.20);
+        } else if(roll<85){
+          // River docks / garden courtyard
+          pushM(flatMats,x,y+0.08,z,ry,8,0.2,6); flatCols[flatCols.length-1]=0x6a8a5a;
+          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5);
+          BUILD_COUNT+=2;
+          site(x,z,'dock',0.15);
+        } else {
+          // Royal library / servant quarters
+          addCollider(x-2.5,z-2,x+2.5,z+2);
+          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0xe8e0cf;
+          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x6d4a34;
+          BUILD_COUNT++;
+          site(x,z,'library',0.18);
+        }
       } else {
-        addCollider(x-3.7,z-2.7,x+3.7,z+2.7);
-        pushM(wallMats,x,y+2,z,ry,7.5,4,5.5); wallCols[wallCols.length-1]=hb;
-        pushM(roofMats,x,y+5,z,ry+0.78,11,2.2,11); roofCols[roofCols.length-1]=rb;
-        BUILD_COUNT++;
+        // battlefield / generic — broken carts, burned houses, mass graves, memorials
+        if(roll<30){
+          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5); wallCols[wallCols.length-1]=0x5a4a3a;
+          pushM(moundMats,x-1.5,y+0.3,z-1,0,3.2,0.8,2.8);
+          BUILD_COUNT+=2;
+          site(x,z,'ruin',0.12);
+        } else if(roll<55){
+          addCollider(x-2.5,z-2,x+2.5,z+2);
+          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x6e6152;
+          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x4a4238;
+          BUILD_COUNT++;
+          site(x,z,'burned',0.10);
+        } else if(roll<70){
+          pushM(moundMats,x,y+1.4,z,ry,14,3.4,12);
+          pushM(darkMats,x+Math.cos(ry)*3.4,y+1.1,z+Math.sin(ry)*3.4,ry,2.2,2.2,0.6);
+          BUILD_COUNT++;
+          site(x,z,'cave',0.20);
+        } else {
+          pushM(wallMats,x,y+1.4,z,ry,0.22,2.8,0.22);
+          pushM(moundMats,x,y+1.6,z+2.2,ry,8.4,2.6,7.2);
+          BUILD_COUNT+=2;
+          site(x,z,'memorial',0.10);
+        }
       }
     }
-    if(di%9===0){
-      registerLore({key:'district'+di, x:D.x, z:D.z, r:70, icon:'🏘️',
-        name:'District '+(di+1), sub:'Hamlets, works and wilds',
-        story:'A working district — mines and caves ring gold for whoever holds the zone. Markets and forges pay their tithe. Houses shelter the folk who do the real work.'});
+    if(di%7===0){
+      var regName = WORLD_REGIONS[region] ? WORLD_REGIONS[region].name : 'District';
+      registerLore({key:'district'+di, x:D.x, z:D.z, r:70, icon:region==='carpathian'?'🏔️':region==='trade_route'?'🐪':region==='capital'?'🏰':'🏘️',
+        name:regName+' — Sector '+(di+1), sub:region+' hamlets, works and wilds',
+        story:'A working district of '+regName+' — '+(
+          region==='carpathian'?'monasteries, watchtowers and frozen shrines keep the northern pass':
+          region==='transylvanian'?'vineyards, scribe schools and hunter cabins feed Ardealburg':
+          region==='wallachian'?'war camps, siege workshops and horse doctors supply Cetatea Dunarii':
+          region==='moldavian'?'border forts, wolf shrines and forest villages guard the frontier':
+          region==='trade_route'?'caravan posts, inns and Orthodox shrines serve the long road':
+          region==='capital'?'noble estates, markets and artisan quarters surround Romaria':
+          'battlefields, burned villages and memorials tell the cost of war'
+        )});
     }
   });
-  /* ---- v11 ROADS: every village/district connects to its nearest town; houses line the roads ---- */
+
+  /* ---- ROADS: every village/district connects to its nearest town + Romaria capital ---- */
   window.__roadPts=[];
   var roadMats=[], roadRots=[];
   function layRoad(x0,z0,x1,z1){
@@ -3086,13 +4368,12 @@ function buildDistricts(){
     var hop=20;
     for(var s=0;s<L;s+=hop){
       var wx=x0+ux*s, wz=z0+uz*s;
-      if(insideSolid(wx,wz,3.5)) continue;            /* weave: skip segments that hit buildings */
+      if(insideSolid(wx,wz,3.5)) continue;
       var ry=Math.atan2(ux,uz);
       pushM(roadMats, wx, groundH(wx,wz)+0.06, wz, ry, 5.2,1,hop*1.06);
       roadRots.push(0);
       window.__roadPts.push([wx,wz]);
-      /* houses lining the road */
-      if(s>60 && s<L-60 && ((s/hop)|0)%3===0 && Math.random()<0.5){
+      if(s>60 && s<L-60 && ((s/hop)|0)%3===0 && Math.random()<0.55){
         var side=((s/hop)%2)?1:-1;
         var hx=wx+px*side*11, hz=wz+pz*side*11;
         if(!insideSolid(hx,hz,3.2)){
@@ -3112,10 +4393,19 @@ function buildDistricts(){
     }
   }
   var roadTowns=FAC_KEYS_T.map(function(f){ return TOWNS[f]; });
-  /* towns fully connected (greedy chain both ends) */
-  for(var ti=0;ti<roadTowns.length-1;ti++) layRoad(roadTowns[ti].x,roadTowns[ti].z,roadTowns[ti+1].x,roadTowns[ti+1].z);
-  layRoad(roadTowns[roadTowns.length-1].x,roadTowns[roadTowns.length-1].z,roadTowns[0].x,roadTowns[0].z);
-  /* every village + district spur to nearest town */
+  // towns fully connected (ring + spokes to Romaria)
+  for(var ti=0;ti<roadTowns.length;ti++){
+    var next = roadTowns[(ti+1)%roadTowns.length];
+    layRoad(roadTowns[ti].x,roadTowns[ti].z,next.x,next.z);
+    layRoad(roadTowns[ti].x,roadTowns[ti].z,0,0); // all roads lead to Romaria
+  }
+  // Trade Route main east-west artery
+  layRoad(-2800,2500,2800,2500);
+  layRoad(-2800,2300,2800,2300);
+  // Carpathian ridge pass
+  layRoad(-2800,-2400,2800,-2400);
+  layRoad(-2800,-2000,2800,-2000);
+
   function nearestTown(x,z){
     var bt=null, bd=1e18;
     for(var t=0;t<roadTowns.length;t++){
@@ -3127,7 +4417,7 @@ function buildDistricts(){
   VILLAGES.forEach(function(V){ var T=nearestTown(V.x,V.z); layRoad(V.x,V.z,T.x,T.z); });
   DISTRICT_C.forEach(function(D){ var T=nearestTown(D.x,D.z); layRoad(D.x,D.z,T.x,T.z); });
 
-  /* ---- v8.1 WILDS: every zone gets something — no empty green anywhere ---- */
+  /* ---- WILDS: every zone gets something — no empty green anywhere ---- */
   window.__contentZi={};
   DISTRICT_C.forEach(function(D){ window.__contentZi[zoneIdxAt(D.x,D.z)]=1; });
   VILLAGES.forEach(function(V){ window.__contentZi[zoneIdxAt(V.x,V.z)]=1; });
@@ -3146,34 +4436,56 @@ function buildDistricts(){
     if(!near) for(var L2=0;L2<LMS.length;L2++){ if((cx-LMS[L2][0])*(cx-LMS[L2][0])+(cz-LMS[L2][1])*(cz-LMS[L2][1])<140*140) near=true; }
     if(!near) for(var d2=0;d2<DISTRICT_C.length;d2++){ var D2=DISTRICT_C[d2];
       if((cx-D2.x)*(cx-D2.x)+(cz-D2.z)*(cz-D2.z)<200*200) near=true; }
-    if(near){ window.__contentZi[zi]=1; continue; }   /* real content within reach — zone counts as filled */
+    if(near){ window.__contentZi[zi]=1; continue; }
     var jx=cx+(((gz*7+gx*13)%61)-30)*1.7, jz=cz+(((gx*11+gz*5)%61)-30)*1.7;
-    var wy=groundH(jx,jz), wr=((gx+gz)%12)*0.5236, wt=(gx*3+gz*5)%6;
-    if(wt===0){        /* stone ruin */
+    var wy=groundH(jx,jz), wr=((gx+gz)%12)*0.5236, wt=(gx*3+gz*5)%8;
+    var regionWild = getRegion(jx,jz);
+    if(regionWild==='carpathian'){
+      if(wt%3===0){
+        pushM(wallMats,jx,wy+0.8,jz,wr,4.2,1.6,0.6); wallCols[wallCols.length-1]=0x8a8272;
+        pushM(moundMats,jx,wy+1.2,jz,wr,2.5,2.0,2.5);
+        addCollider(jx-2.2,jz-1.2,jx+2.8,jz+2.2); BUILD_COUNT+=2;
+      } else {
+        pushM(moundMats,jx,wy+0.9,jz,wr,3.4,2.2,3);
+        pushM(moundMats,jx+2.4,wy+0.6,jz-1.4,wr+1,2.2,1.5,2);
+        BUILD_COUNT+=2;
+      }
+    } else if(regionWild==='trade_route'){
+      if(wt%2===0){
+        pushM(roofMats,jx,wy+1.1,jz,wr,2.6,2.2,2.6); roofCols[roofCols.length-1]=0xc9a83a;
+        pushM(cylMats,jx+2,wy+0.55,jz+1,0,0.8,1.1,0.8);
+        BUILD_COUNT+=2;
+      } else {
+        pushM(wallMats,jx-0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
+        pushM(wallMats,jx+0.9,wy+1.1,jz,wr,0.22,2.2,0.22);
+        pushM(wallMats,jx,wy+2.3,jz,wr,2.4,0.24,0.3);
+        BUILD_COUNT+=3;
+      }
+    } else if(wt===0){
       pushM(wallMats,jx,wy+0.8,jz,wr,4.2,1.6,0.6); wallCols[wallCols.length-1]=0x8a8272;
       pushM(wallMats,jx+1.8,wy+1.3,jz+1.2,wr+0.5,0.6,2.6,2.2); wallCols[wallCols.length-1]=0x7a7264;
-      addCollider(jx-2.2,jz-1.2,jx+2.8,jz+2.2); BUILD_COUNT++; BUILD_COUNT++;
-    } else if(wt===1){ /* roadside shrine */
+      addCollider(jx-2.2,jz-1.2,jx+2.8,jz+2.2); BUILD_COUNT+=2;
+    } else if(wt===1){
       pushM(wallMats,jx-0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
       pushM(wallMats,jx+0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
       pushM(wallMats,jx,wy+2.3,jz,wr,2.4,0.24,0.3); wallCols[wallCols.length-1]=0x7a5a36;
-      BUILD_COUNT++; BUILD_COUNT++; BUILD_COUNT++;
-    } else if(wt===2){ /* haystack + barrel */
+      BUILD_COUNT+=3;
+    } else if(wt===2){
       pushM(roofMats,jx,wy+1.1,jz,wr,2.6,2.2,2.6); roofCols[roofCols.length-1]=0xc9a83a;
       pushM(cylMats,jx+2,wy+0.55,jz+1,0,0.8,1.1,0.8);
-      BUILD_COUNT++; BUILD_COUNT++;
-    } else if(wt===3){ /* boulders */
+      BUILD_COUNT+=2;
+    } else if(wt===3){
       pushM(moundMats,jx,wy+0.9,jz,wr,3.4,2.2,3);
       pushM(moundMats,jx+2.4,wy+0.6,jz-1.4,wr+1,2.2,1.5,2);
-      BUILD_COUNT++; BUILD_COUNT++;
-    } else if(wt===4){ /* herder camp: tent + fire patch */
+      BUILD_COUNT+=2;
+    } else if(wt===4){
       pushM(roofMats,jx,wy+1.3,jz,wr,3.2,2.6,3.2); roofCols[roofCols.length-1]=0x8f6f4a;
       pushM(flatMats,jx+2.2,wy+0.06,jz+1.6,wr,2.4,1,2.4); flatCols[flatCols.length-1]=0x5a4a38;
-      BUILD_COUNT++; BUILD_COUNT++;
-    } else {           /* boundary watchstone */
+      BUILD_COUNT+=2;
+    } else {
       pushM(wallMats,jx,wy+2.6,jz,wr,1.1,5.2,0.9); wallCols[wallCols.length-1]=0x70685a;
       pushM(moundMats,jx,wy+0.3,jz,0,2.2,0.8,2);
-      addCollider(jx-0.8,jz-0.7,jx+0.8,jz+0.7); BUILD_COUNT++; BUILD_COUNT++;
+      addCollider(jx-0.8,jz-0.7,jx+0.8,jz+0.7); BUILD_COUNT+=2;
     }
     window.__contentZi[zi]=1; wildsN++;
   }
@@ -3201,7 +4513,7 @@ function buildDistricts(){
   makeIM(new THREE.SphereGeometry(0.5,8,6), moundMats, NM(0x77706a));
   makeIM(new THREE.BoxGeometry(1,1,1), darkMats, new THREE.MeshBasicMaterial({color:0x14100c}));
   makeIM(new THREE.BoxGeometry(1,1,1), flatMats, new THREE.MeshLambertMaterial({color:0xffffff}), flatCols);
-  makeIM(new THREE.BoxGeometry(1,1,1), roadMats, new THREE.MeshLambertMaterial({color:0x9a815a}), null);   /* v11 roads: 1 draw call */
+  makeIM(new THREE.BoxGeometry(1,1,1), roadMats, new THREE.MeshLambertMaterial({color:0x9a815a}), null);
   zoneSiteRate=new Float32Array(ZN*ZN);
   for(var s=0;s<SITES.length;s++) zoneSiteRate[SITES[s].zi]+=SITES[s].rate;
 }
@@ -7898,28 +9210,38 @@ function spawnWorldWorkers(){
 
 
 // SOURCE: src/world/relics.js
-/* ---------------- legendary relics (v6) ---------------- */
+/* ---------------- legendary relics — EXTENDED EDITION ---------------- */
 var relics=[];
 function placeRelics(){
   var defs=[
-    {x:2000,z:-2000, name:'Sword of Stefan', icon:'X', buff:'dmg',
-     story:'The blade the voivode carried at Vaslui. Whoever raises it strikes a fifth again harder - forever.'},
-    {x:-2000,z:2000, name:'Golden Fleece', icon:'R', buff:'spd',
-     story:'Stolen from the deep mines where salt and gold sleep together. The bearer moves like mountain wind.'},
-    {x:0,z:-2600, name:'Aegis of the South', icon:'S', buff:'hp',
-     story:'Bull-hide and bronze, blessed under the burning sun of Kemet. It fills the bearer with iron vigor.'}
+    {x:2000,z:-2000, name:'Sword of Stefan', icon:'⚔️', buff:'dmg',
+     story:'The blade the voivode carried at Vaslui. Whoever raises it strikes a fifth again harder - forever. Found in Carpathian Ridge.'},
+    {x:-2000,z:2000, name:'Golden Fleece', icon:'🐑', buff:'spd',
+     story:'Stolen from the deep mines where salt and gold sleep together. The bearer moves like mountain wind. Wallachian lowlands treasure.'},
+    {x:0,z:-2600, name:'Aegis of the South', icon:'🛡️', buff:'hp',
+     story:'Bull-hide and bronze, blessed under the burning sun. It fills the bearer with iron vigor. Carpathian frostwind pass.'},
+    /* extended relics */
+    {x:-1800,z:-800, name:'Crown of Ardealburg', icon:'👑', buff:'treasury',
+     story:'Golden crown of Transylvanian princes, hidden in Ardealburg School of Scribes. Grants wealth and wisdom.'},
+    {x:0,z:0, name:'Scepter of Romaria', icon:'🏰', buff:'morale',
+     story:'Royal scepter of Romaria capital, marble and gold. Inspires armies, holds the realm together.'},
+    {x:0,z:2500, name:'Merchant’s Scale of Drumul Lung', icon:'⚖️', buff:'trade',
+     story:'Bronze scale from Southern Trade Route inn — measures not gold but fate. Caravans prosper under its balance.'},
+    {x:1700,z:-700, name:'Wolf Fang of Codrul Vechi', icon:'🐺', buff:'forest',
+     story:'Carved wolf fang shrine in Moldavian Borderlands. Grants sight in forests, speed among trees.'},
+    {x:-1400,z:1300, name:'Banner of Cetatea Dunarii', icon:'🚩', buff:'defense',
+     story:'War-torn banner from Wallachian fortress, 20-meter walls could not hold without it. Defense eternal.'}
   ];
   defs.forEach(function(d){
     var y=groundH(d.x,d.z);
     var g=new THREE.Group(); g.position.set(d.x,y,d.z);
     var beam=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.9,26,8,1,true), new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0.16, depthWrite:false, side:THREE.DoubleSide, fog:false}));
     beam.position.y=13; g.add(beam);
-    var gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.55), new THREE.MeshLambertMaterial({color:0xffd24d, emissive:0x9a6a10}));
+    var gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.55), new THREE.MeshLambertMaterial({color:d.buff==='trade'?0x8ab4d0:d.buff==='forest'?0x4a7a37:0xffd24d, emissive:d.buff==='trade'?0x2a4a6a:d.buff==='forest'?0x1a3a1a:0x9a6a10}));
     gem.position.y=1.6; g.add(gem);
-    /* v7: relic beam + emissive gem carry the glow (fixed light budget) */
     scene.add(g);
     relics.push({def:d, grp:g, gem:gem, x:d.x, z:d.z, taken:false});
-    registerLore({key:'relic_'+d.buff, x:d.x, z:d.z, r:40, icon:d.icon, name:d.name, sub:'Legendary Relic', story:d.story});
+    registerLore({key:'relic_'+d.buff, x:d.x, z:d.z, r:40, icon:d.icon, name:d.name, sub:'Legendary Relic — '+getRegion(d.x,d.z), story:d.story});
   });
 }
 
