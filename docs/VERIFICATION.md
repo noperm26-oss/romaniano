@@ -28,9 +28,9 @@ beehives, dovecotes, orchards, a chapel or barn, a well and a troiță; farmstea
 with alleys and townhouses. Named buildings gained hip roofs, prispă galleries, visible half-timbering, benches, gable
 windows and foundation skirts; the windmill became a real mill tower with a room.
 
-Headless diagnostics (`__game.buildingsLive()`): ~9,500 structures, **~9,420 enterable** (the rest: two water gates, the
-ferry, flags, beacons), ~9,380 hinged doors, ~20,400 light sources, ~10,200 chimneys, ~210,000 colliders (~7 µs per query
-inside a hamlet), boot ≈ 9 s headless. New browser check: *countryside houses are real: the instanced door swings open for the
+Headless diagnostics (`__game.buildingsLive()`): ~9,900 structures, **~9,820 enterable** (the rest: two water gates, the
+ferry, flags, beacons), ~9,780 hinged doors, ~21,100 light sources, ~10,700 chimneys, ~210,000 colliders (~7 µs per query
+inside a hamlet), boot ≈ 9 s headless. The five walled towns are lined with townhouses along every street as well. New browser check: *countryside houses are real: the instanced door swings open for the
 player, a furnished lit interior waits behind it* (three houses sampled across the map; door opens > 0.9, ≥ 3 furniture
 colliders, ≥ 1 light and chimney, free threshold inside and out). Existing thresholds were raised (doors/enterable/audited
 walls > 8,000; every non-enterable structure must be a gate, tent, ferry, flag or beacon). 25 browser checks, 25 Node tests.

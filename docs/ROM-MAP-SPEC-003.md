@@ -28,7 +28,7 @@ filled with alleys and townhouses.
 | §5.9 RBL-01..21 | `src/buildings/vernacular.js` (`rblCasa`, `rblFoisor`, `rblCula`, `rblBordei`, `rblBisericaLemn`, `rblConac`, `rblHan`, `rblCrama`, `rblSura`, `rblGrajd`, `rblStana`, `rblMoaraApa`, `rblMoaraVant`, `rblCumpana`, `rblPoarta`, `rblFanar`, `rblPorumbar`, `rblAfumatoare`, `rblBeci`, `rblFantana`, `rblSalt`) + `RBL_KITS` per region |
 | §6 unit sheets | `towns.js` (six seats), `landmarks.js` + `areas.js` (`SITE_BUILDERS[kind]` for every `SITES_DEF` entry) |
 | §7 new villages & areas | `VILLAGES` (32 ratified + NV-01..16) in `villages.js` with §7.1 features; NA-01..14 kinds in `areas.js`; NV-17 cave village and NA-13 mountain in `areas.js` |
-| §8 settlement kits | `RBL_KITS` (CA AR VA MO TD CP BF) for the 48 villages; `HAMLET_KINDS` + `PREFAB_PAL` per region for the countryside; `HAMLETS` (geography.js — four levelled sites per zone) built by `buildHamlet()`: a lane (E-W or N-S), fenced yards with gates and paths, houses facing the lane, gardens, sheds, ovens, woodpiles, beehives, dovecotes, orchards, a chapel or barn closing the lane, well + troiță + hay cart at the open end, fields beyond; `DISTRICT_KITS` farmsteads ring their well facing it; Romaria blocks get an alley cross, townhouses, a well and courtyard trees |
+| §8 settlement kits | `RBL_KITS` (CA AR VA MO TD CP BF) for the 48 villages; `HAMLET_KINDS` + `PREFAB_PAL` per region for the countryside; `HAMLETS` (geography.js — four levelled sites per zone) built by `buildHamlet()`: a lane (E-W or N-S), fenced yards with gates and paths, houses facing the lane, gardens, sheds, ovens, woodpiles, beehives, dovecotes, orchards, a chapel or barn closing the lane, well + troiță + hay cart at the open end, fields beyond; `DISTRICT_KITS` farmsteads ring their well facing it; Romaria blocks get an alley cross, townhouses, a well and courtyard trees; `townInfill()` lines every straight street of the other five towns with townhouses of the region's kit (`td.inside()` keeps them inside the walls, plazas and doors stay clear) |
 | §9 relics | `src/world/relics.js` — REL-04 school door, REL-05 throne dais, REL-06 inn door, REL-07 fort chapel yard, REL-08 archive door |
 | §10 homeland walls | Romaria 32-gon r520 (16 towers, 4 axis gates + market postern, two water gates); Ardealburg rectangle; Cetatea rectangle + moat + drawbridge; Hotarul earth rampart + double palisade; Stânca pentagon; Drumul Lung open inn town |
 | §11 gameplay layer | `FLAGS` (56 CMP flags: banner poles that read `zones[zi].owner`), spawns via `townData[f].frontZ`, road speed bonus in `player.js`/`ai.js`, `zone-info.js` terrain classes |
@@ -90,14 +90,15 @@ doors and gate passages are the only free faces), `__game.roadProbe(n)` samples 
 
 ## 5. Measured budget (headless boot, `__game.buildingsLive()` / `memStats()` / `bootTimes()`)
 
-v3.1 (phase 3 — every building enterable): ~9,500 registered structures (**~9,420 enterable**; the rest are the two water
-gates, the ferry, flags and beacons), ~9,380 hinged doors (≈7,700 of them instanced leaves), ~20,400 light sources (pooled
-to 8 point lights), ~10,200 chimneys, 143 moving parts, 821 hamlets in 248 zones (≈6,500 hamlet buildings + yards), 150
-farmsteads (≈760 buildings), ≈470 townhouses in the capital's blocks, 99 prefab geometries (≈237 k triangles) stamped
-≈21,000 times (≈7,800 houses) in 231 cells / ≈6,250 instanced meshes, ~210,000 colliders, 1,075 flats, 102 road ribbons /
-13,800 quads, 68 lanes, 15 trails, 22 bridges (6 fords), 56 flags, 10 beacons, 48 villages, 12 waystations, 256/256 zones.
-Per frame from a hamlet: ~760 draw calls / ~2.3 M triangles after culling. Boot ≈ 9 s in the headless test browser
-(terrain 1.7 s, towns 2.0 s, villages 1.6 s, settlements 1.7 s, prefab flush 0.05 s).
+v3.1 (phase 3 — every building enterable): ~9,900 registered structures (**~9,820 enterable**; the rest are the two water
+gates, the ferry, flags and beacons), ~9,780 hinged doors (≈8,100 of them instanced leaves), ~21,100 light sources (pooled
+to 8 point lights), ~10,700 chimneys, 147 moving parts, 821 hamlets in 248 zones (≈6,500 hamlet buildings in 5,720 yards),
+150 farmsteads (≈760 buildings), ≈470 townhouses in the capital's blocks and ≈400 along the streets of the five walled
+towns, 100 prefab geometries (≈240 k triangles) stamped ≈21,000 times (≈8,100 houses) in 255 cells / ≈8,350 instanced
+meshes, ~210,000 colliders, 1,075 flats, 102 road ribbons / 13,800 quads, 68 lanes, 15 trails, 22 bridges (6 fords),
+56 flags, 10 beacons, 48 villages, 12 waystations, 256/256 zones, ~10,460 counted buildings.
+Per frame from a hamlet or a town: ~760–1,130 draw calls / ~2.3–2.9 M triangles after culling. Boot ≈ 9 s in the headless
+test browser (terrain 1.7 s, towns 2.0 s, villages 1.6 s, settlements 1.7 s, prefab flush 0.05 s).
 
 v3.0 for reference: ~1,800 structures (1,725 enterable), ~1,680 doors, ~3,970 lights, ~3,490 chimneys, ~10,170 counted
 buildings of which ~8,300 were instanced box-and-prism silhouettes without interiors.
