@@ -4246,6 +4246,14 @@ addInterior('watermill mill', function(kit,o,y,cx,cz,hw,hd,F,r){
   ANIM_PARTS.push({kind:'spin', g:wheel, axis:'y', rate:0.8, x:ww.x, z:ww.z, splash:{x:ww.x,y:wy+0.2,z:ww.z}});
   kit.box(F.dark,0.3,0.3,1.4,cx+side*(hw+0.34+0.6),y+1.8,wz); addCollider(ww.x-2.2,ww.z-1.0,ww.x+2.2,ww.z+1.0);
 });
+/* windmill: the stone on the ground floor, sacks of flour, the ladder up to the sails' shaft */
+addInterior('windmill', function(kit,o,y,cx,cz,hw,hd,F){
+  fMillstone(kit,cx,y,cz-hd*0.2);
+  for(var i=0;i<4;i++) fSack(kit,cx-hw+0.5+(i%2)*0.65,y,cz+hd-0.6-Math.floor(i/2)*0.65,F.straw);
+  fCrate(kit,cx+hw-0.7,y,cz+hd-0.7,0.8); fBarrel(kit,cx+hw-0.5,y,cz-hd+0.6,false);
+  fLadder(kit,cx-hw+0.5,y,cz-hd+0.6,Math.min(3.2,(o.h||6)-0.6),0);
+  kit.box(F.oak,0.3,0.3,hd*2-0.5,cx+hw*0.5,y+2.9,cz); kit.box(F.oak,0.3,0.3,hd*2-0.5,cx-hw*0.5,y+2.9,cz);
+});
 addInterior('hunter lodge', function(kit,o,y,cx,cz,hw,hd,F){
   fHearth(kit,cx,y,cz-hd+0.3,FACE.back,o.interior==='lodge');
   fBed(kit,cx-hw+0.65,y,cz-hd+1.4,0,{fur:true}); if(o.interior==='lodge'){ fBed(kit,cx+hw-0.65,y,cz-hd+1.4,0,{fur:true}); fBunk(kit,cx-hw+0.6,y,cz+hd*0.4,Math.PI/2); }
@@ -4465,7 +4473,7 @@ addInterior('long', INTERIORS.hall);
 var RBL_STATS={};
 function rblCount(k){ RBL_STATS[k]=(RBL_STATS[k]||0)+1; }
 /* RBL-01 casa țărănească: whitewashed cottage with a prispă (porch) along the door wall */
-function rblCasa(o){ rblCount('RBL-01'); return buildBuilding(Object.assign({w:7, d:6, h:3.2, wall:0xe8dcc0, roofCol:0x6d5a3e, roof:'gable', interior:'house', porch:true, windows:true, chimney:true}, o)); }
+function rblCasa(o){ rblCount('RBL-01'); return buildBuilding(Object.assign({w:7, d:6, h:3.3, wall:0xe8dcc0, roofCol:0x6d5a3e, roof:'hip', interior:'house', prispa:true, windows:true, chimney:true, band:true, gableWin:true}, o)); }
 /* RBL-02 casa cu foișor: cottage with a square porch-tower at the door corner */
 function rblFoisor(o){
   rblCount('RBL-02');
@@ -4563,17 +4571,12 @@ function rblMoaraApa(o){ rblCount('RBL-12'); return buildBuilding(Object.assign(
 /* RBL-13 moară de vânt: post windmill — tapered tower, cap, four animated sails */
 function rblMoaraVant(x,z,opts){
   rblCount('RBL-13'); opts=opts||{};
-  var kit=cellKit(x,z), y=groundH(x,z), h=opts.h||9, W=M2(opts.wall||0xd9c8a2), T=M2(0x5d4326);
-  kit.cyln(M2(0x8f8a80),3.4,3.8,1.0,10, x,y+0.5,z);
-  kit.cyln(W,2.4,3.2,h,10, x,y+1+h/2,z);
-  kit.cyln(T,2.7,2.7,1.4,10, x,y+1+h+0.6,z);
-  kit.pyr(M2(0x4a3a2a),3.6,2.2,8, x,y+1+h+1.3+1.1,z, 0);
-  kit.box(M2(0x241d16),1.2,2.1,0.2, x,y+2.1,z+3.15);   /* door recess */
-  kit.box(M2(0x2b3540),0.7,0.9,0.1, x+1.6, y+1+h*0.55, z+2.6, 0.5);
-  addCollider(x-3.4,z-3.4,x+3.4,z+3.4);
-  ANIM_PARTS.push({kind:'windmill', x:x, y:y+1+h-0.4, z:z+3.4, r:opts.sail||6.5, rate:opts.rate||0.45});
-  regStructure({name:opts.name||'Moara de Vânt', kind:'windmill', x:x, z:z, hx:3.4, hz:3.4, door:{x:x, z:z+4.1}, dw:1.2, enterable:false});
-  BUILD_COUNT++;
+  var kit=cellKit(x,z), y=groundH(x,z), h=opts.h||9;
+  /* a square mill tower with a real door, two rows of windows and the miller's room; the sails turn on the door side */
+  buildBuilding({x:x, z:z, w:6.4, d:6.4, h:h, wall:opts.wall||0xd9c8a2, roofCol:0x4a3a2a, roof:'hip', rh:2.6, door:'S', interior:'windmill', name:opts.name||'Moara de Vânt', windows:true, chimney:false, porch:false, floors:h>7?2:1, band:true, lore:false});
+  kit.cyln(M2(0x8f8a80),4.4,4.7,0.5,12, x,y+0.05,z);   /* the stone drum it stands on */
+  kit.box(M2(0x5d4326),0.5,0.5,1.6, x,y+h-0.6,z+3.4); kit.cyln(M2(0x5d4326),0.22,0.22,1.2,8, x,y+h-0.6,z+3.9, 0,Math.PI/2,0);
+  ANIM_PARTS.push({kind:'windmill', x:x, y:y+h-0.6, z:z+4.3, r:opts.sail||6.5, rate:opts.rate||0.45});
   if(opts.lore!==false) registerLore({key:'moara_'+Math.round(x)+'_'+Math.round(z), x:x, z:z, r:18, icon:'🌬', name:opts.name||'Moara de Vânt', sub:'Windmill', story:opts.story||'Four sails on a tarred oak post. The miller turns the whole cap into the wind with a long tail-pole.'});
 }
 /* RBL-14 fântână cu cumpănă: shadoof well (beam animated) */
@@ -4641,13 +4644,13 @@ function rblSalt(o){
 }
 /* ---- regional construction kits (§8): which pieces a village or hamlet of each region is made of ---- */
 var RBL_KITS={
-  CA:{wall:[0x8f8a80,0x7d7669,0x5d4326], roof:[0x3a4048,0x4a4238,0x3a2a1a], roofKind:['gable','gable','gable'], style:'log', plinth:true, church:'lemn', extras:['fanar','bordei','stana','afumatoare','beci'], street:0x8a7a5a, tree:0x2f4a2e},
-  AR:{wall:[0xe2d6bb,0xd9c8a2,0xe8dcc0], roof:[0x70503a,0x8a4a3a,0x7a4030], roofKind:['gable','gable','thatch'], timberFrame:true, church:'stone', extras:['foisor','crama','poarta','sura','beci'], street:0x9a8555, tree:0x57893f},
-  VA:{wall:[0x8a7a5e,0x7a6a4a,0x94826a], roof:[0x968047,0x6d5a3e], roofKind:['thatch','thatch','gable'], church:'lemn', extras:['bordei','cumpana','porumbar','cula','sura'], street:0x8a7a5a, tree:0x4a7a37},
-  MO:{wall:[0x5d4326,0x6b4f2e,0x4a3a2a], roof:[0x4a3a2a,0x3a2a1a], roofKind:['gable'], style:'log', church:'lemn', extras:['fanar','afumatoare','poarta','grajd','beci'], street:0x8a7a5a, tree:0x3a5a2e},
-  TD:{wall:[0xc2b08a,0xd9c8a2,0xb9a98a], roof:[0x9a6a3a,0x7a5a3a], roofKind:['flat','gable'], church:'stone', extras:['han','sura','fantana','porumbar'], street:0xc2b08a, tree:0x7a8a5a},
-  CP:{wall:[0xe2d6bb,0xc9c2b0,0xd9c8a2], roof:[0x8a4a3a,0x3f5f8a], roofKind:['gable'], timberFrame:true, church:'stone', extras:['conac','crama','fantana','sura'], street:0x8a8070, tree:0x4a7a37},
-  BF:{wall:[0x8a7a5e,0x6e6152,0x7a6a4a], roof:[0x5d4a38,0x4a4238], roofKind:['thatch','gable'], church:'lemn', extras:['bordei','fanar','memorial'], street:0x7a6a5a, tree:0x6e5f43, burned:true}
+  CA:{wall:[0x8f8a80,0x7d7669,0x5d4326], roof:[0x3a4048,0x4a4238,0x3a2a1a], roofKind:['gable','gable','hip'], style:'log', plinth:true, prispa:0.5, church:'lemn', extras:['fanar','bordei','stana','afumatoare','beci'], street:0x8a7a5a, tree:0x2f4a2e},
+  AR:{wall:[0xe2d6bb,0xd9c8a2,0xe8dcc0,0xa9b8a0,0x8fa6c0], roof:[0x70503a,0x8a4a3a,0x7a4030], roofKind:['gable','gable','hip','thatch'], timberFrame:true, church:'stone', extras:['foisor','crama','poarta','sura','beci'], street:0x9a8555, tree:0x57893f},
+  VA:{wall:[0xe8dcc0,0xe2d6bb,0x94826a], roof:[0x968047,0x6d5a3e], roofKind:['hipthatch','thatch','hip','gable'], prispa:0.7, band:true, church:'lemn', extras:['bordei','cumpana','porumbar','cula','sura'], street:0x8a7a5a, tree:0x4a7a37},
+  MO:{wall:[0x5d4326,0x6b4f2e,0xe8dcc0], roof:[0x4a3a2a,0x3a2a1a,0x6d5a3e], roofKind:['gable','hip'], style:'log', prispa:0.6, church:'lemn', extras:['fanar','afumatoare','poarta','grajd','beci'], street:0x8a7a5a, tree:0x3a5a2e},
+  TD:{wall:[0xc2b08a,0xd9c8a2,0xb9a98a], roof:[0x9a6a3a,0x7a5a3a], roofKind:['flat','gable','hip'], band:true, church:'stone', extras:['han','sura','fantana','porumbar'], street:0xc2b08a, tree:0x7a8a5a},
+  CP:{wall:[0xe2d6bb,0xc9c2b0,0xd9c8a2], roof:[0x8a4a3a,0x3f5f8a], roofKind:['gable','hip'], timberFrame:true, church:'stone', extras:['conac','crama','fantana','sura'], street:0x8a8070, tree:0x4a7a37},
+  BF:{wall:[0x8a7a5e,0x6e6152,0x7a6a4a], roof:[0x5d4a38,0x4a4238], roofKind:['thatch','gable','hipthatch'], church:'lemn', extras:['bordei','fanar','memorial'], street:0x7a6a5a, tree:0x6e5f43, burned:true}
 };
 
 
@@ -5118,7 +5121,8 @@ function houseRow(axis,u0,u1,cross,side,o){
       if(typeof interior==='function') interior=interior(n);
       buildBuilding({x:x, z:z, w:w, d:d, h:o.h||(3.2+rnd()*0.8), wall:o.wall?o.wall[Math.floor(rnd()*o.wall.length)]:0xe2d6bb,
         roofCol:o.roofCol?o.roofCol[Math.floor(rnd()*o.roofCol.length)]:0x70503a, roof:o.roof?(typeof o.roof==='string'?o.roof:o.roof[Math.floor(rnd()*o.roof.length)]):'gable',
-        door:door, interior:interior, fac:o.fac, style:o.style, timberFrame:o.timberFrame, plinth:o.plinth, chimney:o.chimney!==false, windows:o.windows, floors:o.floors, name:o.name, porch:o.porch});
+        door:door, interior:interior, fac:o.fac, style:o.style, timberFrame:o.timberFrame, plinth:o.plinth, chimney:o.chimney!==false, windows:o.windows, floors:o.floors, name:o.name, porch:o.porch,
+        prispa:o.prispa?rnd()<o.prispa:false, bench:o.bench!==false, gableWin:rnd()<0.6, band:o.band, chimney2:w>8.5&&rnd()<0.4});
       n++;
     }
     u+=w+gap;
@@ -5200,7 +5204,7 @@ function townArdealburg(X,Z,f,rnd,td){
   buildBuilding({x:X-80, z:Z+82, w:9, d:8, h:3.6, wall:0x9a8a6a, roofCol:0x4a4238, roof:'gable', door:'N', interior:'workshop', name:'Rotăria', fac:f});
   buildBuilding({x:X-90, z:Z-80, w:12, d:9, h:4, wall:0xd9c8a2, roofCol:0x70503a, roof:'gable', door:'S', interior:'granary', name:'Grânarul', fac:f});
   /* houses along the inner streets */
-  var HO={rnd:rnd, wall:WH, roofCol:RF, fac:f, timberFrame:true};
+  var HO={rnd:rnd, wall:WH, roofCol:RF, fac:f, timberFrame:true, roof:['gable','gable','hip']};
   houseRow('x', X-100, X-14, Z-60, -1, HO); houseRow('x', X+14, X+100, Z-60, -1, HO);
   houseRow('x', X-100, X-60, Z-60, 1, HO); houseRow('x', X+14, X+60, Z-60, 1, HO);
   houseRow('x', X-100, X-14, Z+60, -1, Object.assign({}, HO, {interior:function(i){ return i%3===1?'store':'house'; }}));
@@ -5256,7 +5260,7 @@ function townCetatea(X,Z,f,rnd,td){
   for(var i=0;i<4;i++) propBarrel(X-104+i*2.2, Z+40, i%2===0);
   for(var t=-1;t<=1;t+=2){ torchPost(X+t*10, Z-hz-14, 3); torchPost(X+t*30, Z-30, 2.6); torchPost(X+t*30, Z+30, 2.6); }
   /* the lower town outside the moat: fishermen and traders along the road */
-  var HO={rnd:rnd, wall:[0x8a7a5e,0x7a6a4a,0x94826a], roofCol:[0x968047,0x6d5a3e], roof:['thatch','gable'], fac:f};
+  var HO={rnd:rnd, wall:[0x8a7a5e,0x7a6a4a,0x94826a], roofCol:[0x968047,0x6d5a3e], roof:['thatch','hipthatch','gable','hip'], fac:f, prispa:0.5};
   houseRow('x', X-110, X-20, Z-150, -1, HO); houseRow('x', X+20, X+110, Z-150, -1, HO);
   houseRow('x', X-110, X-20, Z-150, 1, Object.assign({}, HO, {avoid:function(x,z){ return z>Z-hz-30; }}));
   houseRow('x', X+20, X+110, Z-150, 1, Object.assign({}, HO, {avoid:function(x,z){ return z>Z-hz-30; }}));
@@ -5298,7 +5302,7 @@ function townHotarul(X,Z,f,rnd,td){
   /* the signal tower */
   fortTower({x:X-30, z:Z-96, r:3.2, h:16, sides:6, wall:0x6b4f2e, roofCol:RF, roof:'open', door:0, brazier:true, banner:'moldavia', name:'Turnul Semnalului'});
   /* cabins, archery butts, the training ground */
-  var HO={rnd:rnd, wall:[TIM,0x6b4f2e,0x4a3a2a], roofCol:[RF,0x3a2a1a], roof:'gable', fac:f, style:'log', h:3.4};
+  var HO={rnd:rnd, wall:[TIM,0x6b4f2e,0x4a3a2a], roofCol:[RF,0x3a2a1a], roof:['gable','gable','hip'], fac:f, style:'log', h:3.4, prispa:0.4};
   houseRow('x', X-120, X-20, Z+112, -1, HO); houseRow('x', X+20, X+120, Z+112, -1, HO);
   houseRow('z', Z-120, Z-60, X-108, 1, HO); houseRow('z', Z+60, Z+120, X+108, -1, HO);
   var kit=cellKit(X,Z);
@@ -5335,7 +5339,7 @@ function townStanca(X,Z,f,rnd,td){
   buildBuilding({x:X+38, z:Z-60, w:14, d:10, h:4.8, wall:WALL, roofCol:RF, roof:'gable', door:'S', interior:'armory', name:'Armurăria Muntelui', fac:f});
   buildBuilding({x:X-50, z:Z+70, w:14, d:9, h:4.2, wall:WALL, roofCol:RF, roof:'gable', door:'E', interior:'stable', name:'Grajdurile', fac:f});
   buildBuilding({x:X+50, z:Z+70, w:10, d:8, h:4, wall:WALL, roofCol:RF, roof:'gable', door:'W', interior:'guardhouse', name:'Corpul de Gardă', fac:f});
-  var HO={rnd:rnd, wall:[WALL,W2,0x8f8a80], roofCol:[RF,0x4a4238], roof:'gable', fac:f, h:3.4, plinth:true};
+  var HO={rnd:rnd, wall:[WALL,W2,0x8f8a80], roofCol:[RF,0x4a4238], roof:['gable','hip'], fac:f, h:3.4, plinth:true, band:true};
   houseRow('x', X-70, X-20, Z+20, 1, HO); houseRow('x', X+20, X+70, Z+20, 1, HO);
   houseRow('x', X-40, X-14, Z-24, -1, HO); houseRow('x', X+14, X+40, Z-24, -1, HO);
   propWell(X-20, Z+10, RF); propBrazier(X+20, Z+10, true); propBrazier(X, Z+90+16, true);
@@ -5372,7 +5376,7 @@ function townDrumulLung(X,Z,f,rnd,td){
   for(var c=0;c<6;c++) propCart(X-60+c*24, Z+14, (c%2?0.2:-0.2)+rnd()*0.2, c===4);
   for(var t=-140;t<=140;t+=40){ torchPost(X+t, Z-9, 2.6); torchPost(X+t, Z+9, 2.6); }
   townTrees(X, Z+30, 8, 46, rnd, 0x7a8a5a);
-  var HO={rnd:rnd, wall:[AD,AD2,0xb9a98a], roofCol:[RF,RF2], roof:['gable','flat'], fac:f, h:3.4};
+  var HO={rnd:rnd, wall:[AD,AD2,0xb9a98a], roofCol:[RF,RF2], roof:['gable','flat','hip'], fac:f, h:3.4, band:true};
   houseRow('x', X-130, X-20, Z+60, 1, Object.assign({}, HO, {interior:function(i){ return i%2?'store':'house'; }})); houseRow('x', X+20, X+130, Z+60, 1, HO);
   houseRow('x', X-130, X-95, Z-60, -1, HO); houseRow('x', X+95, X+130, Z-60, -1, HO);
   houseRow('x', X-130, X-20, Z+60, -1, HO); houseRow('x', X+20, X+130, Z+60, -1, HO);
@@ -5519,6 +5523,36 @@ function townRomaria(X,Z,f,rnd,td){
     houseRow('z', Z-lim, Z-20, X+o, -1, P); houseRow('z', Z+20, Z+lim, X+o, -1, P);
     houseRow('z', Z-lim, Z-20, X+o, 1, P); houseRow('z', Z+20, Z+lim, X+o, 1, P);
   });
+  /* ---- block interiors: an alley cross through every block, townhouses along the alleys, a well and gardens
+          in the courtyards (instanced prefabs of the capital kit — solid, enterable, furnished like every house) ---- */
+  var blocks=0, bi, bj;
+  for(bi=-4;bi<4;bi++) for(bj=-4;bj<4;bj++){
+    var bx=X+bi*120+60, bz=Z+bj*120+60;
+    if(Math.hypot(bx-X,bz-Z)>375) continue;
+    if(Math.abs(bx-X)<=60 && Math.abs(bz-Z)<=60) continue;                  /* plaza and esplanade */
+    if(Math.abs(bx-X)<130 && bz-Z<-100 && bz-Z>-260) continue;             /* palace precinct */
+    if(arcFree(bx-X,bz-Z,50)) continue;
+    townStreet(bx-54, bz, bx+54, bz, 4.5, 0x8a8070); townStreet(bx, bz-54, bx, bz+54, 4.5, 0x8a8070);
+    var arms=[[1,0],[-1,0],[0,1],[0,-1]], ai, k, n=0;
+    for(ai=0;ai<4;ai++){
+      var ux=arms[ai][0], uz=arms[ai][1];
+      for(k=0;k<3;k++){
+        var along=18+k*12;
+        [-1,1].forEach(function(sd){
+          var hx=bx+ux*along+(uz?sd*9:0), hz=bz+uz*along+(ux?sd*9:0);
+          var face=ux?(sd<0?'S':'N'):(sd<0?'E':'W');
+          var type=rnd()<0.15?'workshop':rnd()<0.3?'cottage':'house', key='capital.'+type+(type==='workshop'?1:1+Math.floor(rnd()*3));
+          var pf=prefabGet(key); if(!pf) return; var rr=Math.hypot(pf.hx,pf.hz)+1.0;
+          if(insideSolid(hx,hz,rr)||arcFree(hx-X,hz-Z,rr)||nearDoor(hx,hz,rr+1)) return;
+          if(prefabPlace(key,hx,hz,face,{force:true})) n++;
+        });
+      }
+    }
+    if(!insideSolid(bx+7,bz+7,1.8)) prefabPlace('prop.well',bx+7,bz+7,'S',{force:true});
+    [[-1,-1],[1,1],[-1,1]].forEach(function(q){ var gx=bx+q[0]*30, gz=bz+q[1]*30; if(!insideSolid(gx,gz,4)&&!arcFree(gx-X,gz-Z,4)) townTrees(gx,gz,2,4,rnd,0x4a7a37); });
+    if(n) blocks++;
+  }
+  td.blocks=blocks;
   /* ---- street furniture: lanterns on the boulevards and ring, banners on the plaza ---- */
   for(i=-500;i<=500;i+=40){ if(Math.abs(i)<60) continue; var r0=Math.abs(i); if(r0<440||r0>470){ torchPost(X+i, Z-7, 2.8); torchPost(X+i, Z+7, 2.8); torchPost(X-7, Z+i, 2.8); torchPost(X+7, Z+i, 2.8); } }
   for(i=0;i<24;i++){ var ra=i/24*TAU+0.13, rx=X+Math.cos(ra)*(460+5.5), rz=Z+Math.sin(ra)*(460+5.5); if(!insideSolid(rx,rz,0.5)) torchPost(rx,rz,2.6); }
@@ -11708,7 +11742,7 @@ function buildVillages(){
     var SC=K.street;
     townPlaza(X, Z, 12, SC);
     townStreet(X-52, Z, X+52, Z, 5, SC); townStreet(X, Z-46, X, Z+46, 4.5, SC);
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.2, w:[5.5,7.5], d:[4.6,6.2], porch:true, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
     houseRow('x', X-50, X-10, Z, 1, HO); houseRow('x', X+10, X+50, Z, 1, HO); houseRow('x', X-50, X-10, Z, -1, HO); houseRow('x', X+10, X+50, Z, -1, HO);
     houseRow('z', Z+10, Z+44, X, 1, HO); houseRow('z', Z-44, Z-10, X, -1, HO);
     /* the church of the kit */
@@ -12168,7 +12202,16 @@ window.__game={
     return {doors:DOORS.length, structures:STRUCTURES.length, enterable:ent, lights:LIGHT_SRC.length, chimneys:CHIMNEYS.length,
       anim:ANIM_PARTS.length, colliders:colliders.length, roads:roadStats, sites:SITES.length, districts:DISTRICT_C.length, waters:waterSurfaces.length, bridges:BRIDGES.length,
       flags:FLAG_PARTS.length, beacons:BEACON_PARTS.length, villages:VILLAGES.length, rivers:RIVERS.length, rbl:RBL_STATS, junctions:ROAD_JUNCTIONS.length,
-      fords:BRIDGES.filter(function(b){ return b.ford; }).length, waystations:SITES_DEF.filter(function(s){ return s.kind==='waystation'; }).length}; },
+      fords:BRIDGES.filter(function(b){ return b.ford; }).length, waystations:SITES_DEF.filter(function(s){ return s.kind==='waystation'; }).length,
+      prefabs:{defs:PREFAB_STATS.defs, instances:PREFAB_STATS.instances, houses:PREFAB_STATS.houses, cells:PREFAB_STATS.cells, meshes:PREFAB_STATS.meshes}, hamlets:settlementStats,
+      nonEnterable:STRUCTURES.filter(function(S){ return !S.enterable; }).reduce(function(a,S){ a[S.kind||'?']=(a[S.kind||'?']||0)+1; return a; },{})}; },
+  /* a countryside (prefab) house with its door, for the living-building checks */
+  prefabHouse:function(n){ var list=STRUCTURES.filter(function(S){ return S.prefab&&S.door&&/house|cottage/.test(S.prefab); }); var S=list[n||0]; return S?{name:S.name, prefab:S.prefab, x:S.x, z:S.z, hx:S.hx, hz:S.hz, door:S.door, dw:S.dw}:null; },
+  /* furniture inside a footprint: colliders strictly inside the walls (the interior kit), lights and chimneys nearby */
+  furnished:function(S){ var n=0, i; for(i=0;i<colliders.length;i++){ var c=colliders[i], mx=(c.x0+c.x1)/2, mz=(c.z0+c.z1)/2;
+      if(Math.abs(mx-S.x)<S.hx-0.6&&Math.abs(mz-S.z)<S.hz-0.6&&(c.x1-c.x0)<3.6&&(c.z1-c.z0)<3.6) n++; }
+    var L=0, C=0; for(i=0;i<LIGHT_SRC.length;i++){ if(Math.abs(LIGHT_SRC[i].x-S.x)<S.hx+1&&Math.abs(LIGHT_SRC[i].z-S.z)<S.hz+1) L++; } for(i=0;i<CHIMNEYS.length;i++){ if(Math.abs(CHIMNEYS[i].x-S.x)<S.hx+1&&Math.abs(CHIMNEYS[i].z-S.z)<S.hz+1) C++; }
+    return {furniture:n, lights:L, chimneys:C}; },
   /* NO-CLIP audit (spec §14 QA): probe the four faces of every registered box structure at four heights' worth of
      inset points — a wall must be solid just inside its face, the door opening must be free. Returns the offenders. */
   noclipAudit:function(){ var bad=[], ok=0;

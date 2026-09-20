@@ -18,8 +18,11 @@ try{
   await page.evaluate(()=>__game.forceLook());
   await check('offline boot: original world size, all territories covered, populated settlements',async()=>{
     const r=await page.evaluate(()=>({world:__game.test.world(),coverage:__game.coverage(),buildings:__game.buildings(),lore:__game.landmarkCount(),live:__game.buildingsLive()}));
-    assert.equal(r.world.half,3000);assert.equal(r.coverage.covered,256);assert.ok(r.world.settlements.buildings>4500);assert.ok(r.world.settlements.zones>=245);assert.ok(r.buildings>9000);assert.ok(r.lore>60);assert.deepEqual(requests,[]);
-    assert.ok(r.live.doors>900,'hinged doors');assert.ok(r.live.enterable>1000,'enterable structures');assert.ok(r.live.lights>1500,'registered light sources');assert.ok(r.live.chimneys>1000,'smoking chimneys');assert.ok(r.live.anim>=20,'moving parts');assert.ok(r.live.bridges>=9,'river bridges');
+    assert.equal(r.world.half,3000);assert.equal(r.coverage.covered,256);assert.ok(r.world.settlements.buildings>5500);assert.ok(r.world.settlements.zones>=245);assert.ok(r.buildings>8500);assert.ok(r.lore>60);assert.deepEqual(requests,[]);
+    assert.ok(r.live.doors>8000,'hinged doors');assert.ok(r.live.enterable>8000,'enterable structures');assert.ok(r.live.lights>15000,'registered light sources');assert.ok(r.live.chimneys>8000,'smoking chimneys');assert.ok(r.live.anim>=20,'moving parts');assert.ok(r.live.bridges>=9,'river bridges');
+    /* phase 3: no box-and-prism buildings — every countryside house is an instanced real building with an interior; the only structures without one are gates and water gates */
+    assert.ok(r.live.prefabs.defs>=60&&r.live.prefabs.houses>6000&&r.live.hamlets.hamlets>600,'prefab tier '+JSON.stringify(r.live.prefabs));
+    assert.ok(r.live.enterable>=r.live.structures-120,'almost every structure is enterable');assert.deepEqual(Object.keys(r.live.nonEnterable).filter(k=>!/gate|tent|ferry|flag|beacon/.test(k)),[],JSON.stringify(r.live.nonEnterable));
     /* ROM-MAP-SPEC-003: 48 villages, four rivers, the road hierarchy with lanes, fords, waystations, capture flags and beacons */
     assert.equal(r.live.villages,48);assert.equal(r.live.rivers,4);assert.ok(r.live.roads.ribbons>=90&&r.live.roads.lanes>=60&&r.live.roads.trails>=12,'road hierarchy');
     assert.ok(r.live.fords>=4,'fords');assert.equal(r.live.waystations,12);assert.ok(r.live.flags>=51,'capture flags');assert.ok(r.live.beacons>=9,'signal beacons');assert.ok(Object.keys(r.live.rbl).length>=18,'vernacular library in use');
@@ -27,7 +30,7 @@ try{
   });
   await check('NO-CLIP LAW: every registered wall face is solid, roads never run through river water',async()=>{
     const r=await page.evaluate(()=>({audit:__game.noclipAudit(), road:__game.roadProbe(400)}));
-    assert.equal(r.audit.badN,0,JSON.stringify(r.audit.bad));assert.ok(r.audit.ok>1500);assert.equal(r.road.wet,0);
+    assert.equal(r.audit.badN,0,JSON.stringify(r.audit.bad));assert.ok(r.audit.ok>8000,'audited '+r.audit.ok);assert.equal(r.road.wet,0);
   });
   await check('every named building is solid, has a real door and an open entrance into a furnished interior',async()=>{
     const r=await page.evaluate(()=>{const S=__game.structures();let ok=0;const bad=[];
@@ -38,7 +41,7 @@ try{
         const wallHit=s.kind==='tent'||!__game.freeAt(wx-uz*side,wz+ux*side,0.12)||!__game.freeAt(wx+uz*side,wz-ux*side,0.12);
         if(outFree&&inFree&&wallHit) ok++; else bad.push({name:s.name,kind:s.kind,x:s.x,z:s.z,outFree,inFree,wallHit}); }
       return {ok,bad:bad.slice(0,12),badN:bad.length,total:S.length};});
-    assert.ok(r.ok>1000,JSON.stringify(r.bad));assert.ok(r.badN<=Math.max(3,r.total*0.01),JSON.stringify(r.bad));
+    assert.ok(r.ok>8000,JSON.stringify(r.bad));assert.ok(r.badN<=Math.max(3,r.total*0.01),JSON.stringify(r.bad));
   });
   await check('doors swing for the player, windows glow at night, lights and smoke follow the walker',async()=>{
     const r=await page.evaluate(()=>{const td=__game.townData('moldavia');const i=__game.nearestDoor(td.hall.door.x,td.hall.door.z);const d0=__game.doorState(i);
@@ -120,6 +123,14 @@ try{
   });
   await check('real settlement routing around walls and through clear streets',async()=>{
     const r=await page.evaluate(()=>{const h=__game.test.settlement(4),a=__game.test.free(h.x-28,h.z),b=__game.test.free(h.x+28,h.z),path=__game.test.navigation(a.x,a.z,b.x,b.z);let prev=a;return {path,safe:!!path&&path.every(p=>{const ok=__game.test.clear(prev.x,prev.z,p.x,p.z);prev=p;return ok;})};});assert.ok(r.path);assert.ok(r.safe);
+  });
+  await check('countryside houses are real: the instanced door swings open for the player, a furnished lit interior waits behind it',async()=>{
+    const r=await page.evaluate(()=>{const out=[];for(let n=0;n<3;n++){const S=__game.prefabHouse(n*911);if(!S) break;const i=__game.nearestDoor(S.door.x,S.door.z);const d=__game.doorState(i);
+      const ux=(S.door.x-S.x),uz=(S.door.z-S.z),L=Math.hypot(ux,uz)||1;const px=S.door.x+ux/L*0.7,pz=S.door.z+uz/L*0.7;
+      const p=__game.player();__game.tpNear(px,pz);p.group.position.x=px;p.group.position.z=pz;p.lastFree={x:px,z:pz};__game.test.step(60,1/30);const open=__game.doorState(i);
+      out.push({prefab:S.prefab,instanced:d.instanced,before:d.open,after:open.open,rot:Math.abs(open.rot-open.base),furnished:__game.furnished(S),outFree:__game.freeAt(px,pz,0.4),inFree:__game.freeAt(S.door.x-ux/L*1.3,S.door.z-uz/L*1.3,0.4)});}
+      return out;});
+    assert.equal(r.length,3);for(const h of r){assert.ok(h.instanced&&h.before===0&&h.after>0.9&&h.rot>1.2,JSON.stringify(h));assert.ok(h.furnished.furniture>=3&&h.furnished.lights>=1&&h.furnished.chimneys>=1,JSON.stringify(h));assert.ok(h.outFree&&h.inFree,JSON.stringify(h));}
   });
   await check('commanded unit reaches an area across a real hamlet without wall penetration',async()=>{
     const r=await page.evaluate(()=>{const h=__game.test.settlement(4),a=__game.test.free(h.x-28,h.z),b=__game.test.free(h.x+28,h.z),e=__game.test.members()[0];e.group.position.x=a.x;e.group.position.z=a.z;e.lastFree=a;__game.setScope(5);__game.areaOrder(b.x,b.z);const samples=__game.test.walkAI(e,600,.05);__game.setScope(0);return {distance:Math.hypot(e.group.position.x-b.x,e.group.position.z-b.z),inside:samples.some(s=>s.inside),moved:Math.hypot(e.group.position.x-a.x,e.group.position.z-a.z)};});assert.ok(r.distance<32,JSON.stringify(r));assert.equal(r.inside,false);assert.ok(r.moved>25);

@@ -110,7 +110,16 @@ window.__game={
     return {doors:DOORS.length, structures:STRUCTURES.length, enterable:ent, lights:LIGHT_SRC.length, chimneys:CHIMNEYS.length,
       anim:ANIM_PARTS.length, colliders:colliders.length, roads:roadStats, sites:SITES.length, districts:DISTRICT_C.length, waters:waterSurfaces.length, bridges:BRIDGES.length,
       flags:FLAG_PARTS.length, beacons:BEACON_PARTS.length, villages:VILLAGES.length, rivers:RIVERS.length, rbl:RBL_STATS, junctions:ROAD_JUNCTIONS.length,
-      fords:BRIDGES.filter(function(b){ return b.ford; }).length, waystations:SITES_DEF.filter(function(s){ return s.kind==='waystation'; }).length}; },
+      fords:BRIDGES.filter(function(b){ return b.ford; }).length, waystations:SITES_DEF.filter(function(s){ return s.kind==='waystation'; }).length,
+      prefabs:{defs:PREFAB_STATS.defs, instances:PREFAB_STATS.instances, houses:PREFAB_STATS.houses, cells:PREFAB_STATS.cells, meshes:PREFAB_STATS.meshes}, hamlets:settlementStats,
+      nonEnterable:STRUCTURES.filter(function(S){ return !S.enterable; }).reduce(function(a,S){ a[S.kind||'?']=(a[S.kind||'?']||0)+1; return a; },{})}; },
+  /* a countryside (prefab) house with its door, for the living-building checks */
+  prefabHouse:function(n){ var list=STRUCTURES.filter(function(S){ return S.prefab&&S.door&&/house|cottage/.test(S.prefab); }); var S=list[n||0]; return S?{name:S.name, prefab:S.prefab, x:S.x, z:S.z, hx:S.hx, hz:S.hz, door:S.door, dw:S.dw}:null; },
+  /* furniture inside a footprint: colliders strictly inside the walls (the interior kit), lights and chimneys nearby */
+  furnished:function(S){ var n=0, i; for(i=0;i<colliders.length;i++){ var c=colliders[i], mx=(c.x0+c.x1)/2, mz=(c.z0+c.z1)/2;
+      if(Math.abs(mx-S.x)<S.hx-0.6&&Math.abs(mz-S.z)<S.hz-0.6&&(c.x1-c.x0)<3.6&&(c.z1-c.z0)<3.6) n++; }
+    var L=0, C=0; for(i=0;i<LIGHT_SRC.length;i++){ if(Math.abs(LIGHT_SRC[i].x-S.x)<S.hx+1&&Math.abs(LIGHT_SRC[i].z-S.z)<S.hz+1) L++; } for(i=0;i<CHIMNEYS.length;i++){ if(Math.abs(CHIMNEYS[i].x-S.x)<S.hx+1&&Math.abs(CHIMNEYS[i].z-S.z)<S.hz+1) C++; }
+    return {furniture:n, lights:L, chimneys:C}; },
   /* NO-CLIP audit (spec §14 QA): probe the four faces of every registered box structure at four heights' worth of
      inset points — a wall must be solid just inside its face, the door opening must be free. Returns the offenders. */
   noclipAudit:function(){ var bad=[], ok=0;

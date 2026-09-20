@@ -12,7 +12,7 @@
 var RBL_STATS={};
 function rblCount(k){ RBL_STATS[k]=(RBL_STATS[k]||0)+1; }
 /* RBL-01 casa țărănească: whitewashed cottage with a prispă (porch) along the door wall */
-function rblCasa(o){ rblCount('RBL-01'); return buildBuilding(Object.assign({w:7, d:6, h:3.2, wall:0xe8dcc0, roofCol:0x6d5a3e, roof:'gable', interior:'house', porch:true, windows:true, chimney:true}, o)); }
+function rblCasa(o){ rblCount('RBL-01'); return buildBuilding(Object.assign({w:7, d:6, h:3.3, wall:0xe8dcc0, roofCol:0x6d5a3e, roof:'hip', interior:'house', prispa:true, windows:true, chimney:true, band:true, gableWin:true}, o)); }
 /* RBL-02 casa cu foișor: cottage with a square porch-tower at the door corner */
 function rblFoisor(o){
   rblCount('RBL-02');
@@ -110,17 +110,12 @@ function rblMoaraApa(o){ rblCount('RBL-12'); return buildBuilding(Object.assign(
 /* RBL-13 moară de vânt: post windmill — tapered tower, cap, four animated sails */
 function rblMoaraVant(x,z,opts){
   rblCount('RBL-13'); opts=opts||{};
-  var kit=cellKit(x,z), y=groundH(x,z), h=opts.h||9, W=M2(opts.wall||0xd9c8a2), T=M2(0x5d4326);
-  kit.cyln(M2(0x8f8a80),3.4,3.8,1.0,10, x,y+0.5,z);
-  kit.cyln(W,2.4,3.2,h,10, x,y+1+h/2,z);
-  kit.cyln(T,2.7,2.7,1.4,10, x,y+1+h+0.6,z);
-  kit.pyr(M2(0x4a3a2a),3.6,2.2,8, x,y+1+h+1.3+1.1,z, 0);
-  kit.box(M2(0x241d16),1.2,2.1,0.2, x,y+2.1,z+3.15);   /* door recess */
-  kit.box(M2(0x2b3540),0.7,0.9,0.1, x+1.6, y+1+h*0.55, z+2.6, 0.5);
-  addCollider(x-3.4,z-3.4,x+3.4,z+3.4);
-  ANIM_PARTS.push({kind:'windmill', x:x, y:y+1+h-0.4, z:z+3.4, r:opts.sail||6.5, rate:opts.rate||0.45});
-  regStructure({name:opts.name||'Moara de Vânt', kind:'windmill', x:x, z:z, hx:3.4, hz:3.4, door:{x:x, z:z+4.1}, dw:1.2, enterable:false});
-  BUILD_COUNT++;
+  var kit=cellKit(x,z), y=groundH(x,z), h=opts.h||9;
+  /* a square mill tower with a real door, two rows of windows and the miller's room; the sails turn on the door side */
+  buildBuilding({x:x, z:z, w:6.4, d:6.4, h:h, wall:opts.wall||0xd9c8a2, roofCol:0x4a3a2a, roof:'hip', rh:2.6, door:'S', interior:'windmill', name:opts.name||'Moara de Vânt', windows:true, chimney:false, porch:false, floors:h>7?2:1, band:true, lore:false});
+  kit.cyln(M2(0x8f8a80),4.4,4.7,0.5,12, x,y+0.05,z);   /* the stone drum it stands on */
+  kit.box(M2(0x5d4326),0.5,0.5,1.6, x,y+h-0.6,z+3.4); kit.cyln(M2(0x5d4326),0.22,0.22,1.2,8, x,y+h-0.6,z+3.9, 0,Math.PI/2,0);
+  ANIM_PARTS.push({kind:'windmill', x:x, y:y+h-0.6, z:z+4.3, r:opts.sail||6.5, rate:opts.rate||0.45});
   if(opts.lore!==false) registerLore({key:'moara_'+Math.round(x)+'_'+Math.round(z), x:x, z:z, r:18, icon:'🌬', name:opts.name||'Moara de Vânt', sub:'Windmill', story:opts.story||'Four sails on a tarred oak post. The miller turns the whole cap into the wind with a long tail-pole.'});
 }
 /* RBL-14 fântână cu cumpănă: shadoof well (beam animated) */
@@ -188,11 +183,11 @@ function rblSalt(o){
 }
 /* ---- regional construction kits (§8): which pieces a village or hamlet of each region is made of ---- */
 var RBL_KITS={
-  CA:{wall:[0x8f8a80,0x7d7669,0x5d4326], roof:[0x3a4048,0x4a4238,0x3a2a1a], roofKind:['gable','gable','gable'], style:'log', plinth:true, church:'lemn', extras:['fanar','bordei','stana','afumatoare','beci'], street:0x8a7a5a, tree:0x2f4a2e},
-  AR:{wall:[0xe2d6bb,0xd9c8a2,0xe8dcc0], roof:[0x70503a,0x8a4a3a,0x7a4030], roofKind:['gable','gable','thatch'], timberFrame:true, church:'stone', extras:['foisor','crama','poarta','sura','beci'], street:0x9a8555, tree:0x57893f},
-  VA:{wall:[0x8a7a5e,0x7a6a4a,0x94826a], roof:[0x968047,0x6d5a3e], roofKind:['thatch','thatch','gable'], church:'lemn', extras:['bordei','cumpana','porumbar','cula','sura'], street:0x8a7a5a, tree:0x4a7a37},
-  MO:{wall:[0x5d4326,0x6b4f2e,0x4a3a2a], roof:[0x4a3a2a,0x3a2a1a], roofKind:['gable'], style:'log', church:'lemn', extras:['fanar','afumatoare','poarta','grajd','beci'], street:0x8a7a5a, tree:0x3a5a2e},
-  TD:{wall:[0xc2b08a,0xd9c8a2,0xb9a98a], roof:[0x9a6a3a,0x7a5a3a], roofKind:['flat','gable'], church:'stone', extras:['han','sura','fantana','porumbar'], street:0xc2b08a, tree:0x7a8a5a},
-  CP:{wall:[0xe2d6bb,0xc9c2b0,0xd9c8a2], roof:[0x8a4a3a,0x3f5f8a], roofKind:['gable'], timberFrame:true, church:'stone', extras:['conac','crama','fantana','sura'], street:0x8a8070, tree:0x4a7a37},
-  BF:{wall:[0x8a7a5e,0x6e6152,0x7a6a4a], roof:[0x5d4a38,0x4a4238], roofKind:['thatch','gable'], church:'lemn', extras:['bordei','fanar','memorial'], street:0x7a6a5a, tree:0x6e5f43, burned:true}
+  CA:{wall:[0x8f8a80,0x7d7669,0x5d4326], roof:[0x3a4048,0x4a4238,0x3a2a1a], roofKind:['gable','gable','hip'], style:'log', plinth:true, prispa:0.5, church:'lemn', extras:['fanar','bordei','stana','afumatoare','beci'], street:0x8a7a5a, tree:0x2f4a2e},
+  AR:{wall:[0xe2d6bb,0xd9c8a2,0xe8dcc0,0xa9b8a0,0x8fa6c0], roof:[0x70503a,0x8a4a3a,0x7a4030], roofKind:['gable','gable','hip','thatch'], timberFrame:true, church:'stone', extras:['foisor','crama','poarta','sura','beci'], street:0x9a8555, tree:0x57893f},
+  VA:{wall:[0xe8dcc0,0xe2d6bb,0x94826a], roof:[0x968047,0x6d5a3e], roofKind:['hipthatch','thatch','hip','gable'], prispa:0.7, band:true, church:'lemn', extras:['bordei','cumpana','porumbar','cula','sura'], street:0x8a7a5a, tree:0x4a7a37},
+  MO:{wall:[0x5d4326,0x6b4f2e,0xe8dcc0], roof:[0x4a3a2a,0x3a2a1a,0x6d5a3e], roofKind:['gable','hip'], style:'log', prispa:0.6, church:'lemn', extras:['fanar','afumatoare','poarta','grajd','beci'], street:0x8a7a5a, tree:0x3a5a2e},
+  TD:{wall:[0xc2b08a,0xd9c8a2,0xb9a98a], roof:[0x9a6a3a,0x7a5a3a], roofKind:['flat','gable','hip'], band:true, church:'stone', extras:['han','sura','fantana','porumbar'], street:0xc2b08a, tree:0x7a8a5a},
+  CP:{wall:[0xe2d6bb,0xc9c2b0,0xd9c8a2], roof:[0x8a4a3a,0x3f5f8a], roofKind:['gable','hip'], timberFrame:true, church:'stone', extras:['conac','crama','fantana','sura'], street:0x8a8070, tree:0x4a7a37},
+  BF:{wall:[0x8a7a5e,0x6e6152,0x7a6a4a], roof:[0x5d4a38,0x4a4238], roofKind:['thatch','gable','hipthatch'], church:'lemn', extras:['bordei','fanar','memorial'], street:0x7a6a5a, tree:0x6e5f43, burned:true}
 };

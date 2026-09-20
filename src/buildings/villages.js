@@ -51,7 +51,7 @@ function buildVillages(){
     var SC=K.street;
     townPlaza(X, Z, 12, SC);
     townStreet(X-52, Z, X+52, Z, 5, SC); townStreet(X, Z-46, X, Z+46, 4.5, SC);
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.2, w:[5.5,7.5], d:[4.6,6.2], porch:true, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
     houseRow('x', X-50, X-10, Z, 1, HO); houseRow('x', X+10, X+50, Z, 1, HO); houseRow('x', X-50, X-10, Z, -1, HO); houseRow('x', X+10, X+50, Z, -1, HO);
     houseRow('z', Z+10, Z+44, X, 1, HO); houseRow('z', Z-44, Z-10, X, -1, HO);
     /* the church of the kit */

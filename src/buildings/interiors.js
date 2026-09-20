@@ -203,6 +203,14 @@ addInterior('watermill mill', function(kit,o,y,cx,cz,hw,hd,F,r){
   ANIM_PARTS.push({kind:'spin', g:wheel, axis:'y', rate:0.8, x:ww.x, z:ww.z, splash:{x:ww.x,y:wy+0.2,z:ww.z}});
   kit.box(F.dark,0.3,0.3,1.4,cx+side*(hw+0.34+0.6),y+1.8,wz); addCollider(ww.x-2.2,ww.z-1.0,ww.x+2.2,ww.z+1.0);
 });
+/* windmill: the stone on the ground floor, sacks of flour, the ladder up to the sails' shaft */
+addInterior('windmill', function(kit,o,y,cx,cz,hw,hd,F){
+  fMillstone(kit,cx,y,cz-hd*0.2);
+  for(var i=0;i<4;i++) fSack(kit,cx-hw+0.5+(i%2)*0.65,y,cz+hd-0.6-Math.floor(i/2)*0.65,F.straw);
+  fCrate(kit,cx+hw-0.7,y,cz+hd-0.7,0.8); fBarrel(kit,cx+hw-0.5,y,cz-hd+0.6,false);
+  fLadder(kit,cx-hw+0.5,y,cz-hd+0.6,Math.min(3.2,(o.h||6)-0.6),0);
+  kit.box(F.oak,0.3,0.3,hd*2-0.5,cx+hw*0.5,y+2.9,cz); kit.box(F.oak,0.3,0.3,hd*2-0.5,cx-hw*0.5,y+2.9,cz);
+});
 addInterior('hunter lodge', function(kit,o,y,cx,cz,hw,hd,F){
   fHearth(kit,cx,y,cz-hd+0.3,FACE.back,o.interior==='lodge');
   fBed(kit,cx-hw+0.65,y,cz-hd+1.4,0,{fur:true}); if(o.interior==='lodge'){ fBed(kit,cx+hw-0.65,y,cz-hd+1.4,0,{fur:true}); fBunk(kit,cx-hw+0.6,y,cz+hd*0.4,Math.PI/2); }
