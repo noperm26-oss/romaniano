@@ -320,6 +320,7 @@ function doMuster(team, key, announce){
   return e;
 }
 function TOWNS_and_front(team){
-  var T=TOWNS[team];
+  var T=TOWNS[team], td=townData[team];
+  if(td&&td.frontZ) return td.frontZ;
   return T.z<0?1:-1;
 }

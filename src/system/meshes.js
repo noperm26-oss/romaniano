@@ -4,10 +4,16 @@ var geometryCache=new Map();
 function sharedGeometry(key,build){if(!geometryCache.has(key)){var geo=build();geo.userData.shared=true;geometryCache.set(key,geo);}return geometryCache.get(key);}
 function M(c,opts){
   var key = c + (opts?JSON.stringify(opts):'');
-  if(!matCache[key]) matCache[key] = new THREE.MeshLambertMaterial(Object.assign({color:c}, opts||{}));
+  if(!matCache[key]) matCache[key] = surfApply(new THREE.MeshLambertMaterial(Object.assign({color:c}, opts||{})), SURF.GRAIN);
   return matCache[key];
 }
-function NM(c){ return new THREE.MeshLambertMaterial({color:c}); }
+/* a double-sided Lambert material with a specific surface pattern (SURF.*): roofs, walls, stone, timber */
+function MS(c,pat){
+  var key = c + '|s' + pat;
+  if(!matCache[key]) matCache[key] = surfApply(new THREE.MeshLambertMaterial({color:c, side:THREE.DoubleSide}), pat);
+  return matCache[key];
+}
+function NM(c){ return surfApply(new THREE.MeshLambertMaterial({color:c}), SURF.GRAIN); }
 function shad(m){ m.castShadow=true; return m; }
 function box(w,h,d,m,x,y,z){
   var ms=new THREE.Mesh(sharedGeometry('box:'+w+':'+h+':'+d,function(){return new THREE.BoxGeometry(w,h,d);}), m);

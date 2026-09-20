@@ -1,3 +1,7 @@
+/* boot-time profile (ms per phase) — filled by the world builders and boot.js */
+var BOOT_TIMES={};
+/* deterministic per-feature random streams (LCG) */
+function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 var $ = function(id){ return document.getElementById(id); };
 if(!window.THREE){ $('webgl-error').classList.remove('hidden'); return; }
 

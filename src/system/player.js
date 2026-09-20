@@ -53,7 +53,8 @@ function updatePlayer(dt){
       var km=kingdomMod(playerTeam);
       if(km) moveMod=km.move||1;
     }
-    var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1) / terrCost * moveMod;
+    var roadMod=(typeof roadSpeedAt!=='undefined')?roadSpeedAt(p.group.position.x, p.group.position.z):1;   /* roads are the fastest surface (spec §4.2) */
+    var spd=p.speed*(p.riding?2.05:1)*(sprinting?1.42:1)*(p.blocking?0.5:1)*(p.aiming?0.55:1)*(p.rallyT>0?1.15:1) / terrCost * moveMod * roadMod;
     moveWithCollision(p.group.position,mx*spd*dt,mz*spd*dt,0.46);
   }
   p.movingAmt=lerp(p.movingAmt,(moving||p.dodgeT>0)?1:0,Math.min(1,dt*10));

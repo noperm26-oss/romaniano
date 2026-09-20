@@ -102,7 +102,55 @@ window.__game={
     return {n:n, visible:vis}; },
   lookAtWorld:function(x,z){ if(!player) return; camYaw=Math.atan2(x-player.group.position.x, z-player.group.position.z); camPitch=0.06; },
   districts:function(){ return DISTRICT_C.map(function(d){ return {x:d.x, z:d.z}; }); },
+  cullNow:function(){ cullTick(); return cullStatics.length; },
+  camAt:function(x,y,z,tx,ty,tz){ camera.position.set(x,y,z); camera.lookAt(tx,ty,tz); camera.updateMatrixWorld(true); return true; },
+  tickAmbient:function(dt){ updateAmbient(dt||0.016); return DN.t; },
+  /* living buildings: doors, lights, chimneys, moving parts, registered structures */
+  buildingsLive:function(){ var ent=0; STRUCTURES.forEach(function(S){ if(S.enterable) ent++; });
+    return {doors:DOORS.length, structures:STRUCTURES.length, enterable:ent, lights:LIGHT_SRC.length, chimneys:CHIMNEYS.length,
+      anim:ANIM_PARTS.length, colliders:colliders.length, roads:roadStats, sites:SITES.length, districts:DISTRICT_C.length, waters:waterSurfaces.length, bridges:BRIDGES.length,
+      flags:FLAG_PARTS.length, beacons:BEACON_PARTS.length, villages:VILLAGES.length, rivers:RIVERS.length, rbl:RBL_STATS, junctions:ROAD_JUNCTIONS.length,
+      fords:BRIDGES.filter(function(b){ return b.ford; }).length, waystations:SITES_DEF.filter(function(s){ return s.kind==='waystation'; }).length,
+      prefabs:{defs:PREFAB_STATS.defs, instances:PREFAB_STATS.instances, houses:PREFAB_STATS.houses, cells:PREFAB_STATS.cells, meshes:PREFAB_STATS.meshes}, hamlets:settlementStats,
+      nonEnterable:STRUCTURES.filter(function(S){ return !S.enterable; }).reduce(function(a,S){ a[S.kind||'?']=(a[S.kind||'?']||0)+1; return a; },{})}; },
+  /* a countryside (prefab) house with its door, for the living-building checks */
+  prefabHouse:function(n){ var list=STRUCTURES.filter(function(S){ return S.prefab&&S.door&&/house|cottage/.test(S.prefab); }); var S=list[n||0]; return S?{name:S.name, prefab:S.prefab, x:S.x, z:S.z, hx:S.hx, hz:S.hz, door:S.door, dw:S.dw}:null; },
+  /* furniture inside a footprint: colliders strictly inside the walls (the interior kit), lights and chimneys nearby */
+  furnished:function(S){ var n=0, i; for(i=0;i<colliders.length;i++){ var c=colliders[i], mx=(c.x0+c.x1)/2, mz=(c.z0+c.z1)/2;
+      if(Math.abs(mx-S.x)<S.hx-0.6&&Math.abs(mz-S.z)<S.hz-0.6&&(c.x1-c.x0)<3.6&&(c.z1-c.z0)<3.6) n++; }
+    var L=0, C=0; for(i=0;i<LIGHT_SRC.length;i++){ if(Math.abs(LIGHT_SRC[i].x-S.x)<S.hx+1&&Math.abs(LIGHT_SRC[i].z-S.z)<S.hz+1) L++; } for(i=0;i<CHIMNEYS.length;i++){ if(Math.abs(CHIMNEYS[i].x-S.x)<S.hx+1&&Math.abs(CHIMNEYS[i].z-S.z)<S.hz+1) C++; }
+    return {furniture:n, lights:L, chimneys:C}; },
+  /* NO-CLIP audit (spec §14 QA): probe the four faces of every registered box structure at four heights' worth of
+     inset points — a wall must be solid just inside its face, the door opening must be free. Returns the offenders. */
+  noclipAudit:function(){ var bad=[], ok=0;
+    STRUCTURES.forEach(function(S){ if(!S.enterable||!S.hx||!S.hz||S.kind==='tent'||S.rot) return;   /* rotated gatehouses are probed by the entrance check instead */
+      var faces=[[0,-1],[0,1],[-1,0],[1,0]], solid=0, i, k;
+      for(i=0;i<faces.length;i++){ var n=faces[i], fx0=S.x+n[0]*S.hx, fz0=S.z+n[1]*S.hz;
+        if(S.kind==='gate' && ((S.passage||'z')==='z'?n[0]===0:n[1]===0)){ solid++; continue; }   /* the passage is the door of a gatehouse */
+        if(S.door&&Math.hypot(fx0-S.door.x,fz0-S.door.z)<(S.dw||1.6)/2+1.4){ solid++; continue; }
+        if(S.back&&Math.hypot(fx0-S.back.x,fz0-S.back.z)<(S.dw||1.6)/2+1.4){ solid++; continue; }   /* back doors are doors too */
+        var hit=false; for(k=0;k<4&&!hit;k++){ var ins=[0.15,0.45,0.8,1.2][k]; if(insideSolid(fx0-n[0]*ins,fz0-n[1]*ins,0.1)) hit=true; }
+        if(hit) solid++; }
+      if(solid===4) ok++; else bad.push({name:S.name, kind:S.kind, x:Math.round(S.x), z:Math.round(S.z), solidFaces:solid}); });
+    return {ok:ok, bad:bad.slice(0,20), badN:bad.length}; },
+  roadProbe:function(n){ /* draped ribbons: sampled road points must sit on walkable ground (no water, finite height) */
+    var wet=0, tot=0, i; for(i=0;i<ROADS.length;i+=Math.max(1,Math.floor(ROADS.length/(n||60)))){ var R=ROADS[i]; for(var j=0;j<R.pts.length;j+=4){ var p=R.pts[j]; tot++; var rf=riverField(p[0],p[1]); if(rf.river&&rf.d<riverHalfWidth(rf.river,p[1])*0.9){ var nb=false; for(var k=0;k<BRIDGES.length;k++) if(Math.hypot(BRIDGES[k].x-p[0],BRIDGES[k].z-p[1])<BRIDGES[k].len/2+8) nb=true; if(!nb) wet++; } } }
+    return {sampled:tot, wet:wet}; },
+  structures:function(){ return STRUCTURES.map(function(S){ return {name:S.name, kind:S.kind, x:+S.x.toFixed(1), z:+S.z.toFixed(1), hx:+S.hx.toFixed(1), hz:+S.hz.toFixed(1), door:S.door?{x:+S.door.x.toFixed(2), z:+S.door.z.toFixed(2)}:null, dw:S.dw||0, enterable:!!S.enterable, fac:S.fac||null}; }); },
+  doorState:function(i){ var D=DOORS[i]; return D?{x:D.x, z:D.z, open:+D.open.toFixed(3), rot:+(D.g?D.g.rotation.y:D.rot).toFixed(3), base:+D.base.toFixed(3), instanced:!D.g}:null; },
+  nearestDoor:function(x,z){ var best=-1, bd=1e18; for(var i=0;i<DOORS.length;i++){ var d=(DOORS[i].x-x)*(DOORS[i].x-x)+(DOORS[i].z-z)*(DOORS[i].z-z); if(d<bd){ bd=d; best=i; } } return best; },
+  paneGlow:function(){ return +PANE_MAT.emissiveIntensity.toFixed(3); },
+  poolLights:function(){ return BLD.lights.filter(function(L){ return L.visible; }).map(function(L){ return {x:+L.position.x.toFixed(1), z:+L.position.z.toFixed(1), i:+L.intensity.toFixed(2)}; }); },
+  smokeAlive:function(){ return BLD.smoke.filter(function(q){ return q.life>0; }).length; },
+  sceneStats:function(){ var n=0, tri=0, im=0; scene.traverse(function(o){ if(o.isMesh){ n++; var g=o.geometry; if(g&&g.attributes&&g.attributes.position){ var c=g.index?g.index.count/3:g.attributes.position.count/3; if(o.isInstancedMesh){ im++; tri+=c*o.count; } else tri+=c; } } }); return {meshes:n, instanced:im, tris:Math.round(tri)}; },
+  groundAt:function(x,z){ return +groundH(x,z).toFixed(3); },
+  freeAt:function(x,z,r){ return !insideSolid(x,z,r||0.4); },
+  townData:function(f){ var td=townData[f]; return td?{hall:td.hall, barracks:td.barracks, temple:td.temple, r:td.r}:null; },
   glInfo:function(){ return {calls:renderer.info.render.calls, tris:renderer.info.render.triangles}; },
+  /* direct eval inside the game closure — diagnostics only (tests, harnesses) */
+  ev:function(src){ return eval(src); },
+  bootTimes:function(){ return BOOT_TIMES; },
+  memStats:function(){ var tri=0, triInst=0, meshes=0, inst=0, verts=0; scene.traverse(function(o){ if(o.isMesh&&o.geometry&&o.geometry.attributes.position){ var g=o.geometry, n=g.index?g.index.count/3:g.attributes.position.count/3; meshes++; if(o.isInstancedMesh){ inst++; triInst+=n*o.count; } else { tri+=n; verts+=g.attributes.position.count; } } }); return {meshes:meshes, instanced:inst, tris:Math.round(tri), trisInstanced:Math.round(triInst), verts:verts}; },
   fpInfo:function(){ var wd=null;
     if(fpWeapon){ var wp=new THREE.Vector3(); fpWeapon.getWorldPosition(wp); var pj=wp.clone().project(camera);
       var mesh=null; fpWeapon.traverse(function(o){ if(o.isMesh&&!mesh){ o.geometry.computeBoundingSphere();
