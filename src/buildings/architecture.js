@@ -104,6 +104,33 @@ function kitCreate(){
       tri(m,[0,-Y,0],[c0*r,-Y,s0*r],[c1*r,-Y,s1*r]);
     }
   }
+  /* explicit placement for hand-built polygons: kit.at(x,y,z) then kit.quad/tri with offsets from that point */
+  function at(x,y,z){ place(x,y,z,0,0,0); }
+  /* drain the bags into two geometries: one vertex-coloured body (any Lambert material becomes a colour)
+     and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
+  function exportGeo(dy){
+    dy=dy||0;
+    var pos=[], nor=[], col=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    bags.forEach(function(b,m){
+      var i, n=b.p.length;
+      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
+      c.copy(m.color||new THREE.Color(0xffffff));
+      if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
+      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); }
+    });
+    bags.clear();
+    function geo(p,nn,cc,uu){
+      if(!p.length) return null;
+      var g=new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
+      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
+      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
+      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
+      g.computeBoundingSphere(); g.computeBoundingBox();
+      return g;
+    }
+    return {body:geo(pos,nor,col,null), panes:geo(pp,pn,null,pu), tris:pos.length/9};
+  }
   function flush(parent,shadow){
     var made=0;
     bags.forEach(function(b,m){
@@ -120,7 +147,7 @@ function kitCreate(){
     bags.clear();
     return made;
   }
-  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
+  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, at:at, exportGeo:exportGeo, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
 }
 
 /* ============================================================
@@ -219,6 +246,7 @@ function openingTrim(kit, P, sp, hole, rng){
 }
 /* animated door leaf: hinge at (hx,hz,y), leaf extends along the frame's +x, swings toward -z (inside) */
 function spawnDoorLeaf(hx,hz,y,ang,w,hh,matLeaf,matDark,cx,cz,swing){
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.doors.push({hx:hx, hz:hz, y:y, ang:ang, w:w, hh:hh, cx:cx, cz:cz, swing:swing||1.9}); return null; }
   var g=new THREE.Group(); g.position.set(hx, y, hz); g.rotation.y=ang;
   /* unit leaf: planks, two iron bands, a ring handle — scaled to the opening */
   var geo=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
@@ -326,6 +354,12 @@ function roofAssembly(kit, P, cx, cz, R){
     for(s=-1;s<=1;s+=2){
       if(R.alongZ) kit.prism(P.wall2, R.crossLen, triH, 0.32, cx, R.yTop+triH/2, cz+s*(halfR-0.16));
       else kit.prism(P.wall2, R.crossLen, triH, 0.32, cx+s*(halfR-0.16), R.yTop+triH/2, cz, Math.PI/2);
+      /* a small attic window (or a hay hatch on barns) in each gable */
+      if(R.gableWin && triH>1.1){
+        var gw=R.gableWin==='hatch'?0.9:0.5, gh=R.gableWin==='hatch'?1.0:0.6, gy=R.yTop+Math.min(triH*0.36, triH-gh/2-0.25);
+        if(R.alongZ){ kit.box(P.dark, gw, gh, 0.42, cx, gy, cz+s*(halfR-0.16)); kit.box(P.timber, gw+0.24, 0.1, 0.46, cx, gy+gh/2+0.05, cz+s*(halfR-0.16)); kit.box(P.timber, gw+0.24, 0.1, 0.46, cx, gy-gh/2-0.05, cz+s*(halfR-0.16)); kit.box(P.timber, 0.1, gh+0.2, 0.46, cx-gw/2-0.07, gy, cz+s*(halfR-0.16)); kit.box(P.timber, 0.1, gh+0.2, 0.46, cx+gw/2+0.07, gy, cz+s*(halfR-0.16)); }
+        else { kit.box(P.dark, 0.42, gh, gw, cx+s*(halfR-0.16), gy, cz); kit.box(P.timber, 0.46, 0.1, gw+0.24, cx+s*(halfR-0.16), gy+gh/2+0.05, cz); kit.box(P.timber, 0.46, 0.1, gw+0.24, cx+s*(halfR-0.16), gy-gh/2-0.05, cz); kit.box(P.timber, 0.46, gh+0.2, 0.1, cx+s*(halfR-0.16), gy, cz-gw/2-0.07); kit.box(P.timber, 0.46, gh+0.2, 0.1, cx+s*(halfR-0.16), gy, cz+gw/2+0.07); }
+      }
     }
   }
   /* ridge: beam under the slabs, cap board over them */
@@ -345,6 +379,60 @@ function roofAssembly(kit, P, cx, cz, R){
 function roofProfile(kind, span, rh, eaveDrop){
   if(kind==='long') return [{c:span, y:-eaveDrop},{c:span*0.5, y:rh*0.68},{c:0, y:rh}];
   return [{c:span, y:-eaveDrop},{c:0, y:rh}];
+}
+/* hip roof ("acoperiș în patru ape"): four slopes, ridge shortened by the hip run, caps on ridge and hips.
+   u runs along the ridge, v across it; the mapping to x/z follows R.alongZ like the gable roof. */
+function roofHip(kit, P, cx, cz, R){
+  var halfR=R.ridgeLen/2+R.ov, halfC=R.crossLen/2+R.ov, ye=R.yTop-0.34, yr=R.yTop+R.rh, th=R.th;
+  var rHalf=Math.max(0, halfR-halfC); if(rHalf<0.4) rHalf=0;
+  var aZ=R.alongZ, s, i, k;
+  function L(u,v,y){ return aZ?[v,y,u]:[u,y,v]; }                 /* local offsets from (cx,cz) */
+  function bx(m,lu,h,lv,u,y,v,ru,rv){                            /* box: lu along the ridge, lv across; ru = tilt about the ridge axis, rv = tilt about the cross axis */
+    if(aZ) kit.box(m, lv, h, lu, cx+v, y, cz+u, 0, rv||0, -(ru||0)); else kit.box(m, lu, h, lv, cx+u, y, cz+v, 0, ru||0, -(rv||0));
+  }
+  var angC=Math.atan2(yr-ye, halfC), angE=Math.atan2(yr-ye, halfR-rHalf);
+  kit.at(cx,0,cz);
+  for(s=-1;s<=1;s+=2){
+    /* long slopes (trapezoids) and their undersides */
+    kit.quad(P.roof, L(-s*halfR,s*halfC,ye), L(s*halfR,s*halfC,ye), L(s*rHalf,0,yr), L(-s*rHalf,0,yr));
+    kit.quad(P.roof2, L(-s*rHalf,0,yr-th), L(s*rHalf,0,yr-th), L(s*halfR,s*halfC,ye-th), L(-s*halfR,s*halfC,ye-th));
+    /* hip ends (triangles) */
+    kit.tri(P.roof, L(s*halfR,s*halfC,ye), L(s*halfR,-s*halfC,ye), L(s*rHalf,0,yr));
+    kit.tri(P.roof2, L(s*rHalf,0,yr-th), L(s*halfR,-s*halfC,ye-th), L(s*halfR,s*halfC,ye-th));
+  }
+  /* fascia boards and rafter tails on all four eaves */
+  for(s=-1;s<=1;s+=2){
+    bx(P.timber, 2*halfR+0.14, 0.3, 0.15, 0, ye-0.05, s*halfC);
+    bx(P.timber, 0.15, 0.3, 2*halfC+0.14, s*halfR, ye-0.05, 0);
+    for(var u=-halfR+0.9;u<halfR-0.6;u+=1.5) bx(P.timber, 0.13, 0.13, 0.6, u, ye-0.17, s*(halfC-0.28));
+    for(var v=-halfC+0.9;v<halfC-0.6;v+=1.5) bx(P.timber, 0.6, 0.13, 0.13, s*(halfR-0.28), ye-0.17, v);
+  }
+  /* courses: shingle lines (or thatch brows) shortened toward the top on every face */
+  var nC=R.thatch?2:3, den=R.thatch?3:3.6;
+  for(k=1;k<=nC;k++){
+    var f=k/den, y=ye+(yr-ye)*f;
+    var lu=2*(halfR-f*(halfR-rHalf)), lv=2*halfC*(1-f);
+    for(s=-1;s<=1;s+=2){
+      bx(P.roof2, lu*0.98, R.thatch?0.09:0.07, 0.42, 0, y+0.07, s*halfC*(1-f), s*angC, 0);
+      bx(P.roof2, 0.42, R.thatch?0.09:0.07, lv*0.98, s*(halfR-f*(halfR-rHalf)), y+0.07, 0, 0, s*angE);
+    }
+  }
+  if(R.thatch){
+    for(s=-1;s<=1;s+=2){ bx(P.roof2, 2*halfR+0.2, 0.36, 0.36, 0, ye+0.13, s*halfC); bx(P.roof2, 0.36, 0.36, 2*halfC+0.2, s*halfR, ye+0.13, 0); }
+  }
+  /* ridge and hip caps */
+  if(rHalf>0){
+    bx(P.timber, 2*rHalf+0.2, 0.16, 0.26, 0, yr-0.05, 0);
+    if(R.thatch){ if(aZ) kit.cyln(P.roof2, 0.32, 0.32, 2*rHalf+0.5, 8, cx, yr+0.18, cz, 0, Math.PI/2, 0); else kit.cyln(P.roof2, 0.32, 0.32, 2*rHalf+0.5, 8, cx, yr+0.18, cz, 0, 0, Math.PI/2); }
+    else bx(P.trim, 2*rHalf+0.36, 0.14, 0.5, 0, yr+0.06, 0);
+  } else { kit.pyr(P.trim, 0.42, 0.5, 4, cx, yr+0.2, cz, Math.PI/4); }
+  for(s=-1;s<=1;s+=2) for(var e=-1;e<=1;e+=2){
+    var a=L(s*rHalf,0,yr), b=L(s*halfR,e*halfC,ye);
+    var dx=b[0]-a[0], dy=b[1]-a[1], dz=b[2]-a[2], hl=Math.hypot(dx,dz), len=Math.hypot(hl,dy);
+    var ry=Math.atan2(dx,dz), rx=Math.atan2(-dy,hl);
+    if(R.thatch) kit.cyln(P.roof2, 0.22, 0.22, len+0.2, 7, cx+(a[0]+b[0])/2, (a[1]+b[1])/2+0.08, cz+(a[2]+b[2])/2, ry, rx+Math.PI/2, 0);
+    else kit.box(P.trim, 0.34, 0.12, len+0.2, cx+(a[0]+b[0])/2, (a[1]+b[1])/2+0.06, cz+(a[2]+b[2])/2, ry, rx, 0);
+  }
 }
 
 /* ============================================================
@@ -367,25 +455,45 @@ function structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW){
   run('z',cz-d/2,cz+d/2,cx+(w/2+0.09),y0+h1,h2,0.46);
 }
 function structPosts(kit,P,cx,cz,w,d,y0,yTop,t,studs){
-  var i,u,n;
-  for(i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2)
-    kit.box(P.timber, 0.36, yTop-y0, 0.36, cx+i*(w/2-t/2), y0+(yTop-y0)/2, cz+j*(d/2-t/2));
-  function band(y,hgt,thick){
-    kit.box(P.timber, w, hgt, thick, cx, y, cz+(d/2-t/2));
-    kit.box(P.timber, w, hgt, thick, cx, y, cz-(d/2-t/2));
-    kit.box(P.timber, thick, hgt, d-2*t, cx+(w/2-t/2), y, cz);
-    kit.box(P.timber, thick, hgt, d-2*t, cx-(w/2-t/2), y, cz);
+  /* corner posts, proud of the wall face on both sides of the corner */
+  for(var i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2)
+    kit.box(P.timber, 0.4, yTop-y0-0.1, 0.4, cx+i*(w/2-0.1), y0+(yTop-y0)/2, cz+j*(d/2-0.1));
+  function band(y,hgt){
+    kit.box(P.timber, w+0.16, hgt, 0.14, cx, y, cz+(d/2+0.02));
+    kit.box(P.timber, w+0.16, hgt, 0.14, cx, y, cz-(d/2+0.02));
+    kit.box(P.timber, 0.14, hgt, d+0.16, cx+(w/2+0.02), y, cz);
+    kit.box(P.timber, 0.14, hgt, d+0.16, cx-(w/2+0.02), y, cz);
   }
-  band(y0+0.78, 0.2, t+0.09);
-  band(yTop-0.24, 0.22, t+0.09);
-  if(!studs) return;
-  n=Math.max(2,Math.floor(w/2.0));
-  for(i=0;i<n;i++){
-    u=cx-w/2+(i+0.5)*(w/n);
-    if(Math.abs(u-cx)<1.0) continue;
-    kit.box(P.timber, 0.16, yTop-y0-1.1, t*0.5, u, y0+(yTop-y0)/2, cz+(d/2-t/2-0.03));
-    kit.box(P.timber, 0.16, yTop-y0-1.1, t*0.5, u, y0+(yTop-y0)/2, cz-(d/2-t/2-0.03));
+  band(y0+0.78, 0.2);
+  band(yTop-0.24, 0.22);
+}
+/* studs and corner braces of one wall, placed only in the solid stretches between openings (half-timbering).
+   sp = the wall run spec, holes = its openings, f = outward side. */
+function wallStuds(kit,P,sp,holes,f,braces){
+  var t=sp.t, off=f*(t/2+0.03), yb=sp.y0+0.9, yt=sp.top-0.36, h=yt-yb, i;
+  if(h<0.8) return;
+  var edges=[sp.a0+0.2];
+  holes.slice().sort(function(a,b){ return a.c-b.c; }).forEach(function(hh){ edges.push(hh.c-hh.w/2-0.3, hh.c+hh.w/2+0.3); });
+  edges.push(sp.a1-0.2);
+  for(i=0;i<edges.length;i+=2){
+    var a=edges[i], b=edges[i+1], L=b-a; if(L<0.7) continue;
+    var n=L>3.2?2:1, k;
+    for(k=0;k<n;k++){ var u=a+L*(k+1)/(n+1); wallBox(kit,P.timber,sp.axis,u,sp.cross,off,(yb+yt)/2, 0.15, h, 0.12); }
+    /* a diagonal brace in the corner panels */
+    if(braces && L>1.5 && h>1.4 && (i===0 || i===edges.length-2)){
+      var corner=(i===0)?a:b, dir=(i===0)?1:-1, bl=Math.min(1.5, L-0.3), bu=corner+dir*bl/2, by=yb+0.75;
+      var ang=Math.atan2(bl, 1.3)*dir;
+      if(sp.axis==='x') kit.box(P.timber, 0.14, Math.hypot(bl,1.3), 0.12, bu, by, sp.cross+off, 0, 0, -ang);
+      else kit.box(P.timber, 0.12, Math.hypot(bl,1.3), 0.14, sp.cross+off, by, bu, 0, ang, 0);
+    }
   }
+}
+/* plastered houses: a painted band (brâu) below the windows and stone quoins at the corners */
+function wallBand(kit,P,cx,cz,w,d,y0,yTop){
+  var y=y0+0.95;
+  kit.box(P.trim, w+0.2, 0.16, 0.12, cx, y, cz+(d/2+0.02)); kit.box(P.trim, w+0.2, 0.16, 0.12, cx, y, cz-(d/2+0.02));
+  kit.box(P.trim, 0.12, 0.16, d+0.2, cx+(w/2+0.02), y, cz); kit.box(P.trim, 0.12, 0.16, d+0.2, cx-(w/2+0.02), y, cz);
+  for(var i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2) kit.box(P.stone, 0.34, yTop-y0-0.3, 0.34, cx+i*(w/2-0.09), y0+(yTop-y0)/2-0.1, cz+j*(d/2-0.09));
 }
 function structChimney(kit,P,cx,cz,R,u,thatch){
   var yTop=R.yTop, top=yTop+R.rh+(thatch?0.8:0.66), w=thatch?0.95:0.84;
@@ -401,6 +509,7 @@ function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   for(s=-1;s<=1;s+=2){
     kit.box(P.timber, 0.24, hh, 0.24, cx+s*(pw/2-0.12), y0+hh/2, fz+doorS*(sw-0.22));
     kit.box(P.timber, 0.16, 0.36, sw+0.24, cx+s*(pw/2-0.12), y0+hh+0.16, fz+doorS*(sw/2-0.1));
+    kit.collider(cx+s*(pw/2-0.12)-0.12, fz+doorS*(sw-0.22)-0.12, cx+s*(pw/2-0.12)+0.12, fz+doorS*(sw-0.22)+0.12);
   }
   kit.box(P.roof, pw+0.55, 0.16, sw+0.55, cx, y0+hh+0.32, fz+doorS*(sw/2-0.05), 0, doorS*0.22);
   kit.box(P.timber, pw+0.55, 0.15, 0.15, cx, y0+hh+0.26, fz+doorS*(sw+0.2));
@@ -417,6 +526,58 @@ function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   kit.box(P.stone, doorW+1.4, 0.16, 0.5, cx, y0+0.16, fz+doorS*(sw+0.82));
 }
 
+/* the prispă: a roofed gallery along the whole door wall — deck, carved posts, railing, lean-to roof, steps */
+function structPrispa(kit,P,cx,cz,w,d,y0,yTop,t,doorW,rng){
+  var fz=cz+d/2, depth=1.8, pw=w+0.5, deckY=y0+0.22, i, k;
+  kit.box(P.stone, pw+0.2, 0.3, depth+0.2, cx, y0+0.02, fz+depth/2);
+  kit.box(P.timber, pw, 0.1, depth, cx, deckY-0.05, fz+depth/2);
+  var eaveY=yTop-0.34, postZ=fz+depth-0.2, rlen=postZ+0.55-(fz-0.15), drop=0.36;
+  var beamY=eaveY-drop-0.32, postH=beamY-deckY-0.1;
+  /* bays: the door bay in the middle, then ~2.2u bays either side */
+  var xs=[cx-doorW/2-0.55, cx+doorW/2+0.55];
+  for(var side=-1;side<=1;side+=2){
+    var edge=cx+side*(pw/2-0.12), from=cx+side*(doorW/2+0.55), L=Math.abs(edge-from), n=Math.max(1,Math.round(L/2.2));
+    for(i=1;i<=n;i++) xs.push(from+side*(L*i/n));
+  }
+  xs.sort(function(a,b){ return a-b; });
+  xs.forEach(function(u){
+    kit.box(P.timber, 0.22, postH, 0.22, u, deckY+postH/2, postZ);
+    kit.box(P.trim, 0.34, 0.14, 0.34, u, deckY+postH+0.07, postZ);
+    kit.box(P.timber, 0.16, 0.16, 0.7, u, deckY+postH-0.12, postZ-0.25, 0, -0.5);
+    if(Math.abs(u-cx)<doorW/2+0.7) kit.collider(u-0.11, postZ-0.11, u+0.11, postZ+0.11);   /* the door-bay posts; the railings cover the others */
+  });
+  kit.box(P.timber, pw+0.3, 0.2, 0.22, cx, beamY, postZ);
+  var ang=Math.atan2(drop, rlen);
+  kit.box(P.roof, pw+0.8, 0.13, Math.hypot(rlen,drop), cx, eaveY-0.1-drop/2, (fz-0.15+postZ+0.55)/2, 0, ang);
+  kit.box(P.roof2, pw*0.98, 0.06, 0.4, cx, eaveY-0.1-drop*0.8+0.05, postZ+0.2, 0, ang);
+  kit.box(P.timber, pw+0.8, 0.18, 0.12, cx, eaveY-0.18-drop, postZ+0.6);
+  /* railing in every bay but the door bay */
+  for(i=0;i<xs.length-1;i++){
+    var a=xs[i], b=xs[i+1]; if(a<cx && b>cx) continue;
+    var mid=(a+b)/2, L2=b-a-0.22; if(L2<0.3) continue;
+    kit.box(P.timber, L2, 0.1, 0.1, mid, deckY+0.98, postZ);
+    kit.box(P.timber, L2, 0.08, 0.08, mid, deckY+0.42, postZ);
+    var nb=Math.max(1,Math.floor(L2/0.36));
+    for(k=0;k<nb;k++) kit.box(P.trim, 0.07, 0.5, 0.07, a+0.11+(k+0.5)*(L2/nb), deckY+0.7, postZ);
+    kit.collider(a, postZ-0.06, b, postZ+0.06);
+  }
+  for(var sx=-1;sx<=1;sx+=2){
+    var ex=cx+sx*(pw/2-0.12);
+    kit.box(P.timber, 0.1, 0.1, depth-0.5, ex, deckY+0.98, fz+depth/2-0.15); kit.box(P.timber, 0.08, 0.08, depth-0.5, ex, deckY+0.42, fz+depth/2-0.15);
+    for(k=0;k<3;k++) kit.box(P.trim, 0.07, 0.5, 0.07, ex, deckY+0.7, fz+0.3+k*0.45);
+    kit.collider(ex-0.06, fz, ex+0.06, postZ);
+  }
+  /* steps out of the door bay, and a bench on the deck beside the door */
+  kit.box(P.stone, doorW+1.0, 0.14, 0.5, cx, deckY-0.09, postZ+0.45);
+  kit.box(P.stone, doorW+1.4, 0.1, 0.5, cx, y0+0.05, postZ+0.9);
+  if(rng()<0.7 && w>5.5) structBench(kit,P,cx+(rng()<0.5?-1:1)*(doorW/2+1.1),deckY,fz+0.32,w);
+}
+/* a little wooden bench (băncuță) against the door wall */
+function structBench(kit,P,u,y,z,w){
+  kit.box(P.timber, 1.3, 0.07, 0.36, u, y+0.46, z);
+  kit.box(P.timber, 0.08, 0.44, 0.3, u-0.55, y+0.22, z); kit.box(P.timber, 0.08, 0.44, 0.3, u+0.55, y+0.22, z);
+  kit.collider(u-0.65, z-0.18, u+0.65, z+0.18);
+}
 /* extras: log courses, buttresses, battlements, corner tower, dome, arcade, hanging sign */
 function structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng){
   var i, s, h=yTop-y0;
@@ -514,6 +675,7 @@ function structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS){
   /* altar apse at the far end */
   kit.cyln(P.wall, ar, ar+0.1, ah, 12, cx, gy+ah/2, cz-doorS*(d/2+ar*0.55));
   kit.cyln(P.roof, 0.12, ar+0.25, ar*0.9, 12, cx, gy+ah+ar*0.45, cz-doorS*(d/2+ar*0.55));
+  kit.collider(cx-ar, cz-doorS*(d/2+ar*0.55)-ar, cx+ar, cz-doorS*(d/2+ar*0.55)+ar);   /* the apse is a wall too */
   /* portal: arch and a round window over the door */
   var fz=cz+doorS*(d/2+0.02), dw=clamp(w*0.14,1.6,3.2)+0.9, dh=clamp(o.h*0.36,2.4,4.6);
   kit.box(P.stone, dw+0.9, 0.35, 0.5, cx, gy+dh+0.45, fz);
@@ -571,11 +733,11 @@ function structShell(o){
   var church=(o.roof==='church'), grand=(w>=18||h>=9);
   var doorW=(o.doorW!==undefined)?o.doorW:(church||grand)?clamp(w*0.14, 1.6, 3.2):clamp(Math.min(1.55, w*0.3), 1.15, 2.4);
   var doorH=o.doorH||((church||grand)?clamp(h*0.36, 2.4, 4.6):clamp(h-1.0, 1.95, 2.5));
-  var thatch=(style==='thatch');
-  var ov=thatch?0.8:0.6, rake=0.44, th=thatch?0.42:0.22;
-  var rh=(o.rh!==undefined)?o.rh:Math.max(0.9,(crossLen/2+ov)*(thatch?0.84:0.7));
+  var thatch=(style==='thatch'||style==='hipthatch'), hip=(style==='hip'||style==='hipthatch');
+  var ov=thatch?0.8:(hip?0.75:0.6), rake=0.44, th=thatch?0.42:0.22;
+  var rh=(o.rh!==undefined)?o.rh:Math.max(0.9,(crossLen/2+ov)*(thatch?0.84:(hip?0.62:0.7)));
   var R={yTop:yTop, ridgeLen:ridgeLen, crossLen:crossLen, alongZ:alongZ,
-         rh:rh, ov:ov, rake:rake, th:th, thatch:thatch,
+         rh:rh, ov:ov, rake:rake, th:th, thatch:thatch, gableWin:o.gableWin,
          profile:roofProfile(style, crossLen/2+ov, rh, 0.34)};
   var frontIn=cz+doorS*(d/2-t/2), backIn=cz-doorS*(d/2-t/2);
   var wallOpt={sill:o.sill||(church?1.9:grand?1.4:1.15), winH:o.winH||(church?clamp(h*0.42,1.6,3.4):grand?1.5:1.15), winW:o.winW||(church?1.1:0.95),
@@ -583,7 +745,10 @@ function structShell(o){
   var i, holes, sp;
 
   kit.box(P.floor, w+0.5, 0.24, d+0.5, cx, gy+0.1, cz);
+  /* foundation skirt: reaches down into sloping ground so no house floats on a hillside */
+  kit.box(P.stone, w+0.5, 1.4, d+0.5, cx, y0-0.45, cz);
   structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW);
+  var framed=o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log' && o.style!=='plaster';
 
   /* ---- four walls, each with real openings; tall buildings get a second row of windows ---- */
   var two=(o.floors>=2 && h>=5.4), ySplit=two?y0+h*0.52:yTop;
@@ -594,11 +759,13 @@ function structShell(o){
     var spl={axis:axis, a0:a0, a1:a1, cross:cross, y0:y0, top:lowTop, t:t, holes:hl, f:f, leaf:o.leaf, pane:o.pane!==null};
     wallRun(kit,P.wall,spl);
     for(var k=0;k<hl.length;k++) openingTrim(kit,P,spl,hl[k],rng);
+    if(framed) wallStuds(kit,P,spl,hl,f,o.timberFrame||o.braces);
     if(two){
       var hu=noWin?[]:wallHoles(a0,a1,0,ySplit,yTop,{sill:0.75,winH:Math.min(wallOpt.winH,yTop-ySplit-1.3),winW:wallOpt.winW*0.9,maxWin:Math.max(maxWin,3)});
       var spu={axis:axis, a0:a0, a1:a1, cross:cross, y0:ySplit, top:yTop, t:t, holes:hu, f:f, pane:o.pane!==null};
       wallRun(kit,P.wall,spu);
       for(var k2=0;k2<hu.length;k2++) openingTrim(kit,P,spu,hu[k2],rng);
+      if(framed) wallStuds(kit,P,spu,hu,f,o.timberFrame||o.braces);
       /* floor band between storeys */
       if(axis==='x') kit.box(P.timber, a1-a0, 0.22, t+0.12, (a0+a1)/2, ySplit, cross); else kit.box(P.timber, t+0.12, 0.22, a1-a0, cross, ySplit, (a0+a1)/2);
     }
@@ -608,7 +775,8 @@ function structShell(o){
   for(var sx=-1;sx<=1;sx+=2){
     wallWithRows('z', cz-d/2+t, cz+d/2-t, cx+sx*(w/2-t/2), sx, 0, o.windows===false, clamp(Math.round(d/4.2),1,5));
   }
-  structPosts(kit,P,cx,cz,w,d,y0,yTop,t,o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log');
+  if(framed) structPosts(kit,P,cx,cz,w,d,y0,yTop,t,true);
+  else if(o.style==='plaster' || (o.band && !church)) wallBand(kit,P,cx,cz,w,d,y0,yTop);
   structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng);
 
   /* ---- roof ---- */
@@ -622,8 +790,9 @@ function structShell(o){
     kit.box(P.trim, 0.22, 0.3, d+0.9, cx-(w/2+0.28), yTop+0.4, cz);
     if(o.chimney!==false) structChimney(kit,P,cx,cz,{yTop:yTop,rh:0.4,alongZ:false},0,false);
   } else {
-    roofAssembly(kit,P,cx,cz,R);
+    if(hip) roofHip(kit,P,cx,cz,R); else roofAssembly(kit,P,cx,cz,R);
     if(o.chimney!==false) structChimney(kit,P,cx,cz,R,ridgeLen*0.29,thatch);
+    if(o.chimney!==false && o.chimney2) structChimney(kit,P,cx,cz,R,-ridgeLen*0.29,thatch);
     if(style==='church') structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS);
     if(style==='long'){
       for(var s2=-1;s2<=1;s2+=2){
@@ -635,9 +804,13 @@ function structShell(o){
     }
   }
 
-  /* ---- porch: the Moldavian pridvor ---- */
-  var wantPorch=o.porch!==false && !o.arcade && (style==='gable'||style==='thatch'||style==='hall');
-  if(wantPorch) structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,o.porch);
+  /* ---- porch: the full-length prispă, or the small pridvor over the door ---- */
+  if(o.prispa && !o.arcade){ structPrispa(kit,P,cx,cz,w,d,y0,yTop,t,doorW,rng); }
+  else {
+    var wantPorch=o.porch!==false && !o.arcade && (style==='gable'||style==='thatch'||style==='hall'||style==='hip'||style==='hipthatch');
+    if(wantPorch) structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,o.porch);
+    if(o.bench && w>5.5) structBench(kit,P,cx+(rng()<0.5?-1:1)*(doorW/2+1.2+(wantPorch?0.6:0)),y0,cz+d/2+0.25,w);
+  }
 
   var meshes=0;
   if(own && !o.deferFlush){ meshes=kit.flush(o.parent||PROP_PARENT||scene); kit.frame(0,0,0); }
@@ -672,34 +845,3 @@ function doorPoint(o,out){
 /* world footprint half sizes */
 function shellHalf(o){ var side=o.door||'S'; var e=(side==='E'||side==='W'); return {hx:e?o.d/2:o.w/2, hz:e?o.w/2:o.d/2}; }
 
-/* Unit triangular prism used by the instanced settlement roofs:
-   base 1x1 in X/Z, apex on the centre line, ridge along X. */
-function gablePrismGeometry(){
-  var A=[-0.5,-0.5,0.5], B=[-0.5,-0.5,-0.5], C=[-0.5,0.5,0],
-      D=[0.5,-0.5,0.5], E=[0.5,-0.5,-0.5], F=[0.5,0.5,0], p=[];
-  [[A,C,B],[D,E,F],[A,B,E],[A,E,D],[A,D,F],[A,F,C],[E,B,C],[E,C,F]].forEach(function(t){
-    for(var i=0;i<3;i++) p.push(t[i][0], t[i][1], t[i][2]);
-  });
-  var g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-  g.computeVertexNormals();
-  return g;
-}
-
-/* ============================================================
-   9. Mid-tier structure: full silhouette, no interior
-   ============================================================ */
-function buildSolidStructure(x,z,w,d,h,wallCol,roofCol,roof,opts){
-  opts=opts||{};
-  var shell={x:x, z:z, w:w, d:d, h:h, wall:wallCol, roofCol:roofCol, roof:roof||'gable',
-             door:opts.door||'S', windows:true, porch:false, studs:false, leaf:false,
-             chimney:opts.chimney!==false, seed:opts.seed, maxWin:1};
-  if(roof==='flat') shell.rh=0;
-  var r=structShell(shell);
-  r.kit.frame(0,0,0);
-  var hh=shellHalf(shell);
-  addCollider(x-hh.hx, z-hh.hz, x+hh.hx, z+hh.hz);
-  BUILD_COUNT++;
-  regStructure({name:opts.name||'', kind:opts.kind||'solid', x:x, z:z, hx:hh.hx, hz:hh.hz, door:null, enterable:false});
-  return r;
-}

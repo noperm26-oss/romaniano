@@ -512,8 +512,16 @@ function waterCut(x,z){
 }
 
 /* ---------- FLATS (section 1.5): every site stands on level ground ---------- */
-var FLATS=[];
-function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); }
+var FLATS=[], FLAT_GRID=null, FLAT_CELL=256;
+function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; }
+/* spatial index: flatsH only visits the flats whose blend zone covers the query cell */
+function flatGridBuild(){
+  FLAT_GRID=new Map();
+  FLATS.forEach(function(f){
+    var R=f.r*1.5, gx0=Math.floor((f.x-R)/FLAT_CELL), gx1=Math.floor((f.x+R)/FLAT_CELL), gz0=Math.floor((f.z-R)/FLAT_CELL), gz1=Math.floor((f.z+R)/FLAT_CELL);
+    for(var gx=gx0;gx<=gx1;gx++) for(var gz=gz0;gz<=gz1;gz++){ var k=gx*4096+gz; var a=FLAT_GRID.get(k); if(!a){ a=[]; FLAT_GRID.set(k,a); } a.push(f); }
+  });
+}
 addFlat(0,0,560,baseH(0,0)+1.2);                              /* Romaria plateau r520 (+ blend) */
 addFlat(TOWNS.sparta.x,TOWNS.sparta.z,250);                   /* Ardealburg */
 addFlat(TOWNS.rome.x,TOWNS.rome.z,300,baseH(TOWNS.rome.x,TOWNS.rome.z)+0.4);   /* Cetatea Dunării */
@@ -523,11 +531,68 @@ addFlat(TOWNS.egypt.x,TOWNS.egypt.z,230);                     /* Drumul Lung */
 SITES_DEF.forEach(function(s){ if(!s.noFlat) addFlat(s.x,s.z,s.r,baseH(s.x,s.z)+(s.flatH==='peak'?0.5:0)); });
 VILLAGES.forEach(function(v){ addFlat(v.x,v.z,70); });
 addFlat(600,600,120,FLATS[0].h);                               /* cathedral quarter */
+/* ---------- HAMLETS: the countryside ----------
+   Four hamlet sites per zone (one per quadrant) on levelled ground, away from towns, named places and water.
+   settlements.js builds the houses; the flats are registered here so the terrain is built with them. */
+var TOWN_RADIUS={sparta:150, rome:190, moldavia:215, vikings:150, egypt:150, nippon:530};
+var HAMLETS=[];
+(function(){
+  function nearTownG(x,z,extra){ for(var i=0;i<FAC_KEYS_T.length;i++){ var T=TOWNS[FAC_KEYS_T[i]], r=(TOWN_RADIUS[FAC_KEYS_T[i]]||150)+extra; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<r*r) return true; } return false; }
+  function nearSiteG(x,z,extra){ for(var i=0;i<SITES_DEF.length;i++){ var s=SITES_DEF[i], r=s.r+extra; if((x-s.x)*(x-s.x)+(z-s.z)*(z-s.z)<r*r) return true; } return false; }
+  function nearVillageG(x,z,r){ for(var i=0;i<VILLAGES.length;i++){ var v=VILLAGES[i]; if((x-v.x)*(x-v.x)+(z-v.z)*(z-v.z)<r*r) return true; } return false; }
+  function waterG(x,z){
+    var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
+    for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+55,2)) return true; }
+    for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+60) return true; }
+    return false;
+  }
+  for(var zi=0;zi<ZN*ZN;zi++){
+    var cx=(zi%ZN+0.5)*ZS-WORLD.half, cz=(Math.floor(zi/ZN)+0.5)*ZS-WORLD.half;
+    for(var q=0;q<4;q++){
+      var sx=(q%2?1:-1), sz=(q>1?1:-1), cand=[[88,88],[62,104],[104,62],[70,70]], ok=null;
+      for(var ci=0;ci<cand.length&&!ok;ci++){
+        var x=cx+sx*cand[ci][0], z=cz+sz*cand[ci][1];
+        if(Math.abs(x)>2880||Math.abs(z)>2880) continue;
+        if(nearTownG(x,z,40)||nearSiteG(x,z,45)||nearVillageG(x,z,118)||waterG(x,z)) continue;
+        if(Math.hypot(x-MASSIF.x,z-MASSIF.z)<MASSIF.r+120) continue;
+        /* no hamlets on steep mountainsides: the terrace would be a cliff */
+        var hs=[baseH(x-60,z-60),baseH(x+60,z-60),baseH(x-60,z+60),baseH(x+60,z+60),baseH(x,z)];
+        if(Math.max.apply(null,hs)-Math.min.apply(null,hs)>12) continue;
+        ok=[x,z];
+      }
+      if(!ok) continue;
+      HAMLETS.push({x:ok[0], z:ok[1], zi:zi, q:q, region:getRegion(ok[0],ok[1])});
+      addFlat(ok[0],ok[1],62);
+    }
+  }
+})();
+/* ---------- FARMSTEADS: 150 district centres (districts.js builds them) — level ground for each ---------- */
+var DISTRICT_C=[];
+(function(){
+  var rnd=srand(90210);
+  for(var i=0;i<6000 && DISTRICT_C.length<150;i++){
+    var x=rnd()*5600-2800, z=rnd()*5600-2800;
+    if(Math.abs(x)>2850||Math.abs(z)>2850) continue;
+    var bad=false, k;
+    for(k=0;k<FAC_KEYS_T.length && !bad;k++){ var T=TOWNS[FAC_KEYS_T[k]]; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<Math.pow((TOWN_RADIUS[FAC_KEYS_T[k]]||150)+150,2)) bad=true; }
+    for(k=0;k<SITES_DEF.length && !bad;k++){ var S=SITES_DEF[k]; if((x-S.x)*(x-S.x)+(z-S.z)*(z-S.z)<Math.pow(S.r+110,2)) bad=true; }
+    for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
+    for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
+    for(k=0;k<HAMLETS.length && !bad;k++){ var Hm=HAMLETS[k]; if(Math.abs(x-Hm.x)<80 && Math.abs(z-Hm.z)<112) bad=true; }   /* outside the hamlet's lane, yards and fields */
+    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
+    if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
+    if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
+    if(!bad){ DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)}); addFlat(x,z,52); }   /* level ground for a real farmstead */
+  }
+})();
 /* height with flats applied (no water) */
 function flatsH(x,z){
   var h=baseH(x,z), i;
-  for(i=0;i<FLATS.length;i++){
-    var f=FLATS[i];
+  if(!FLAT_GRID) flatGridBuild();
+  var arr=FLAT_GRID.get(Math.floor(x/FLAT_CELL)*4096+Math.floor(z/FLAT_CELL));
+  if(!arr) return h;
+  for(i=0;i<arr.length;i++){
+    var f=arr[i];
     var dx=x-f.x, dz=z-f.z;
     var d2=dx*dx+dz*dz;
     if(d2 < f.r*f.r*2.25){

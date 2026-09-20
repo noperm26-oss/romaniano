@@ -45,14 +45,19 @@ function flushCellKits(){
 
 function regLight(x,y,z,color,base,dist,flicker){
   var L={x:x,y:y,z:z,color:color||0xff9a3c,base:base||1.0,dist:dist||16,flicker:flicker===undefined?1:flicker};
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.lights.push(L); return L; }
   LIGHT_SRC.push(L); return L;
 }
-function regChimney(x,y,z,rate){ CHIMNEYS.push({x:x,y:y,z:z,rate:rate||1}); }
-function regStructure(o){ STRUCTURES.push(o); return o; }
+function regChimney(x,y,z,rate){ var C={x:x,y:y,z:z,rate:rate||1}; if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.chim.push(C); return; } CHIMNEYS.push(C); }
+var DOOR_GRID=new Map();   /* 24u cells of door points, so nearDoor stays cheap with ten thousand buildings */
+function doorGridAdd(p){ if(!p) return; var k=Math.floor(p.x/24)*100000+Math.floor(p.z/24); var a=DOOR_GRID.get(k); if(!a){ a=[]; DOOR_GRID.set(k,a); } a.push(p); }
+function regStructure(o){ if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.structs.push(o); return o; } STRUCTURES.push(o); doorGridAdd(o.door); doorGridAdd(o.back); return o; }
 /* is a point within r of any registered door threshold (keep entrances clear when placing props) */
 function nearDoor(x,z,r){
-  var rr=(r||2.5); rr*=rr;
-  for(var i=0;i<STRUCTURES.length;i++){ var d=STRUCTURES[i].door; if(!d) continue; var dx=d.x-x, dz=d.z-z; if(dx*dx+dz*dz<rr) return true; }
+  var rr=(r||2.5); if(rr>24) rr=24; rr*=rr;
+  var gx=Math.floor(x/24), gz=Math.floor(z/24);
+  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){ var a=DOOR_GRID.get((gx+ix)*100000+(gz+iz)); if(!a) continue;
+    for(var i=0;i<a.length;i++){ var dx=a[i].x-x, dz=a[i].z-z; if(dx*dx+dz*dz<rr) return true; } }
   return false;
 }
 

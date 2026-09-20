@@ -532,6 +532,10 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 'use strict';
 
 // SOURCE: src/system/helpers.js
+/* boot-time profile (ms per phase) — filled by the world builders and boot.js */
+var BOOT_TIMES={};
+/* deterministic per-feature random streams (LCG) */
+function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 var $ = function(id){ return document.getElementById(id); };
 if(!window.THREE){ $('webgl-error').classList.remove('hidden'); return; }
 
@@ -1061,8 +1065,16 @@ function waterCut(x,z){
 }
 
 /* ---------- FLATS (section 1.5): every site stands on level ground ---------- */
-var FLATS=[];
-function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); }
+var FLATS=[], FLAT_GRID=null, FLAT_CELL=256;
+function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; }
+/* spatial index: flatsH only visits the flats whose blend zone covers the query cell */
+function flatGridBuild(){
+  FLAT_GRID=new Map();
+  FLATS.forEach(function(f){
+    var R=f.r*1.5, gx0=Math.floor((f.x-R)/FLAT_CELL), gx1=Math.floor((f.x+R)/FLAT_CELL), gz0=Math.floor((f.z-R)/FLAT_CELL), gz1=Math.floor((f.z+R)/FLAT_CELL);
+    for(var gx=gx0;gx<=gx1;gx++) for(var gz=gz0;gz<=gz1;gz++){ var k=gx*4096+gz; var a=FLAT_GRID.get(k); if(!a){ a=[]; FLAT_GRID.set(k,a); } a.push(f); }
+  });
+}
 addFlat(0,0,560,baseH(0,0)+1.2);                              /* Romaria plateau r520 (+ blend) */
 addFlat(TOWNS.sparta.x,TOWNS.sparta.z,250);                   /* Ardealburg */
 addFlat(TOWNS.rome.x,TOWNS.rome.z,300,baseH(TOWNS.rome.x,TOWNS.rome.z)+0.4);   /* Cetatea Dunării */
@@ -1072,11 +1084,68 @@ addFlat(TOWNS.egypt.x,TOWNS.egypt.z,230);                     /* Drumul Lung */
 SITES_DEF.forEach(function(s){ if(!s.noFlat) addFlat(s.x,s.z,s.r,baseH(s.x,s.z)+(s.flatH==='peak'?0.5:0)); });
 VILLAGES.forEach(function(v){ addFlat(v.x,v.z,70); });
 addFlat(600,600,120,FLATS[0].h);                               /* cathedral quarter */
+/* ---------- HAMLETS: the countryside ----------
+   Four hamlet sites per zone (one per quadrant) on levelled ground, away from towns, named places and water.
+   settlements.js builds the houses; the flats are registered here so the terrain is built with them. */
+var TOWN_RADIUS={sparta:150, rome:190, moldavia:215, vikings:150, egypt:150, nippon:530};
+var HAMLETS=[];
+(function(){
+  function nearTownG(x,z,extra){ for(var i=0;i<FAC_KEYS_T.length;i++){ var T=TOWNS[FAC_KEYS_T[i]], r=(TOWN_RADIUS[FAC_KEYS_T[i]]||150)+extra; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<r*r) return true; } return false; }
+  function nearSiteG(x,z,extra){ for(var i=0;i<SITES_DEF.length;i++){ var s=SITES_DEF[i], r=s.r+extra; if((x-s.x)*(x-s.x)+(z-s.z)*(z-s.z)<r*r) return true; } return false; }
+  function nearVillageG(x,z,r){ for(var i=0;i<VILLAGES.length;i++){ var v=VILLAGES[i]; if((x-v.x)*(x-v.x)+(z-v.z)*(z-v.z)<r*r) return true; } return false; }
+  function waterG(x,z){
+    var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
+    for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+55,2)) return true; }
+    for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+60) return true; }
+    return false;
+  }
+  for(var zi=0;zi<ZN*ZN;zi++){
+    var cx=(zi%ZN+0.5)*ZS-WORLD.half, cz=(Math.floor(zi/ZN)+0.5)*ZS-WORLD.half;
+    for(var q=0;q<4;q++){
+      var sx=(q%2?1:-1), sz=(q>1?1:-1), cand=[[88,88],[62,104],[104,62],[70,70]], ok=null;
+      for(var ci=0;ci<cand.length&&!ok;ci++){
+        var x=cx+sx*cand[ci][0], z=cz+sz*cand[ci][1];
+        if(Math.abs(x)>2880||Math.abs(z)>2880) continue;
+        if(nearTownG(x,z,40)||nearSiteG(x,z,45)||nearVillageG(x,z,118)||waterG(x,z)) continue;
+        if(Math.hypot(x-MASSIF.x,z-MASSIF.z)<MASSIF.r+120) continue;
+        /* no hamlets on steep mountainsides: the terrace would be a cliff */
+        var hs=[baseH(x-60,z-60),baseH(x+60,z-60),baseH(x-60,z+60),baseH(x+60,z+60),baseH(x,z)];
+        if(Math.max.apply(null,hs)-Math.min.apply(null,hs)>12) continue;
+        ok=[x,z];
+      }
+      if(!ok) continue;
+      HAMLETS.push({x:ok[0], z:ok[1], zi:zi, q:q, region:getRegion(ok[0],ok[1])});
+      addFlat(ok[0],ok[1],62);
+    }
+  }
+})();
+/* ---------- FARMSTEADS: 150 district centres (districts.js builds them) — level ground for each ---------- */
+var DISTRICT_C=[];
+(function(){
+  var rnd=srand(90210);
+  for(var i=0;i<6000 && DISTRICT_C.length<150;i++){
+    var x=rnd()*5600-2800, z=rnd()*5600-2800;
+    if(Math.abs(x)>2850||Math.abs(z)>2850) continue;
+    var bad=false, k;
+    for(k=0;k<FAC_KEYS_T.length && !bad;k++){ var T=TOWNS[FAC_KEYS_T[k]]; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<Math.pow((TOWN_RADIUS[FAC_KEYS_T[k]]||150)+150,2)) bad=true; }
+    for(k=0;k<SITES_DEF.length && !bad;k++){ var S=SITES_DEF[k]; if((x-S.x)*(x-S.x)+(z-S.z)*(z-S.z)<Math.pow(S.r+110,2)) bad=true; }
+    for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
+    for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
+    for(k=0;k<HAMLETS.length && !bad;k++){ var Hm=HAMLETS[k]; if(Math.abs(x-Hm.x)<80 && Math.abs(z-Hm.z)<112) bad=true; }   /* outside the hamlet's lane, yards and fields */
+    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
+    if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
+    if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
+    if(!bad){ DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)}); addFlat(x,z,52); }   /* level ground for a real farmstead */
+  }
+})();
 /* height with flats applied (no water) */
 function flatsH(x,z){
   var h=baseH(x,z), i;
-  for(i=0;i<FLATS.length;i++){
-    var f=FLATS[i];
+  if(!FLAT_GRID) flatGridBuild();
+  var arr=FLAT_GRID.get(Math.floor(x/FLAT_CELL)*4096+Math.floor(z/FLAT_CELL));
+  if(!arr) return h;
+  for(i=0;i<arr.length;i++){
+    var f=arr[i];
     var dx=x-f.x, dz=z-f.z;
     var d2=dx*dx+dz*dz;
     if(d2 < f.r*f.r*2.25){
@@ -1470,6 +1539,7 @@ var colliders=[];
 var collisionVersion=0;
 var colGrid=new Map(); var CCELL=64;
 function addCollider(x0,z0,x1,z1){
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.col.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)]); return; }   /* prefab capture: local footprint, re-added per instance */
   var c={x0:Math.min(x0,x1)-0.05, x1:Math.max(x0,x1)+0.05, z0:Math.min(z0,z1)-0.05, z1:Math.max(z0,z1)+0.05};
   colliders.push(c);
   collisionVersion++;
@@ -1871,6 +1941,7 @@ function terrainMeshH(x,z){
   return hc+(hb-hc)*(1-u)+(hd-hc)*(1-v);
 }
 (function buildGround(){
+  var _t0=performance.now();
   var size=TM_SIZE, segs=TM_SEGS;
   var geo=new THREE.PlaneGeometry(size,size,segs,segs);
   geo.rotateX(-Math.PI/2);
@@ -2006,6 +2077,7 @@ function terrainMeshH(x,z){
     m.rotation.x=-Math.PI/2; m.position.set(L.x,y,L.z); m.name='always'; m.receiveShadow=true;
     scene.add(m); waterSurfaces.push(m);
   });
+  BOOT_TIMES.terrain=Math.round(performance.now()-_t0);
 })();
 
 
@@ -2025,7 +2097,6 @@ function registerLore(o){ o.idx=LANDMARKS.length; LANDMARKS.push(o); return o; }
 var scenery={};
 
 /* deterministic random for world dressing (same forest every boot) */
-function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 /* generic bucketed instancing: items=[{m:Matrix4, c:hex}] → InstancedMesh per 375u cell with cullBounds */
 function bucketIM(geo, items, mat, name, opts){
@@ -2072,6 +2143,7 @@ function sceneryBlocked(x,z,margin){
 }
 
 (function buildField(){
+  var _t0=performance.now();
   var rnd=srand(20260919);
   /* ---- rim peaks: a square wall of mountains just outside the 6,000 × 6,000 world, highest in the north ---- */
   var rimM=M(0x7d94a5), rimSnow=M(0xe8f0f8), rimDark=M(0x6c8090);
@@ -2214,6 +2286,7 @@ function sceneryBlocked(x,z,margin){
   bucketIM(boxGeo, vineRows, white, 'vines', {shadow:false});
   bucketIM(stumpGeo, stumps, white, 'stumps', {shadow:false});
   scenery.trees=placed; scenery.rocks=rocks.length+bigRocks.length; scenery.reeds=reeds.length;
+  BOOT_TIMES.scenery=Math.round(performance.now()-_t0);
 })();
 
 
@@ -2265,14 +2338,19 @@ function flushCellKits(){
 
 function regLight(x,y,z,color,base,dist,flicker){
   var L={x:x,y:y,z:z,color:color||0xff9a3c,base:base||1.0,dist:dist||16,flicker:flicker===undefined?1:flicker};
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.lights.push(L); return L; }
   LIGHT_SRC.push(L); return L;
 }
-function regChimney(x,y,z,rate){ CHIMNEYS.push({x:x,y:y,z:z,rate:rate||1}); }
-function regStructure(o){ STRUCTURES.push(o); return o; }
+function regChimney(x,y,z,rate){ var C={x:x,y:y,z:z,rate:rate||1}; if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.chim.push(C); return; } CHIMNEYS.push(C); }
+var DOOR_GRID=new Map();   /* 24u cells of door points, so nearDoor stays cheap with ten thousand buildings */
+function doorGridAdd(p){ if(!p) return; var k=Math.floor(p.x/24)*100000+Math.floor(p.z/24); var a=DOOR_GRID.get(k); if(!a){ a=[]; DOOR_GRID.set(k,a); } a.push(p); }
+function regStructure(o){ if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.structs.push(o); return o; } STRUCTURES.push(o); doorGridAdd(o.door); doorGridAdd(o.back); return o; }
 /* is a point within r of any registered door threshold (keep entrances clear when placing props) */
 function nearDoor(x,z,r){
-  var rr=(r||2.5); rr*=rr;
-  for(var i=0;i<STRUCTURES.length;i++){ var d=STRUCTURES[i].door; if(!d) continue; var dx=d.x-x, dz=d.z-z; if(dx*dx+dz*dz<rr) return true; }
+  var rr=(r||2.5); if(rr>24) rr=24; rr*=rr;
+  var gx=Math.floor(x/24), gz=Math.floor(z/24);
+  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){ var a=DOOR_GRID.get((gx+ix)*100000+(gz+iz)); if(!a) continue;
+    for(var i=0;i<a.length;i++){ var dx=a[i].x-x, dz=a[i].z-z; if(dx*dx+dz*dz<rr) return true; } }
   return false;
 }
 
@@ -2323,8 +2401,8 @@ function addFlame(x,y,z,scale,noLight){
   var f=new THREE.Mesh(sharedGeometry('flame',function(){ return new THREE.ConeGeometry(0.22,0.55,6); }), s>1.2?FLAME_MAT2:FLAME_MAT);
   f.scale.set(s,s,s);
   f.position.set(x,y,z);
-  propAdd(f);
-  flames.push(f);
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.flames.push({x:x,y:y,z:z,s:s}); }
+  else { propAdd(f); flames.push(f); }
   if(!noLight) regLight(x,y+0.3*s,z,0xff9a3c,0.9*s,10+7*s,1);
   return f;
 }
@@ -2540,6 +2618,33 @@ function kitCreate(){
       tri(m,[0,-Y,0],[c0*r,-Y,s0*r],[c1*r,-Y,s1*r]);
     }
   }
+  /* explicit placement for hand-built polygons: kit.at(x,y,z) then kit.quad/tri with offsets from that point */
+  function at(x,y,z){ place(x,y,z,0,0,0); }
+  /* drain the bags into two geometries: one vertex-coloured body (any Lambert material becomes a colour)
+     and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
+  function exportGeo(dy){
+    dy=dy||0;
+    var pos=[], nor=[], col=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    bags.forEach(function(b,m){
+      var i, n=b.p.length;
+      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
+      c.copy(m.color||new THREE.Color(0xffffff));
+      if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
+      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); }
+    });
+    bags.clear();
+    function geo(p,nn,cc,uu){
+      if(!p.length) return null;
+      var g=new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
+      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
+      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
+      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
+      g.computeBoundingSphere(); g.computeBoundingBox();
+      return g;
+    }
+    return {body:geo(pos,nor,col,null), panes:geo(pp,pn,null,pu), tris:pos.length/9};
+  }
   function flush(parent,shadow){
     var made=0;
     bags.forEach(function(b,m){
@@ -2556,7 +2661,7 @@ function kitCreate(){
     bags.clear();
     return made;
   }
-  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
+  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, at:at, exportGeo:exportGeo, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
 }
 
 /* ============================================================
@@ -2655,6 +2760,7 @@ function openingTrim(kit, P, sp, hole, rng){
 }
 /* animated door leaf: hinge at (hx,hz,y), leaf extends along the frame's +x, swings toward -z (inside) */
 function spawnDoorLeaf(hx,hz,y,ang,w,hh,matLeaf,matDark,cx,cz,swing){
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.doors.push({hx:hx, hz:hz, y:y, ang:ang, w:w, hh:hh, cx:cx, cz:cz, swing:swing||1.9}); return null; }
   var g=new THREE.Group(); g.position.set(hx, y, hz); g.rotation.y=ang;
   /* unit leaf: planks, two iron bands, a ring handle — scaled to the opening */
   var geo=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
@@ -2762,6 +2868,12 @@ function roofAssembly(kit, P, cx, cz, R){
     for(s=-1;s<=1;s+=2){
       if(R.alongZ) kit.prism(P.wall2, R.crossLen, triH, 0.32, cx, R.yTop+triH/2, cz+s*(halfR-0.16));
       else kit.prism(P.wall2, R.crossLen, triH, 0.32, cx+s*(halfR-0.16), R.yTop+triH/2, cz, Math.PI/2);
+      /* a small attic window (or a hay hatch on barns) in each gable */
+      if(R.gableWin && triH>1.1){
+        var gw=R.gableWin==='hatch'?0.9:0.5, gh=R.gableWin==='hatch'?1.0:0.6, gy=R.yTop+Math.min(triH*0.36, triH-gh/2-0.25);
+        if(R.alongZ){ kit.box(P.dark, gw, gh, 0.42, cx, gy, cz+s*(halfR-0.16)); kit.box(P.timber, gw+0.24, 0.1, 0.46, cx, gy+gh/2+0.05, cz+s*(halfR-0.16)); kit.box(P.timber, gw+0.24, 0.1, 0.46, cx, gy-gh/2-0.05, cz+s*(halfR-0.16)); kit.box(P.timber, 0.1, gh+0.2, 0.46, cx-gw/2-0.07, gy, cz+s*(halfR-0.16)); kit.box(P.timber, 0.1, gh+0.2, 0.46, cx+gw/2+0.07, gy, cz+s*(halfR-0.16)); }
+        else { kit.box(P.dark, 0.42, gh, gw, cx+s*(halfR-0.16), gy, cz); kit.box(P.timber, 0.46, 0.1, gw+0.24, cx+s*(halfR-0.16), gy+gh/2+0.05, cz); kit.box(P.timber, 0.46, 0.1, gw+0.24, cx+s*(halfR-0.16), gy-gh/2-0.05, cz); kit.box(P.timber, 0.46, gh+0.2, 0.1, cx+s*(halfR-0.16), gy, cz-gw/2-0.07); kit.box(P.timber, 0.46, gh+0.2, 0.1, cx+s*(halfR-0.16), gy, cz+gw/2+0.07); }
+      }
     }
   }
   /* ridge: beam under the slabs, cap board over them */
@@ -2781,6 +2893,60 @@ function roofAssembly(kit, P, cx, cz, R){
 function roofProfile(kind, span, rh, eaveDrop){
   if(kind==='long') return [{c:span, y:-eaveDrop},{c:span*0.5, y:rh*0.68},{c:0, y:rh}];
   return [{c:span, y:-eaveDrop},{c:0, y:rh}];
+}
+/* hip roof ("acoperiș în patru ape"): four slopes, ridge shortened by the hip run, caps on ridge and hips.
+   u runs along the ridge, v across it; the mapping to x/z follows R.alongZ like the gable roof. */
+function roofHip(kit, P, cx, cz, R){
+  var halfR=R.ridgeLen/2+R.ov, halfC=R.crossLen/2+R.ov, ye=R.yTop-0.34, yr=R.yTop+R.rh, th=R.th;
+  var rHalf=Math.max(0, halfR-halfC); if(rHalf<0.4) rHalf=0;
+  var aZ=R.alongZ, s, i, k;
+  function L(u,v,y){ return aZ?[v,y,u]:[u,y,v]; }                 /* local offsets from (cx,cz) */
+  function bx(m,lu,h,lv,u,y,v,ru,rv){                            /* box: lu along the ridge, lv across; ru = tilt about the ridge axis, rv = tilt about the cross axis */
+    if(aZ) kit.box(m, lv, h, lu, cx+v, y, cz+u, 0, rv||0, -(ru||0)); else kit.box(m, lu, h, lv, cx+u, y, cz+v, 0, ru||0, -(rv||0));
+  }
+  var angC=Math.atan2(yr-ye, halfC), angE=Math.atan2(yr-ye, halfR-rHalf);
+  kit.at(cx,0,cz);
+  for(s=-1;s<=1;s+=2){
+    /* long slopes (trapezoids) and their undersides */
+    kit.quad(P.roof, L(-s*halfR,s*halfC,ye), L(s*halfR,s*halfC,ye), L(s*rHalf,0,yr), L(-s*rHalf,0,yr));
+    kit.quad(P.roof2, L(-s*rHalf,0,yr-th), L(s*rHalf,0,yr-th), L(s*halfR,s*halfC,ye-th), L(-s*halfR,s*halfC,ye-th));
+    /* hip ends (triangles) */
+    kit.tri(P.roof, L(s*halfR,s*halfC,ye), L(s*halfR,-s*halfC,ye), L(s*rHalf,0,yr));
+    kit.tri(P.roof2, L(s*rHalf,0,yr-th), L(s*halfR,-s*halfC,ye-th), L(s*halfR,s*halfC,ye-th));
+  }
+  /* fascia boards and rafter tails on all four eaves */
+  for(s=-1;s<=1;s+=2){
+    bx(P.timber, 2*halfR+0.14, 0.3, 0.15, 0, ye-0.05, s*halfC);
+    bx(P.timber, 0.15, 0.3, 2*halfC+0.14, s*halfR, ye-0.05, 0);
+    for(var u=-halfR+0.9;u<halfR-0.6;u+=1.5) bx(P.timber, 0.13, 0.13, 0.6, u, ye-0.17, s*(halfC-0.28));
+    for(var v=-halfC+0.9;v<halfC-0.6;v+=1.5) bx(P.timber, 0.6, 0.13, 0.13, s*(halfR-0.28), ye-0.17, v);
+  }
+  /* courses: shingle lines (or thatch brows) shortened toward the top on every face */
+  var nC=R.thatch?2:3, den=R.thatch?3:3.6;
+  for(k=1;k<=nC;k++){
+    var f=k/den, y=ye+(yr-ye)*f;
+    var lu=2*(halfR-f*(halfR-rHalf)), lv=2*halfC*(1-f);
+    for(s=-1;s<=1;s+=2){
+      bx(P.roof2, lu*0.98, R.thatch?0.09:0.07, 0.42, 0, y+0.07, s*halfC*(1-f), s*angC, 0);
+      bx(P.roof2, 0.42, R.thatch?0.09:0.07, lv*0.98, s*(halfR-f*(halfR-rHalf)), y+0.07, 0, 0, s*angE);
+    }
+  }
+  if(R.thatch){
+    for(s=-1;s<=1;s+=2){ bx(P.roof2, 2*halfR+0.2, 0.36, 0.36, 0, ye+0.13, s*halfC); bx(P.roof2, 0.36, 0.36, 2*halfC+0.2, s*halfR, ye+0.13, 0); }
+  }
+  /* ridge and hip caps */
+  if(rHalf>0){
+    bx(P.timber, 2*rHalf+0.2, 0.16, 0.26, 0, yr-0.05, 0);
+    if(R.thatch){ if(aZ) kit.cyln(P.roof2, 0.32, 0.32, 2*rHalf+0.5, 8, cx, yr+0.18, cz, 0, Math.PI/2, 0); else kit.cyln(P.roof2, 0.32, 0.32, 2*rHalf+0.5, 8, cx, yr+0.18, cz, 0, 0, Math.PI/2); }
+    else bx(P.trim, 2*rHalf+0.36, 0.14, 0.5, 0, yr+0.06, 0);
+  } else { kit.pyr(P.trim, 0.42, 0.5, 4, cx, yr+0.2, cz, Math.PI/4); }
+  for(s=-1;s<=1;s+=2) for(var e=-1;e<=1;e+=2){
+    var a=L(s*rHalf,0,yr), b=L(s*halfR,e*halfC,ye);
+    var dx=b[0]-a[0], dy=b[1]-a[1], dz=b[2]-a[2], hl=Math.hypot(dx,dz), len=Math.hypot(hl,dy);
+    var ry=Math.atan2(dx,dz), rx=Math.atan2(-dy,hl);
+    if(R.thatch) kit.cyln(P.roof2, 0.22, 0.22, len+0.2, 7, cx+(a[0]+b[0])/2, (a[1]+b[1])/2+0.08, cz+(a[2]+b[2])/2, ry, rx+Math.PI/2, 0);
+    else kit.box(P.trim, 0.34, 0.12, len+0.2, cx+(a[0]+b[0])/2, (a[1]+b[1])/2+0.06, cz+(a[2]+b[2])/2, ry, rx, 0);
+  }
 }
 
 /* ============================================================
@@ -2803,25 +2969,45 @@ function structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW){
   run('z',cz-d/2,cz+d/2,cx+(w/2+0.09),y0+h1,h2,0.46);
 }
 function structPosts(kit,P,cx,cz,w,d,y0,yTop,t,studs){
-  var i,u,n;
-  for(i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2)
-    kit.box(P.timber, 0.36, yTop-y0, 0.36, cx+i*(w/2-t/2), y0+(yTop-y0)/2, cz+j*(d/2-t/2));
-  function band(y,hgt,thick){
-    kit.box(P.timber, w, hgt, thick, cx, y, cz+(d/2-t/2));
-    kit.box(P.timber, w, hgt, thick, cx, y, cz-(d/2-t/2));
-    kit.box(P.timber, thick, hgt, d-2*t, cx+(w/2-t/2), y, cz);
-    kit.box(P.timber, thick, hgt, d-2*t, cx-(w/2-t/2), y, cz);
+  /* corner posts, proud of the wall face on both sides of the corner */
+  for(var i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2)
+    kit.box(P.timber, 0.4, yTop-y0-0.1, 0.4, cx+i*(w/2-0.1), y0+(yTop-y0)/2, cz+j*(d/2-0.1));
+  function band(y,hgt){
+    kit.box(P.timber, w+0.16, hgt, 0.14, cx, y, cz+(d/2+0.02));
+    kit.box(P.timber, w+0.16, hgt, 0.14, cx, y, cz-(d/2+0.02));
+    kit.box(P.timber, 0.14, hgt, d+0.16, cx+(w/2+0.02), y, cz);
+    kit.box(P.timber, 0.14, hgt, d+0.16, cx-(w/2+0.02), y, cz);
   }
-  band(y0+0.78, 0.2, t+0.09);
-  band(yTop-0.24, 0.22, t+0.09);
-  if(!studs) return;
-  n=Math.max(2,Math.floor(w/2.0));
-  for(i=0;i<n;i++){
-    u=cx-w/2+(i+0.5)*(w/n);
-    if(Math.abs(u-cx)<1.0) continue;
-    kit.box(P.timber, 0.16, yTop-y0-1.1, t*0.5, u, y0+(yTop-y0)/2, cz+(d/2-t/2-0.03));
-    kit.box(P.timber, 0.16, yTop-y0-1.1, t*0.5, u, y0+(yTop-y0)/2, cz-(d/2-t/2-0.03));
+  band(y0+0.78, 0.2);
+  band(yTop-0.24, 0.22);
+}
+/* studs and corner braces of one wall, placed only in the solid stretches between openings (half-timbering).
+   sp = the wall run spec, holes = its openings, f = outward side. */
+function wallStuds(kit,P,sp,holes,f,braces){
+  var t=sp.t, off=f*(t/2+0.03), yb=sp.y0+0.9, yt=sp.top-0.36, h=yt-yb, i;
+  if(h<0.8) return;
+  var edges=[sp.a0+0.2];
+  holes.slice().sort(function(a,b){ return a.c-b.c; }).forEach(function(hh){ edges.push(hh.c-hh.w/2-0.3, hh.c+hh.w/2+0.3); });
+  edges.push(sp.a1-0.2);
+  for(i=0;i<edges.length;i+=2){
+    var a=edges[i], b=edges[i+1], L=b-a; if(L<0.7) continue;
+    var n=L>3.2?2:1, k;
+    for(k=0;k<n;k++){ var u=a+L*(k+1)/(n+1); wallBox(kit,P.timber,sp.axis,u,sp.cross,off,(yb+yt)/2, 0.15, h, 0.12); }
+    /* a diagonal brace in the corner panels */
+    if(braces && L>1.5 && h>1.4 && (i===0 || i===edges.length-2)){
+      var corner=(i===0)?a:b, dir=(i===0)?1:-1, bl=Math.min(1.5, L-0.3), bu=corner+dir*bl/2, by=yb+0.75;
+      var ang=Math.atan2(bl, 1.3)*dir;
+      if(sp.axis==='x') kit.box(P.timber, 0.14, Math.hypot(bl,1.3), 0.12, bu, by, sp.cross+off, 0, 0, -ang);
+      else kit.box(P.timber, 0.12, Math.hypot(bl,1.3), 0.14, sp.cross+off, by, bu, 0, ang, 0);
+    }
   }
+}
+/* plastered houses: a painted band (brâu) below the windows and stone quoins at the corners */
+function wallBand(kit,P,cx,cz,w,d,y0,yTop){
+  var y=y0+0.95;
+  kit.box(P.trim, w+0.2, 0.16, 0.12, cx, y, cz+(d/2+0.02)); kit.box(P.trim, w+0.2, 0.16, 0.12, cx, y, cz-(d/2+0.02));
+  kit.box(P.trim, 0.12, 0.16, d+0.2, cx+(w/2+0.02), y, cz); kit.box(P.trim, 0.12, 0.16, d+0.2, cx-(w/2+0.02), y, cz);
+  for(var i=-1;i<=1;i+=2) for(var j=-1;j<=1;j+=2) kit.box(P.stone, 0.34, yTop-y0-0.3, 0.34, cx+i*(w/2-0.09), y0+(yTop-y0)/2-0.1, cz+j*(d/2-0.09));
 }
 function structChimney(kit,P,cx,cz,R,u,thatch){
   var yTop=R.yTop, top=yTop+R.rh+(thatch?0.8:0.66), w=thatch?0.95:0.84;
@@ -2837,6 +3023,7 @@ function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   for(s=-1;s<=1;s+=2){
     kit.box(P.timber, 0.24, hh, 0.24, cx+s*(pw/2-0.12), y0+hh/2, fz+doorS*(sw-0.22));
     kit.box(P.timber, 0.16, 0.36, sw+0.24, cx+s*(pw/2-0.12), y0+hh+0.16, fz+doorS*(sw/2-0.1));
+    kit.collider(cx+s*(pw/2-0.12)-0.12, fz+doorS*(sw-0.22)-0.12, cx+s*(pw/2-0.12)+0.12, fz+doorS*(sw-0.22)+0.12);
   }
   kit.box(P.roof, pw+0.55, 0.16, sw+0.55, cx, y0+hh+0.32, fz+doorS*(sw/2-0.05), 0, doorS*0.22);
   kit.box(P.timber, pw+0.55, 0.15, 0.15, cx, y0+hh+0.26, fz+doorS*(sw+0.2));
@@ -2853,6 +3040,58 @@ function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   kit.box(P.stone, doorW+1.4, 0.16, 0.5, cx, y0+0.16, fz+doorS*(sw+0.82));
 }
 
+/* the prispă: a roofed gallery along the whole door wall — deck, carved posts, railing, lean-to roof, steps */
+function structPrispa(kit,P,cx,cz,w,d,y0,yTop,t,doorW,rng){
+  var fz=cz+d/2, depth=1.8, pw=w+0.5, deckY=y0+0.22, i, k;
+  kit.box(P.stone, pw+0.2, 0.3, depth+0.2, cx, y0+0.02, fz+depth/2);
+  kit.box(P.timber, pw, 0.1, depth, cx, deckY-0.05, fz+depth/2);
+  var eaveY=yTop-0.34, postZ=fz+depth-0.2, rlen=postZ+0.55-(fz-0.15), drop=0.36;
+  var beamY=eaveY-drop-0.32, postH=beamY-deckY-0.1;
+  /* bays: the door bay in the middle, then ~2.2u bays either side */
+  var xs=[cx-doorW/2-0.55, cx+doorW/2+0.55];
+  for(var side=-1;side<=1;side+=2){
+    var edge=cx+side*(pw/2-0.12), from=cx+side*(doorW/2+0.55), L=Math.abs(edge-from), n=Math.max(1,Math.round(L/2.2));
+    for(i=1;i<=n;i++) xs.push(from+side*(L*i/n));
+  }
+  xs.sort(function(a,b){ return a-b; });
+  xs.forEach(function(u){
+    kit.box(P.timber, 0.22, postH, 0.22, u, deckY+postH/2, postZ);
+    kit.box(P.trim, 0.34, 0.14, 0.34, u, deckY+postH+0.07, postZ);
+    kit.box(P.timber, 0.16, 0.16, 0.7, u, deckY+postH-0.12, postZ-0.25, 0, -0.5);
+    if(Math.abs(u-cx)<doorW/2+0.7) kit.collider(u-0.11, postZ-0.11, u+0.11, postZ+0.11);   /* the door-bay posts; the railings cover the others */
+  });
+  kit.box(P.timber, pw+0.3, 0.2, 0.22, cx, beamY, postZ);
+  var ang=Math.atan2(drop, rlen);
+  kit.box(P.roof, pw+0.8, 0.13, Math.hypot(rlen,drop), cx, eaveY-0.1-drop/2, (fz-0.15+postZ+0.55)/2, 0, ang);
+  kit.box(P.roof2, pw*0.98, 0.06, 0.4, cx, eaveY-0.1-drop*0.8+0.05, postZ+0.2, 0, ang);
+  kit.box(P.timber, pw+0.8, 0.18, 0.12, cx, eaveY-0.18-drop, postZ+0.6);
+  /* railing in every bay but the door bay */
+  for(i=0;i<xs.length-1;i++){
+    var a=xs[i], b=xs[i+1]; if(a<cx && b>cx) continue;
+    var mid=(a+b)/2, L2=b-a-0.22; if(L2<0.3) continue;
+    kit.box(P.timber, L2, 0.1, 0.1, mid, deckY+0.98, postZ);
+    kit.box(P.timber, L2, 0.08, 0.08, mid, deckY+0.42, postZ);
+    var nb=Math.max(1,Math.floor(L2/0.36));
+    for(k=0;k<nb;k++) kit.box(P.trim, 0.07, 0.5, 0.07, a+0.11+(k+0.5)*(L2/nb), deckY+0.7, postZ);
+    kit.collider(a, postZ-0.06, b, postZ+0.06);
+  }
+  for(var sx=-1;sx<=1;sx+=2){
+    var ex=cx+sx*(pw/2-0.12);
+    kit.box(P.timber, 0.1, 0.1, depth-0.5, ex, deckY+0.98, fz+depth/2-0.15); kit.box(P.timber, 0.08, 0.08, depth-0.5, ex, deckY+0.42, fz+depth/2-0.15);
+    for(k=0;k<3;k++) kit.box(P.trim, 0.07, 0.5, 0.07, ex, deckY+0.7, fz+0.3+k*0.45);
+    kit.collider(ex-0.06, fz, ex+0.06, postZ);
+  }
+  /* steps out of the door bay, and a bench on the deck beside the door */
+  kit.box(P.stone, doorW+1.0, 0.14, 0.5, cx, deckY-0.09, postZ+0.45);
+  kit.box(P.stone, doorW+1.4, 0.1, 0.5, cx, y0+0.05, postZ+0.9);
+  if(rng()<0.7 && w>5.5) structBench(kit,P,cx+(rng()<0.5?-1:1)*(doorW/2+1.1),deckY,fz+0.32,w);
+}
+/* a little wooden bench (băncuță) against the door wall */
+function structBench(kit,P,u,y,z,w){
+  kit.box(P.timber, 1.3, 0.07, 0.36, u, y+0.46, z);
+  kit.box(P.timber, 0.08, 0.44, 0.3, u-0.55, y+0.22, z); kit.box(P.timber, 0.08, 0.44, 0.3, u+0.55, y+0.22, z);
+  kit.collider(u-0.65, z-0.18, u+0.65, z+0.18);
+}
 /* extras: log courses, buttresses, battlements, corner tower, dome, arcade, hanging sign */
 function structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng){
   var i, s, h=yTop-y0;
@@ -2950,6 +3189,7 @@ function structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS){
   /* altar apse at the far end */
   kit.cyln(P.wall, ar, ar+0.1, ah, 12, cx, gy+ah/2, cz-doorS*(d/2+ar*0.55));
   kit.cyln(P.roof, 0.12, ar+0.25, ar*0.9, 12, cx, gy+ah+ar*0.45, cz-doorS*(d/2+ar*0.55));
+  kit.collider(cx-ar, cz-doorS*(d/2+ar*0.55)-ar, cx+ar, cz-doorS*(d/2+ar*0.55)+ar);   /* the apse is a wall too */
   /* portal: arch and a round window over the door */
   var fz=cz+doorS*(d/2+0.02), dw=clamp(w*0.14,1.6,3.2)+0.9, dh=clamp(o.h*0.36,2.4,4.6);
   kit.box(P.stone, dw+0.9, 0.35, 0.5, cx, gy+dh+0.45, fz);
@@ -3007,11 +3247,11 @@ function structShell(o){
   var church=(o.roof==='church'), grand=(w>=18||h>=9);
   var doorW=(o.doorW!==undefined)?o.doorW:(church||grand)?clamp(w*0.14, 1.6, 3.2):clamp(Math.min(1.55, w*0.3), 1.15, 2.4);
   var doorH=o.doorH||((church||grand)?clamp(h*0.36, 2.4, 4.6):clamp(h-1.0, 1.95, 2.5));
-  var thatch=(style==='thatch');
-  var ov=thatch?0.8:0.6, rake=0.44, th=thatch?0.42:0.22;
-  var rh=(o.rh!==undefined)?o.rh:Math.max(0.9,(crossLen/2+ov)*(thatch?0.84:0.7));
+  var thatch=(style==='thatch'||style==='hipthatch'), hip=(style==='hip'||style==='hipthatch');
+  var ov=thatch?0.8:(hip?0.75:0.6), rake=0.44, th=thatch?0.42:0.22;
+  var rh=(o.rh!==undefined)?o.rh:Math.max(0.9,(crossLen/2+ov)*(thatch?0.84:(hip?0.62:0.7)));
   var R={yTop:yTop, ridgeLen:ridgeLen, crossLen:crossLen, alongZ:alongZ,
-         rh:rh, ov:ov, rake:rake, th:th, thatch:thatch,
+         rh:rh, ov:ov, rake:rake, th:th, thatch:thatch, gableWin:o.gableWin,
          profile:roofProfile(style, crossLen/2+ov, rh, 0.34)};
   var frontIn=cz+doorS*(d/2-t/2), backIn=cz-doorS*(d/2-t/2);
   var wallOpt={sill:o.sill||(church?1.9:grand?1.4:1.15), winH:o.winH||(church?clamp(h*0.42,1.6,3.4):grand?1.5:1.15), winW:o.winW||(church?1.1:0.95),
@@ -3019,7 +3259,10 @@ function structShell(o){
   var i, holes, sp;
 
   kit.box(P.floor, w+0.5, 0.24, d+0.5, cx, gy+0.1, cz);
+  /* foundation skirt: reaches down into sloping ground so no house floats on a hillside */
+  kit.box(P.stone, w+0.5, 1.4, d+0.5, cx, y0-0.45, cz);
   structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW);
+  var framed=o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log' && o.style!=='plaster';
 
   /* ---- four walls, each with real openings; tall buildings get a second row of windows ---- */
   var two=(o.floors>=2 && h>=5.4), ySplit=two?y0+h*0.52:yTop;
@@ -3030,11 +3273,13 @@ function structShell(o){
     var spl={axis:axis, a0:a0, a1:a1, cross:cross, y0:y0, top:lowTop, t:t, holes:hl, f:f, leaf:o.leaf, pane:o.pane!==null};
     wallRun(kit,P.wall,spl);
     for(var k=0;k<hl.length;k++) openingTrim(kit,P,spl,hl[k],rng);
+    if(framed) wallStuds(kit,P,spl,hl,f,o.timberFrame||o.braces);
     if(two){
       var hu=noWin?[]:wallHoles(a0,a1,0,ySplit,yTop,{sill:0.75,winH:Math.min(wallOpt.winH,yTop-ySplit-1.3),winW:wallOpt.winW*0.9,maxWin:Math.max(maxWin,3)});
       var spu={axis:axis, a0:a0, a1:a1, cross:cross, y0:ySplit, top:yTop, t:t, holes:hu, f:f, pane:o.pane!==null};
       wallRun(kit,P.wall,spu);
       for(var k2=0;k2<hu.length;k2++) openingTrim(kit,P,spu,hu[k2],rng);
+      if(framed) wallStuds(kit,P,spu,hu,f,o.timberFrame||o.braces);
       /* floor band between storeys */
       if(axis==='x') kit.box(P.timber, a1-a0, 0.22, t+0.12, (a0+a1)/2, ySplit, cross); else kit.box(P.timber, t+0.12, 0.22, a1-a0, cross, ySplit, (a0+a1)/2);
     }
@@ -3044,7 +3289,8 @@ function structShell(o){
   for(var sx=-1;sx<=1;sx+=2){
     wallWithRows('z', cz-d/2+t, cz+d/2-t, cx+sx*(w/2-t/2), sx, 0, o.windows===false, clamp(Math.round(d/4.2),1,5));
   }
-  structPosts(kit,P,cx,cz,w,d,y0,yTop,t,o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log');
+  if(framed) structPosts(kit,P,cx,cz,w,d,y0,yTop,t,true);
+  else if(o.style==='plaster' || (o.band && !church)) wallBand(kit,P,cx,cz,w,d,y0,yTop);
   structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng);
 
   /* ---- roof ---- */
@@ -3058,8 +3304,9 @@ function structShell(o){
     kit.box(P.trim, 0.22, 0.3, d+0.9, cx-(w/2+0.28), yTop+0.4, cz);
     if(o.chimney!==false) structChimney(kit,P,cx,cz,{yTop:yTop,rh:0.4,alongZ:false},0,false);
   } else {
-    roofAssembly(kit,P,cx,cz,R);
+    if(hip) roofHip(kit,P,cx,cz,R); else roofAssembly(kit,P,cx,cz,R);
     if(o.chimney!==false) structChimney(kit,P,cx,cz,R,ridgeLen*0.29,thatch);
+    if(o.chimney!==false && o.chimney2) structChimney(kit,P,cx,cz,R,-ridgeLen*0.29,thatch);
     if(style==='church') structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS);
     if(style==='long'){
       for(var s2=-1;s2<=1;s2+=2){
@@ -3071,9 +3318,13 @@ function structShell(o){
     }
   }
 
-  /* ---- porch: the Moldavian pridvor ---- */
-  var wantPorch=o.porch!==false && !o.arcade && (style==='gable'||style==='thatch'||style==='hall');
-  if(wantPorch) structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,o.porch);
+  /* ---- porch: the full-length prispă, or the small pridvor over the door ---- */
+  if(o.prispa && !o.arcade){ structPrispa(kit,P,cx,cz,w,d,y0,yTop,t,doorW,rng); }
+  else {
+    var wantPorch=o.porch!==false && !o.arcade && (style==='gable'||style==='thatch'||style==='hall'||style==='hip'||style==='hipthatch');
+    if(wantPorch) structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,o.porch);
+    if(o.bench && w>5.5) structBench(kit,P,cx+(rng()<0.5?-1:1)*(doorW/2+1.2+(wantPorch?0.6:0)),y0,cz+d/2+0.25,w);
+  }
 
   var meshes=0;
   if(own && !o.deferFlush){ meshes=kit.flush(o.parent||PROP_PARENT||scene); kit.frame(0,0,0); }
@@ -3108,37 +3359,6 @@ function doorPoint(o,out){
 /* world footprint half sizes */
 function shellHalf(o){ var side=o.door||'S'; var e=(side==='E'||side==='W'); return {hx:e?o.d/2:o.w/2, hz:e?o.w/2:o.d/2}; }
 
-/* Unit triangular prism used by the instanced settlement roofs:
-   base 1x1 in X/Z, apex on the centre line, ridge along X. */
-function gablePrismGeometry(){
-  var A=[-0.5,-0.5,0.5], B=[-0.5,-0.5,-0.5], C=[-0.5,0.5,0],
-      D=[0.5,-0.5,0.5], E=[0.5,-0.5,-0.5], F=[0.5,0.5,0], p=[];
-  [[A,C,B],[D,E,F],[A,B,E],[A,E,D],[A,D,F],[A,F,C],[E,B,C],[E,C,F]].forEach(function(t){
-    for(var i=0;i<3;i++) p.push(t[i][0], t[i][1], t[i][2]);
-  });
-  var g=new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-  g.computeVertexNormals();
-  return g;
-}
-
-/* ============================================================
-   9. Mid-tier structure: full silhouette, no interior
-   ============================================================ */
-function buildSolidStructure(x,z,w,d,h,wallCol,roofCol,roof,opts){
-  opts=opts||{};
-  var shell={x:x, z:z, w:w, d:d, h:h, wall:wallCol, roofCol:roofCol, roof:roof||'gable',
-             door:opts.door||'S', windows:true, porch:false, studs:false, leaf:false,
-             chimney:opts.chimney!==false, seed:opts.seed, maxWin:1};
-  if(roof==='flat') shell.rh=0;
-  var r=structShell(shell);
-  r.kit.frame(0,0,0);
-  var hh=shellHalf(shell);
-  addCollider(x-hh.hx, z-hh.hz, x+hh.hx, z+hh.hz);
-  BUILD_COUNT++;
-  regStructure({name:opts.name||'', kind:opts.kind||'solid', x:x, z:z, hx:hh.hx, hz:hh.hz, door:null, enterable:false});
-  return r;
-}
 
 
 // SOURCE: src/buildings/furniture.js
@@ -3254,6 +3474,7 @@ function fShelf(kit,x,y,z,w,ry,fill,tall){
       else if(fill==='spice'){ kit.cyln([F.spice,F.spice2,F.herb][i%3], 0.09, 0.11, 0.2, 7, px, yy+0.12, pz); }
       else if(fill==='armor'){ if(i%2) kit.box(F.steel, 0.2, 0.28, 0.16, px, yy+0.16, pz, ry); }
       else if(fill==='bones'){ if(i%2) kit.cyln(F.bone, 0.04, 0.05, 0.3, 5, px, yy+0.05, pz, 0, 0, Math.PI/2); else kit.cyln(F.bone,0.1,0.1,0.14,6,px,yy+0.08,pz); }
+      else if(fill==='tools'){ if(i%3===0) kit.box(F.iron, 0.05, 0.3, 0.14, px, yy+0.16, pz, ry); else if(i%3===1) kit.cyln(F.oak, 0.05, 0.05, 0.3, 5, px, yy+0.16, pz); else kit.box([F.copper,F.glass][i%2], 0.16, 0.18, 0.16, px, yy+0.1, pz, ry); }
     }
   }
   var hx=Math.abs(w/2*c)+Math.abs(0.2*s), hz=Math.abs(w/2*s)+Math.abs(0.2*c);
@@ -4103,6 +4324,13 @@ addInterior('smokehouse', function(kit,o,y,cx,cz,hw,hd,F){
   kit.collider(cx-0.8,cz-hd*0.4-0.8,cx+0.8,cz-hd*0.4+0.8);
   fBarrel(kit,cx-hw+0.5,y,cz+hd-0.6); fSack(kit,cx+hw-0.6,y,cz+hd-0.6,F.ash);
 });
+/* a yard shed: tools, a barrel, sacks and herbs — the smallest furnished room in the world */
+addInterior('shed', function(kit,o,y,cx,cz,hw,hd,F){
+  fBarrel(kit,cx-hw+0.45,y,cz-hd+0.45,false); fSack(kit,cx+hw-0.45,y,cz-hd+0.4,F.straw); fSack(kit,cx+hw-0.95,y,cz-hd+0.5,F.hay);
+  fShelf(kit,cx-hw*0.2,y,cz-hd+0.2,Math.min(hw*1.4,2.2),FACE.back,'tools');
+  fRack(kit,cx-hw+0.2,y,cz+hd*0.2,FACE.left,'axe'); fHerbs(kit,cx+hw*0.3,y+2.0,cz-hd*0.2,3,0);
+  fCrate(kit,cx+hw-0.55,y,cz+hd-0.6,0.6);
+});
 addInterior('cellar', function(kit,o,y,cx,cz,hw,hd,F){
   var i;
   for(i=0;i<Math.floor((hd*2-1)/1.0);i++){ fBarrel(kit,cx-hw+0.5,y,cz-hd+0.6+i*1.0,true); if(hw>2.6) fBarrel(kit,cx+hw-0.5,y,cz-hd+0.6+i*1.0,i%2===0); }
@@ -4423,6 +4651,242 @@ var RBL_KITS={
 };
 
 
+// SOURCE: src/buildings/prefabs.js
+/* ============================================================
+   prefabs.js — instanced vernacular buildings for the countryside
+   ------------------------------------------------------------
+   The old hamlet and farmstead houses were instanced boxes with a
+   prism on top: no door you could open, painted windows, nothing
+   inside. This module builds REAL houses once, through the same
+   kit as every named building (structShell + a furnished interior
+   from interiors.js), captures everything the build produced —
+   merged geometry, colliders, the hinged door leaf, hearth and lamp
+   lights, chimney, the structure record — and then stamps thousands
+   of instances across the map with THREE.InstancedMesh, one draw
+   call per prefab per 375u cell.
+
+   Every instance is a full building: walls collide, the door is the
+   only way in (and swings open like any other), windows glow at
+   night, the chimney smokes, and the interior is furnished.
+
+   Capture works by setting PREFAB_REC: addCollider, regLight,
+   regChimney, regStructure, spawnDoorLeaf and addFlame record into
+   it instead of touching the world (see the hooks in collision.js,
+   registry.js, architecture.js, primitives.js).
+   ============================================================ */
+var PREFAB_REC=null;
+var PREFAB_DEFS={}, PREFAB_CACHE={};
+var PREFAB_CELLS=new Map();
+var PREFAB_MAT=new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide});
+var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
+var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
+
+/* ---- capture: build once at the origin, keep what it produced ---- */
+function prefabCapture(key, fn){
+  var kit=kitCreate();
+  var rec={col:[], doors:[], chim:[], lights:[], flames:[], structs:[], anim:ANIM_PARTS.length, build:BUILD_COUNT, rbl:JSON.stringify(RBL_STATS)};
+  var prevKit=SITE_KIT, prevParent=PROP_PARENT, prevFlush=null;
+  SITE_KIT=kit; PROP_PARENT=new THREE.Group(); PREFAB_REC=rec;
+  var gy=groundH(0,0), extra=null;
+  try { extra=fn(kit, gy)||null; }
+  finally { PREFAB_REC=null; SITE_KIT=prevKit; PROP_PARENT=prevParent; }
+  ANIM_PARTS.length=rec.anim; BUILD_COUNT=rec.build; RBL_STATS=JSON.parse(rec.rbl);
+  var g=kit.exportGeo(gy), i;
+  for(i=0;i<rec.doors.length;i++) rec.doors[i].y-=gy;
+  for(i=0;i<rec.chim.length;i++) rec.chim[i].y-=gy;
+  for(i=0;i<rec.lights.length;i++) rec.lights[i].y-=gy;
+  for(i=0;i<rec.flames.length;i++) rec.flames[i].y-=gy;
+  var S=rec.structs[0]||null;
+  var pf={key:key, body:g.body, panes:g.panes, tris:g.tris, col:rec.col, doors:rec.doors, chim:rec.chim, lights:rec.lights, flames:rec.flames,
+          struct:S, hx:S?S.hx:(extra&&extra.hx)||1, hz:S?S.hz:(extra&&extra.hz)||1, rbl:extra&&extra.rbl||null, name:extra&&extra.name||(S&&S.name)||key};
+  PREFAB_STATS.defs++; PREFAB_STATS.tris+=g.tris;
+  return pf;
+}
+function prefabGet(key){
+  if(PREFAB_CACHE[key]) return PREFAB_CACHE[key];
+  var def=PREFAB_DEFS[key]; if(!def){ var m=/^([a-z_]+)\.([a-z]+)(\d+)$/.exec(key); if(m) def=prefabHouseDef(m[1],m[2],+m[3]); }
+  if(!def) return null;
+  PREFAB_CACHE[key]=prefabCapture(key, def);
+  return PREFAB_CACHE[key];
+}
+
+/* ---- instances ---- */
+function prefabRot(face){ return face==='E'?1:face==='N'?2:face==='W'?3:0; }
+function prefabXZ(x,z,r){ return r===1?[z,-x]:r===2?[-x,-z]:r===3?[-z,x]:[x,z]; }
+function prefabCellOf(x,z){
+  var k=cellKey(x,z), c=PREFAB_CELLS.get(k);
+  if(!c){ c={key:k, items:new Map(), flames:[], doors:[], x:x, z:z}; PREFAB_CELLS.set(k,c); }
+  return c;
+}
+/* place an instance; face = side the door looks toward ('S' = +z). Returns the structure record or null. */
+function prefabPlace(key, x, z, face, opts){
+  opts=opts||{};
+  var pf=prefabGet(key); if(!pf) return null;
+  var r=prefabRot(face), a=r*Math.PI/2;
+  var hx=(r%2)?pf.hz:pf.hx, hz=(r%2)?pf.hx:pf.hz;
+  var gy=(opts.y!==undefined)?opts.y:groundH(x,z), i;
+  if(!opts.force){
+    var hs=[groundH(x-hx,z-hz),groundH(x+hx,z-hz),groundH(x-hx,z+hz),groundH(x+hx,z+hz)];
+    if(Math.max.apply(null,hs)-Math.min.apply(null,hs)>(opts.maxSlope||1.6)) return null;
+  }
+  /* colliders: local boxes turned by quarter turns stay axis-aligned */
+  for(i=0;i<pf.col.length;i++){
+    var c=pf.col[i], p=prefabXZ(c[0],c[1],r), q=prefabXZ(c[2],c[3],r);
+    addCollider(x+Math.min(p[0],q[0]), z+Math.min(p[1],q[1]), x+Math.max(p[0],q[0]), z+Math.max(p[1],q[1]));
+  }
+  var cell=prefabCellOf(x,z);
+  var list=cell.items.get(key); if(!list){ list=[]; cell.items.set(key,list); }
+  var m=new THREE.Matrix4(); m.compose(new THREE.Vector3(x,gy,z), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,a), PREFAB_ONE);
+  list.push(m);
+  /* the door leaf becomes an instance of the shared leaf; DOORS drives it like any hinged door */
+  for(i=0;i<pf.doors.length;i++){
+    var D=pf.doors[i], hp=prefabXZ(D.hx,D.hz,r), cp=prefabXZ(D.cx,D.cz,r);
+    var E={g:null, im:null, idx:cell.doors.length, cell:cell, hx:x+hp[0], hz:z+hp[1], hy:gy+D.y, base:D.ang+a, x:x+cp[0], z:z+cp[1], open:0, w:D.w, hh:D.hh, swing:D.swing, rot:D.ang+a};
+    cell.doors.push(E); DOORS.push(E);
+  }
+  for(i=0;i<pf.chim.length;i++){ var C=pf.chim[i], cq=prefabXZ(C.x,C.z,r); regChimney(x+cq[0], gy+C.y, z+cq[1], C.rate); }
+  for(i=0;i<pf.lights.length;i++){ var L=pf.lights[i], lq=prefabXZ(L.x,L.z,r); regLight(x+lq[0], gy+L.y, z+lq[1], L.color, L.base, L.dist, L.flicker); }
+  for(i=0;i<pf.flames.length;i++){ var F=pf.flames[i], fq=prefabXZ(F.x,F.z,r); cell.flames.push({x:x+fq[0], y:gy+F.y, z:z+fq[1], s:F.s}); }
+  var S=null;
+  if(pf.struct){
+    var st=pf.struct, dq=prefabXZ(st.door.x,st.door.z,r), bq=st.back?prefabXZ(st.back.x,st.back.z,r):null;
+    S=regStructure({name:opts.name||pf.name, kind:st.kind, x:x, z:z, hx:hx, hz:hz, door:{x:x+dq[0], z:z+dq[1]}, back:bq?{x:x+bq[0], z:z+bq[1]}:null, dw:st.dw, enterable:true, fac:null, prefab:key});
+    BUILD_COUNT++; PREFAB_STATS.houses++;
+    if(pf.rbl) rblCount(pf.rbl);
+  }
+  PREFAB_STATS.instances++; PREFAB_STATS.byKey[key]=(PREFAB_STATS.byKey[key]||0)+1;
+  return S||{x:x, z:z, hx:hx, hz:hz};
+}
+/* the matrix of an instanced door leaf: hinge, swing angle, leaf size */
+function prefabDoorMatrix(E, out){
+  out.compose(new THREE.Vector3(E.hx,E.hy,E.hz), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,E.rot), new THREE.Vector3(E.w-0.12,E.hh-0.06,1));
+  return out;
+}
+/* turn every cell's instance lists into InstancedMeshes (called once, after the countryside is placed) */
+function prefabFlush(){
+  var tmp=new THREE.Matrix4(), made=0;
+  PREFAB_CELLS.forEach(function(cell){
+    var g=propCell(cell.x,cell.z);
+    cell.items.forEach(function(list,key){
+      var pf=PREFAB_CACHE[key], i;
+      if(pf.body){ var im=new THREE.InstancedMesh(pf.body, PREFAB_MAT, list.length); for(i=0;i<list.length;i++) im.setMatrixAt(i,list[i]); im.instanceMatrix.needsUpdate=true; im.frustumCulled=false; im.castShadow=true; im.receiveShadow=true; im.name='prefab:'+key; g.add(im); made++; }
+      if(pf.panes){ var ip=new THREE.InstancedMesh(pf.panes, PANE_MAT, list.length); for(i=0;i<list.length;i++) ip.setMatrixAt(i,list[i]); ip.instanceMatrix.needsUpdate=true; ip.frustumCulled=false; ip.name='prefab-panes:'+key; g.add(ip); made++; }
+    });
+    if(cell.flames.length){
+      var fg=sharedGeometry('flame',function(){ return new THREE.ConeGeometry(0.22,0.55,6); });
+      var fi=new THREE.InstancedMesh(fg, FLAME_MAT, cell.flames.length);
+      cell.flames.forEach(function(f,i){ tmp.compose(new THREE.Vector3(f.x,f.y,f.z), new THREE.Quaternion(), new THREE.Vector3(f.s,f.s,f.s)); fi.setMatrixAt(i,tmp); });
+      fi.instanceMatrix.needsUpdate=true; fi.frustumCulled=false; fi.name='prefab-flames'; g.add(fi); made++;
+    }
+    if(cell.doors.length){
+      var dg=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
+        {w:1,h:1,d:0.11,x:0.5,y:0.5,z:0,c:0x513820},
+        {w:0.96,h:0.05,d:0.15,x:0.5,y:0.24,z:0,c:0x241d16},{w:0.96,h:0.05,d:0.15,x:0.5,y:0.76,z:0,c:0x241d16},
+        {w:0.02,h:1,d:0.13,x:0.34,y:0.5,z:0,c:0x3a2a18},{w:0.02,h:1,d:0.13,x:0.66,y:0.5,z:0,c:0x3a2a18},
+        {w:0.08,h:0.08,d:0.2,x:0.86,y:0.48,z:0,c:0x50565e}]); });
+      var di=new THREE.InstancedMesh(dg, DOOR_MAT, cell.doors.length);
+      cell.doors.forEach(function(E,i){ E.im=di; E.idx=i; di.setMatrixAt(i, prefabDoorMatrix(E,tmp)); });
+      di.instanceMatrix.needsUpdate=true; di.frustumCulled=false; di.castShadow=true; di.name='prefab-doors'; g.add(di); made++;
+    }
+    cell.items=null; cell.flames=null;
+  });
+  PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes=made;
+  return made;
+}
+
+/* ============================================================
+   The regional catalogue (ROM-MAP-SPEC-003 §8 settlement kits)
+   key = region.type+variant, e.g. 'moldavian.cottage2'
+   ============================================================ */
+var PREFAB_PAL={
+  carpathian:   {walls:[0x5d4326,0x6b4f2e,0x74624a], roofs:[0x3a2a1a,0x4a3a2a,0x54423a], trim:0x3a2a1a, style:'log',     roof:['gable','gable','hip'],        porch:'prispa', barn:0x5d4326, chapel:0x5d4326},
+  transylvanian:{walls:[0xd9c8a2,0xa9b8a0,0x8fa6c0,0xd7b78a,0xc79a8a,0xe2d6bb], roofs:[0x8a4a3a,0x9a5a3a,0x7a4030,0xa0563f], trim:0x513820, style:'timber', roof:['gable','gable','hip'], porch:'small', barn:0x6b4f2e, chapel:0xe2d6bb},
+  wallachian:   {walls:[0xe8dcc0,0xf0e6cc,0xe2d6bb,0xd9cfae], roofs:[0x968047,0xa08a50,0x8a7a48,0x6d5a3e], trim:0x5d4326, style:'plaster', roof:['hipthatch','thatch','hip','gable'], porch:'prispa', barn:0x6b4f2e, chapel:0xe8dcc0},
+  moldavian:    {walls:[0xe8dcc0,0xe2d6bb,0xdfe4dc,0xd9d0b0], roofs:[0x6d5a3e,0x5d4a38,0x7a6446,0x4a3a2a], trim:0x3f5f8a, style:'plaster', roof:['hip','gable','hip'], porch:'prispa', barn:0x5d4326, chapel:0xe8dcc0},
+  trade_route:  {walls:[0xc9a86a,0xb9975a,0xd4b27a,0xbfa070], roofs:[0x8a7a5e,0x9a8a6a,0x7a6a4e], trim:0x6b4f2e, style:'plaster', roof:['flat','flat','hip'], porch:'none', barn:0xb9975a, chapel:0xd4b27a},
+  capital:      {walls:[0xd9c8a2,0xe2d6bb,0xcfc2a4,0xb9b3a4], roofs:[0x8a4a3a,0x7a4030,0x5d4a38,0x9a5a3a], trim:0x513820, style:'timber', roof:['gable','hip','gable'], porch:'small', barn:0x6b4f2e, chapel:0xe2d6bb, floors2:0.35},
+  battlefield:  {walls:[0xbaa98e,0xa89a80,0x9a8f78,0xc9b890], roofs:[0x6b4939,0x5d4a38,0x4a3a2a], trim:0x4a3725, style:'plaster', roof:['gable','thatch','hip'], porch:'small', barn:0x5d4326, chapel:0xbaa98e}
+};
+var PREFAB_NAMES={cottage:'Casă țărănească', house:'Casă cu prispă', farm:'Casa gospodarului', barn:'Șură', workshop:'Atelier', chapel:'Paraclis', shed:'Șopron', stable:'Grajd'};
+function prefabHash(s){ var h=2166136261>>>0; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h; }
+/* a house definition: region palette × building type × variant → buildBuilding options */
+function prefabHouseDef(region, type, v){
+  var pal=PREFAB_PAL[region]||PREFAB_PAL.wallachian;
+  return function(kit, gy){
+    var rnd=seedRand(prefabHash(region+'.'+type+v)), pick=function(a){ return a[Math.floor(rnd()*a.length)]; };
+    var o={x:0, z:0, y:gy, door:'S', kit:kit, wall:pick(pal.walls), roofCol:pick(pal.roofs), trim:pal.trim, seed:Math.floor(rnd()*1e6), chimney:true, windows:true, name:PREFAB_NAMES[type]||type};
+    var roof=pick(pal.roof), rbl='RBL-01';
+    if(pal.style==='log') o.style='log'; else if(pal.style==='timber') o.timberFrame=true; else { o.style='plaster'; o.band=true; }
+    if(pal.porch==='prispa') o.prispa=true; else if(pal.porch==='none') o.porch=false; else o.porch=true;
+    if(roof==='flat'){ o.prispa=false; o.porch=false; }
+    if(type==='cottage'){ o.w=5.8+rnd()*1.6; o.d=4.8+rnd()*1.2; o.h=3.2+rnd()*0.35; o.interior='cottage'; o.bench=true; o.gableWin=rnd()<0.6; }
+    else if(type==='house'){ o.w=7.4+rnd()*1.6; o.d=5.8+rnd()*1.0; o.h=3.4+rnd()*0.4; o.interior='house'; o.bench=true; o.gableWin=true; o.chimney2=rnd()<0.5; rbl=o.prispa?'RBL-01':'RBL-02'; if(pal.floors2&&rnd()<pal.floors2){ o.floors=2; o.h=5.7; o.prispa=false; } }
+    else if(type==='farm'){ o.w=8.6+rnd()*1.6; o.d=6.4+rnd()*1.0; o.h=3.5+rnd()*0.3; o.interior='house'; o.chimney2=true; o.gableWin=true; o.bench=true; }
+    else if(type==='barn'){ o.w=9.5+rnd()*2.5; o.d=6.8+rnd()*1.2; o.h=4.4+rnd()*0.7; o.interior='stable'; o.doorW=3.0; o.windows=false; o.chimney=false; o.prispa=false; o.porch=false; o.bench=false; o.gableWin='hatch';
+      o.wall=pal.barn; o.style=(region==='trade_route')?'plaster':'log'; o.timberFrame=false; o.band=false; roof=(roof==='flat')?'flat':(rnd()<0.5?'long':'gable'); rbl='RBL-09'; }
+    else if(type==='stable'){ o.w=8.5+rnd()*1.5; o.d=6+rnd(); o.h=3.8; o.interior='stable'; o.doorW=2.4; o.windows=false; o.chimney=false; o.prispa=false; o.porch=false; o.wall=pal.barn; o.style='log'; o.timberFrame=false; o.band=false; roof=(roof==='flat')?'flat':'gable'; rbl='RBL-10'; }
+    else if(type==='workshop'){ o.w=7+rnd()*1.2; o.d=5.8+rnd()*0.6; o.h=3.6+rnd()*0.3; o.interior='workshop'; o.prispa=false; o.porch=(roof!=='flat'); o.gableWin=true; rbl='RBL-19'; }
+    else if(type==='chapel'){ o.w=6.4+rnd()*0.8; o.d=9+rnd()*1.5; o.h=5+rnd()*0.5; o.interior='chapel'; o.chimney=false; o.prispa=false; o.porch=false; o.bench=false; o.wall=pal.chapel; o.timberFrame=false; o.band=false; o.style=(pal.style==='log')?'log':undefined; roof='church'; o.roofCol=pal.style==='log'?0x3a2a1a:pick(pal.roofs); rbl=pal.style==='log'?'RBL-05':'RBL-15'; }
+    else if(type==='shed'){ o.w=3.6+rnd()*0.6; o.d=3.1+rnd()*0.5; o.h=2.5; o.interior='shed'; o.windows=false; o.chimney=false; o.prispa=false; o.porch=false; o.bench=false; o.wall=pal.barn; o.style=(region==='trade_route')?'plaster':'log'; o.timberFrame=false; o.band=false; roof=(roof==='flat')?'flat':'gable'; rbl='RBL-16'; }
+    o.roof=roof;
+    buildBuilding(o);
+    return {rbl:rbl, name:o.name};
+  };
+}
+/* ---- yard pieces, built with the same kit and instanced the same way ---- */
+PREFAB_DEFS['prop.woodpile']=function(kit,gy){
+  var T=M2(0x6b4f2e), E=M2(0xb59a6a), D=M2(0x5d4326), i, j;
+  for(j=0;j<3;j++) for(i=0;i<5;i++){ var xx=-0.8+i*0.4+(j%2)*0.2, yy=gy+0.14+j*0.27; if(j===2&&(i===0||i===4)) continue; kit.cyln(T,0.13,0.13,1.5,6, xx, yy, 0, 0,0,Math.PI/2); kit.cyln(E,0.135,0.135,0.02,6, xx, yy, 0.76, 0,0,Math.PI/2); }
+  kit.box(D,0.12,1.1,0.12,-1.05,gy+0.55,0.6); kit.box(D,0.12,1.1,0.12,1.05,gy+0.55,0.6); kit.box(D,0.12,1.1,0.12,-1.05,gy+0.55,-0.6); kit.box(D,0.12,1.1,0.12,1.05,gy+0.55,-0.6);
+  addCollider(-1.1,-0.8,1.1,0.8);
+  return {hx:1.1, hz:0.8, name:'Stivă de lemne'};
+};
+PREFAB_DEFS['prop.haystack']=function(kit,gy){
+  var H=M2(0xc9b24a), H2=M2(0xb9a13a), D=M2(0x5d4326);
+  kit.cyln(D,0.06,0.08,3.6,5, 0,gy+1.8,0);
+  kit.cyln(H,1.25,1.05,0.9,9, 0,gy+0.45,0); kit.cyln(H2,1.15,1.3,0.8,9, 0,gy+1.25,0); kit.cyln(H,0.8,1.15,0.8,9, 0,gy+2.0,0); kit.cyln(H2,0.3,0.8,0.7,9, 0,gy+2.7,0);
+  addCollider(-1.2,-1.2,1.2,1.2);
+  return {hx:1.2, hz:1.2, name:'Căpiță'};
+};
+PREFAB_DEFS['prop.oven']=function(kit,gy){
+  var C=M2(0xc9a86a), C2=M2(0xb9975a), K=M2(0x241d16), S=M2(0x8f8a80);
+  kit.box(S,1.6,0.5,1.4, 0,gy+0.25,0);
+  kit.cyln(C,0.7,0.75,0.6,10, 0,gy+0.8,0); kit.cyln(C2,0.5,0.7,0.35,10, 0,gy+1.27,0); kit.cyln(C,0.2,0.5,0.3,10, 0,gy+1.58,0);
+  kit.box(K,0.5,0.4,0.2, 0,gy+0.78,0.68); kit.box(C2,0.3,0.7,0.3, 0.35,gy+1.8,-0.2); kit.box(K,0.16,0.1,0.16, 0.35,gy+2.18,-0.2);
+  addFlame(0,gy+0.75,0.6,0.55,true); regLight(0,gy+0.9,0.7,0xff8a2a,0.6,8,1);
+  addCollider(-0.8,-0.7,0.8,0.7);
+  return {hx:0.8, hz:0.7, name:'Cuptor'};
+};
+PREFAB_DEFS['prop.beehives']=function(kit,gy){
+  var B=M2(0xd9c8a2), R=M2(0x7a5c39), K=M2(0x241d16), i;
+  kit.box(R,2.4,0.1,0.7, 0,gy+0.35,0); kit.box(R,0.1,0.35,0.6,-1.1,gy+0.17,0); kit.box(R,0.1,0.35,0.6,1.1,gy+0.17,0);
+  for(i=-1;i<=1;i++){ kit.box(B,0.5,0.7,0.5, i*0.8,gy+0.75,0); kit.prism(R,0.64,0.3,0.64, i*0.8,gy+1.25,0); kit.box(K,0.2,0.06,0.04, i*0.8,gy+0.5,0.26); }
+  addCollider(-1.25,-0.4,1.25,0.4);
+  return {hx:1.25, hz:0.4, name:'Stupi'};
+};
+PREFAB_DEFS['prop.dovecote']=function(kit,gy){
+  var P=M2(0x5d4326), W=M2(0xe8dcc0), R=M2(0x6d5a3e), K=M2(0x241d16), i;
+  kit.box(P,0.16,3.2,0.16, 0,gy+1.6,0);
+  kit.box(W,1.1,0.9,1.1, 0,gy+3.55,0); kit.pyr(R,1.0,0.7,4, 0,gy+4.35,0, Math.PI/4);
+  for(i=0;i<4;i++){ var a=i*Math.PI/2; kit.box(K,0.16,0.2,0.05, Math.sin(a)*0.56, gy+3.5, Math.cos(a)*0.56, a); kit.box(P,0.5,0.04,0.12, Math.sin(a)*0.6, gy+3.36, Math.cos(a)*0.6, a); }
+  addCollider(-0.2,-0.2,0.2,0.2);
+  return {hx:0.6, hz:0.6, name:'Porumbar'};
+};
+PREFAB_DEFS['prop.well']=function(kit,gy){ propWell(0,0,0x6d5a3e); return {hx:1.2, hz:1.2, name:'Fântână'}; };
+PREFAB_DEFS['prop.cart']=function(kit,gy){ propCart(0,0,0,false); return {hx:1.4, hz:0.9, name:'Car'}; };
+PREFAB_DEFS['prop.troita']=function(kit,gy){ propTroita(0,0,0); return {hx:0.3, hz:0.3, name:'Troiță'}; };
+PREFAB_DEFS['prop.tent']=function(kit,gy){
+  var C=M2(0xb5a487), C2=M2(0xa08f74), D=M2(0x5d4326), K=M2(0x3a3430);
+  kit.cyln(C,0.08,2.3,2.7,8, 0,gy+1.35,0, Math.PI/8);
+  kit.box(K,0.9,1.5,0.3, 0,gy+0.75,1.95, 0, -0.55);                 /* the open flap, dark inside */
+  kit.box(C2,0.5,1.7,0.08, -0.55,gy+0.85,2.05, 0.4, -0.55);
+  kit.cyln(D,0.05,0.05,3.0,5, 0,gy+1.5,0);
+  for(var i=0;i<4;i++){ var a=i*Math.PI/2+Math.PI/4; kit.cyln(D,0.03,0.03,1.6,4, Math.cos(a)*2.6, gy+0.6, Math.sin(a)*2.6, 0, 0, Math.cos(a)>0?-0.9:0.9); kit.box(D,0.08,0.4,0.08, Math.cos(a)*3.1, gy+0.2, Math.sin(a)*3.1); }
+  addCollider(-1.9,-1.9,1.9,1.9);
+  return {hx:2.0, hz:2.0, name:'Cort'};
+};
+
+
 // SOURCE: src/world/roads.js
 /* ============================================================
    roads.js — the road network as draped ribbons (ROM-MAP-SPEC-003 §4)
@@ -4620,7 +5084,6 @@ function propTollArch(cx,cz,ang,w){
    (hall door = spawn, barracks, temple).
    ============================================================ */
 var townData={};
-var TOWN_RADIUS={sparta:150, rome:190, moldavia:215, vikings:150, egypt:150, nippon:530};
 
 /* ---- shared town helpers (axis-aligned streets) ---- */
 function townStreet(x0,z0,x1,z1,w,col){
@@ -5946,28 +6409,8 @@ function buildBeacons(){
 }
 
 
-// SOURCE: src/buildings/solid.js
-/* ---------------- solid structures: cheap no-interior buildings ---------------- */
-function solidBuilding(x,z,w,d,h,wallCol,roofCol,roof){
-  /* Same silhouette language as the detailed tier — plinth, real door and
-     window openings, eaves, ridge, chimney — merged into a few meshes and
-     sealed by a single footprint collider. */
-  return buildSolidStructure(x,z,w,d,h,wallCol,roofCol,roof);
-}
-
-
-// SOURCE: src/buildings/catalog.js
-/* Romanian vernacular palette; dimensions also drive collision, not just appearance. */
-var BUILDING_DESIGNS={
-  cottage:{width:6,depth:5,height:3.4,wall:0xd9c8a2,roof:0x70503a,trim:0x513820},
-  farm:{width:8,depth:6,height:3.6,wall:0xc9b890,roof:0x968047,trim:0x513820},
-  workshop:{width:7,depth:6,height:4,wall:0xbaa98e,roof:0x6b4939,trim:0x513820},
-  chapel:{width:7,depth:9,height:5,wall:0xe2d6bb,roof:0x45677b,trim:0x4a3725}
-};
-
-
 // SOURCE: src/buildings/batches.js
-/* Spatially bounded instancing. Nearby regions draw, distant regions cost no draw calls. */
+/* Spatially bounded instancing for yard clutter (fences, garden rows, fields, trees). Nearby regions draw, distant regions cost no draw calls. */
 function createBuildingBatch(){
   var buckets=new Map(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),pos=new THREE.Vector3(),scale=new THREE.Vector3();
   function add(kind,x,y,z,w,h,d,color,rotation){
@@ -5977,8 +6420,8 @@ function createBuildingBatch(){
     buckets.get(key).items.push({matrix:matrix.clone(),color:color});
   }
   function finish(){
-    var geos={box:new THREE.BoxGeometry(1,1,1),roof:new THREE.ConeGeometry(0.5,1,4),
-              gable:gablePrismGeometry(),tree:new THREE.ConeGeometry(0.5,1,7)};
+    /* box, tree (fir) and ball (broadleaf crown) — no building is a batch primitive any more (prefabs.js) */
+    var geos={box:new THREE.BoxGeometry(1,1,1),tree:new THREE.ConeGeometry(0.5,1,7),ball:new THREE.SphereGeometry(0.5,7,5)};
     var material=M(0xffffff);
     buckets.forEach(function(b){
       var mesh=new THREE.InstancedMesh(geos[b.kind],material,b.items.length);
@@ -5992,45 +6435,22 @@ function createBuildingBatch(){
   }
   return {add:add,finish:finish};
 }
-function buildSettlementHouse(batch,x,z,type){
-  var d=BUILDING_DESIGNS[type],r=Math.hypot(d.width,d.depth)/2+2;
-  if(insideSolid(x,z,r))return false;
-  // Keep older trunk roads and their walking clearance intact.
-  if(settlementRoadNear(x,z,r+3))return false;
-  var y=groundH(x,z);
-  var w=d.width, dp=d.depth, h=d.height;
-  var alongZ=dp>w+0.5;                                     /* ridge follows the long axis */
-  var ridgeLen=alongZ?dp:w, crossLen=alongZ?w:dp;
-  var ov=0.55, rh=Math.max(0.95,(crossLen/2+ov)*0.7);
-  /* stone plinth, walls, real gable roof, ridge beam, chimney */
-  batch.add('box',x,y+0.15,z,w+0.5,0.3,dp+0.5,d.trim);
-  batch.add('box',x,y+h/2,z,w,h,dp,d.wall);
-  batch.add('gable',x,y+h+rh/2-0.06,z,ridgeLen,rh,crossLen+2*ov,d.roof,alongZ?Math.PI/2:0);
-  if(alongZ) batch.add('box',x,y+h+rh,z,0.26,0.18,ridgeLen+0.4,d.trim);
-  else batch.add('box',x,y+h+rh,z,ridgeLen+0.4,0.18,0.26,d.trim);
-  batch.add('box',x+(alongZ?w*0.26:ridgeLen*0.28),y+h+rh*0.5,z+(alongZ?ridgeLen*0.28:dp*0.26),0.66,1.5,0.66,d.trim);
-  /* door with frame, two glazed windows */
-  var fz=dp/2+0.06;
-  batch.add('box',x,y+1.05,z+fz,1.2,2.1,0.13,d.trim);
-  batch.add('box',x-w*0.31,y+2.1,z+fz,0.8,0.9,0.1,PANE_COL);
-  batch.add('box',x+w*0.31,y+2.1,z+fz,0.8,0.9,0.1,PANE_COL);
-  batch.add('box',x-w*0.31,y+2.1,z-fz,0.8,0.9,0.1,PANE_COL);
-  batch.add('box',x+w*0.31,y+2.1,z-fz,0.8,0.9,0.1,PANE_COL);
-  if(type==='chapel'){
-    batch.add('box',x,y+h+rh+1.0,z,0.2,2,0.2,0xc9a227);
-    batch.add('box',x,y+h+rh+1.3,z,1.1,0.2,0.2,0xc9a227);
-  }
-  addCollider(x-w/2,z-dp/2,x+w/2,z+dp/2);BUILD_COUNT++;
-  if(BUILD_COUNT%4===0) regChimney(x+(alongZ?w*0.26:ridgeLen*0.28),y+h+rh+0.8,z+(alongZ?ridgeLen*0.28:dp*0.26),0.6);
-  return true;
-}
 
 
 // SOURCE: src/world/settlements.js
-/* Four spaced homesteads per territory, plus region-specific Romanian medieval hamlets
-   — EXTENDED 2× EDITION: every region has distinct settlement types
-*/
-var SETTLEMENTS=[],settlementStats={buildings:0,hamlets:0,chunks:0,zones:0},settlementRoadGrid=new Map();
+/* ============================================================
+   settlements.js — the hamlets (cătune) of the countryside
+   ------------------------------------------------------------
+   One hamlet per zone quadrant (HAMLETS, geography.js — the ground
+   under each is levelled). A hamlet is a lane with fenced yards on
+   both sides: real regional houses (prefabs.js — every one a solid,
+   enterable, furnished building with a hinged door, glowing windows
+   and a smoking chimney), each with its own yard — woodpile, oven,
+   haystack, beehives, garden rows, a shed, a fruit tree — a chapel
+   or barn closing the lane, the well and the troiță at the other end,
+   fields and an orchard beyond.
+   ============================================================ */
+var SETTLEMENTS=[],settlementStats={buildings:0,hamlets:0,chunks:0,zones:0,yards:0},settlementRoadGrid=new Map();
 function settlementRoadNear(x,z,r){
   var gx=Math.floor(x/32),gz=Math.floor(z/32);
   for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++){
@@ -6044,96 +6464,164 @@ function hamletWater(x,z){
   for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+40) return true; }
   return false;
 }
+/* free ground for a yard piece: no wall, no road, not in front of a door */
+function hamletFree(x,z,r){
+  if(insideSolid(x,z,r)) return false;
+  if(settlementRoadNear(x,z,r+2)||sceneryRoadDist(x,z)<r+1.5) return false;
+  if(nearDoor(x,z,r+1.2)) return false;
+  return true;
+}
+/* what a region builds along its lanes: [type, weight] */
+var HAMLET_KINDS={
+  carpathian:   {houses:[['cottage',5],['house',2],['farm',1],['workshop',1]], end:[['chapel',3],['barn',2]], trees:[0x2f4a2e,0x3a5a3a], crop:[0x928047,0x667743], ball:false},
+  transylvanian:{houses:[['house',4],['cottage',3],['farm',2],['workshop',1]], end:[['chapel',1],['barn',1]], trees:[0x556b38,0x657940], crop:[0xc9b24a,0x6b8f3a], ball:true},
+  wallachian:   {houses:[['cottage',5],['house',3],['farm',2],['workshop',1]], end:[['barn',1],['chapel',1]], trees:[0x6a8a3a,0x7a9a4a], crop:[0x5a6a4a,0x6a8a3a], ball:true},
+  moldavian:    {houses:[['cottage',4],['house',3],['farm',2],['workshop',1]], end:[['chapel',3],['barn',2]], trees:[0x2a4a2a,0x3a5a2e], crop:[0x928047,0x667743], ball:true},
+  trade_route:  {houses:[['house',4],['cottage',3],['workshop',2],['farm',1]], end:[['barn',3],['chapel',2]], trees:[0x7a8a5a,0x8a9a5a], crop:[0xc9b24a,0xb9a13a], ball:true},
+  capital:      {houses:[['house',5],['cottage',2],['farm',2],['workshop',1]], end:[['chapel',3],['barn',2]], trees:[0x556b38,0x657940], crop:[0xc9b24a,0x6b8f3a], ball:true},
+  battlefield:  {houses:[['cottage',5],['house',2],['farm',1],['workshop',2]], end:[['barn',3],['chapel',2]], trees:[0x556b38,0x4a5a3a], crop:[0x928047,0x667743], ball:false}
+};
+function hamletPick(list,rnd){ var t=0,i; for(i=0;i<list.length;i++) t+=list[i][1]; var r=rnd()*t; for(i=0;i<list.length;i++){ r-=list[i][1]; if(r<=0) return list[i][0]; } return list[0][0]; }
+function hamletVariants(type){ return type==='cottage'||type==='house'?3:type==='farm'?2:1; }
+
 function buildSettlements(){
   (window.__roadPts||[]).forEach(function(p){var key=Math.floor(p[0]/32)+':'+Math.floor(p[1]/32);if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
   var batch=createBuildingBatch(),covered=new Set();
-  for(var zi=0;zi<ZN*ZN;zi++){
-    var center=zoneCenter(zi);
-    var region = getRegion(center.x, center.z);
-    for(var quadrant=0;quadrant<4;quadrant++){
-      var x=center.x+(quadrant%2?88:-88),z=center.z+(quadrant>1?88:-88);
-      var protectedSite=nearTown(x,z,30)||nearSite(x,z,30)||hamletWater(x,z);
-      if(protectedSite)continue;
-      var added=0;
-      for(var h=0;h<8;h++){
-        var hx=x+(h<4?-16:16),hz=z+((h%4)-1.5)*18;
-        var type;
-        if(region==='carpathian'){
-          type = h===0?'chapel':h===1?'workshop':h===2?'cottage':h===5?'farm':'cottage';
-        } else if(region==='transylvanian'){
-          type = h===0?'chapel':h===1?'farm':h===2?'workshop':h===4?'cottage':'cottage';
-        } else if(region==='wallachian'){
-          type = h===0?'workshop':h===1?'farm':h===2?'cottage':'cottage';
-        } else if(region==='moldavian'){
-          type = h===0?'chapel':h===1?'farm':h===3?'workshop':'cottage';
-        } else if(region==='trade_route'){
-          type = h===0?'workshop':h===1?'cottage':h===2?'farm':'cottage';
-        } else if(region==='capital'){
-          type = h===0?'chapel':h===1?'workshop':h===2?'cottage':h===3?'cottage':'farm';
-        } else {
-          type = h===0&&quadrant===0?'chapel':h===1?'farm':h===4?'workshop':'cottage';
-        }
-        if(buildSettlementHouse(batch,hx,hz,type)){added++;settlementStats.buildings++;}
-      }
-      if(!added)continue;
-      covered.add(zi);settlementStats.hamlets++;
-      var regionLabel = WORLD_REGIONS[region] ? WORLD_REGIONS[region].name : region;
-      SETTLEMENTS.push({x:x,z:z,zi:zi,region:region,name:VNAMES[zi%VNAMES.length]+' — '+regionLabel+' cătun '+(quadrant+1),buildings:added});
-      // Street segments are tested against actual walls, including legacy buildings.
-      for(var step=-36;step<=36;step+=6){
-        if(!insideSolid(x,z+step,4)){
-          var roadCol = tintHex(region==='carpathian'?0x7a7a82:region==='trade_route'?0xc2b08a:region==='capital'?0x9a9a8a:0x9b8866, -0.38);
-          batch.add('box',x,groundH(x,z+step)+0.04,z+step,6,0.08,6.2,roadCol);
-          window.__roadPts.push([x,z+step]);
-        }
-      }
-      // Region-specific decoration
-      for(var tree=0;tree<10;tree++){
-        var tx=x+(tree<5?-36:36),tz=z+(tree%5-2)*14;
-        if(insideSolid(tx,tz,3)||settlementRoadNear(tx,tz,7))continue;
-        var y=groundH(tx,tz);
-        if(region==='carpathian'){
-          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x4a3a2a);
-          batch.add('tree',tx,y+3.5,tz,3.5,5,3.5,tree%2?0x2f4a2e:0x3a5a3a);
-        } else if(region==='transylvanian'){
-          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x66472e);
-          batch.add('tree',tx,y+3,tz,4.5,4.5,4.5,tree%2?0x556b38:0x657940);
-          if(tree%3===0) batch.add('box',tx+2,y+0.3,tz,2,0.6,2,0x6b8f3a); // vineyard
-        } else if(region==='wallachian'){
-          batch.add('box',tx,y+0.8,tz,0.4,1.5,0.4,0x5a4a3a);
-          batch.add('tree',tx,y+2.5,tz,3,3,3,0x6a8a3a);
-        } else if(region==='moldavian'){
-          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x3a2a1a);
-          batch.add('tree',tx,y+3,tz,4,4.5,4,tree%2?0x2a4a2a:0x3a5a2e);
-        } else if(region==='trade_route'){
-          if(tree%2===0){
-            batch.add('box',tx,y+0.5,tz,0.6,1.2,0.6,0x8a7a5e);
-            batch.add('tree',tx,y+2,tz,2.5,2.5,2.5,0x7a8a5a);
-          }
-        } else {
-          batch.add('box',tx,y+1,tz,0.5,2,0.5,0x66472e);
-          batch.add('tree',tx,y+3,tz,4.5,4.5,4.5,tree%2?0x556b38:0x657940);
-        }
-      }
-      if(!insideSolid(x,z+43,9)){
-        for(var furrow=0;furrow<6;furrow++){
-          var cropCol = region==='transylvanian'? (furrow%2?0xc9b24a:0x6b8f3a) : region==='wallachian'? (furrow%2?0x5a6a4a:0x6a8a3a) : (furrow%2?0x928047:0x667743);
-          batch.add('box',x-7.5+furrow*3,groundH(x,z+43)+0.07,z+43,1.8,0.14,12,cropCol);
-        }
-      }
-      // Extra: Orthodox shrine per hamlet in trade_route / transylvanian
-      if((region==='trade_route' || region==='transylvanian') && quadrant===0){
-        var sx=x+20, sz=z+20;
-        if(!insideSolid(sx,sz,3)){
-          batch.add('box',sx,groundH(sx,sz)+1.1,sz,0.22,2.2,0.22,0x6b4f2e);
-          batch.add('box',sx+1.8,groundH(sx,sz)+1.1,sz,0.22,2.2,0.22,0x6b4f2e);
-          batch.add('box',sx+0.9,groundH(sx,sz)+2.3,sz,2.4,0.24,0.3,0x7a5a36);
-        }
-      }
-      window.__contentZi[zi]=1;
+  HAMLETS.forEach(function(H){
+    if(nearTown(H.x,H.z,30)||nearSite(H.x,H.z,30)||hamletWater(H.x,H.z)) return;
+    var n=buildHamlet(batch,H);
+    if(!n) return;
+    covered.add(H.zi); settlementStats.hamlets++; settlementStats.buildings+=n;
+    var regionLabel=WORLD_REGIONS[H.region]?WORLD_REGIONS[H.region].name:H.region;
+    SETTLEMENTS.push({x:H.x,z:H.z,zi:H.zi,region:H.region,name:VNAMES[H.zi%VNAMES.length]+' — '+regionLabel+' cătun '+(H.q+1),buildings:n});
+    window.__contentZi[H.zi]=1;
+  });
+  settlementStats.zones=covered.size;settlementStats.chunks=batch.finish();
+}
+/* ---- one hamlet: lane, yards, houses, the lane-end building, well, troiță, fields, orchard ----
+   Built in lane coordinates (u along the lane, v across it) and turned onto the map, so half the hamlets
+   run east-west and half north-south. */
+function buildHamlet(batch,H){
+  var X=H.x, Z=H.z, reg=H.region, K=HAMLET_KINDS[reg]||HAMLET_KINDS.wallachian, rnd=srand(H.zi*7919+H.q*131+17);
+  var placed=0, i, side, k;
+  var alongX=rnd()<0.5, endPlus=(H.q%2===1);
+  var T=alongX?function(u,v){ return [X+u, Z+v]; }:function(u,v){ return [X+v, Z+u]; };
+  var faceIn=alongX?{'-1':'S','1':'N'}:{'-1':'E','1':'W'};        /* the door side of a house at v=side·d, looking at the lane */
+  var faceEnd=alongX?{'-1':'E','1':'W'}:{'-1':'S','1':'N'};       /* the door side of a building at u=±end, looking down the lane */
+  var L={T:T, alongX:alongX, faceIn:faceIn, reg:reg, K:K, rnd:rnd};
+  var roadCol=tintHex(reg==='carpathian'?0x7a7a82:reg==='trade_route'?0xc2b08a:reg==='capital'?0x9a9a8a:0x9b8866,-0.38);
+  /* the lane (tested against real walls so trunk roads keep their clearance) */
+  for(var step=-58;step<=58;step+=6){
+    var lp=T(step,0);
+    if(!insideSolid(lp[0],lp[1],4)){ batch.add('box',lp[0],groundH(lp[0],lp[1])+0.04,lp[1],alongX?6.2:5.4,0.08,alongX?5.4:6.2,roadCol); window.__roadPts.push([lp[0],lp[1]]); }
+  }
+  /* yards along both sides: slots every 22u, fences shared on the slot boundaries; a slot now and then is an orchard */
+  var slots=[-33,-11,11,33];
+  for(side=-1;side<=1;side+=2){
+    for(k=0;k<slots.length;k++){
+      var su=slots[k], sv=side*(14.2+rnd()*1.6);
+      if(rnd()<0.1){ hamletOrchard(batch,L,su,side,su-11,su+11); continue; }
+      var type=hamletPick(K.houses,rnd), key=reg+'.'+type+(1+Math.floor(rnd()*hamletVariants(type)));
+      var pf=prefabGet(key); if(!pf) continue;
+      var hp=T(su,sv), r=Math.hypot(pf.hx,pf.hz)+1.2;
+      if(insideSolid(hp[0],hp[1],r)||settlementRoadNear(hp[0],hp[1],r+3)||sceneryRoadDist(hp[0],hp[1])<r+2) continue;
+      var S=prefabPlace(key,hp[0],hp[1],faceIn[side]);
+      if(!S) continue;
+      placed++; settlementStats.yards++;
+      var depthIn=alongX?S.hz:S.hx;                                  /* half size of the house across the lane */
+      hamletYard(batch,L,su,sv,side,depthIn,su-11,su+11,k===slots.length-1);
     }
   }
-  settlementStats.zones=covered.size;settlementStats.chunks=batch.finish();
+  /* the lane-end building faces down the lane */
+  var eType=hamletPick(K.end,rnd), eKey=reg+'.'+eType+'1', epf=prefabGet(eKey);
+  if(epf){
+    var eu=endPlus?60:-60, ep=T(eu,0), er=Math.hypot(epf.hx,epf.hz)+1.5;
+    if(!insideSolid(ep[0],ep[1],er)&&!settlementRoadNear(ep[0],ep[1],er+3)&&sceneryRoadDist(ep[0],ep[1])>er+2){ if(prefabPlace(eKey,ep[0],ep[1],faceEnd[endPlus?1:-1])) placed++; }
+  }
+  /* the well and the troiță at the open end, a hay wagon nearby */
+  var ou=endPlus?-58:58, wp=T(ou,-3.6), tp=T(ou,3.4), cp=T(ou+(endPlus?-4:4),7.5);
+  if(hamletFree(wp[0],wp[1],1.6)) prefabPlace('prop.well',wp[0],wp[1],'S',{force:true});
+  if(hamletFree(tp[0],tp[1],0.8)) prefabPlace('prop.troita',tp[0],tp[1],faceEnd[endPlus?-1:1],{force:true});
+  if(rnd()<0.6 && hamletFree(cp[0],cp[1],1.8)) prefabPlace('prop.cart',cp[0],cp[1],rnd()<0.5?'S':'E',{force:true});
+  /* fields beyond the yards and an orchard behind the open end */
+  for(side=-1;side<=1;side+=2){
+    for(k=0;k<2;k++){
+      var fv=side*(47+rnd()*6), fu=-34+k*44+rnd()*10, fp=T(fu,fv);
+      if(insideSolid(fp[0],fp[1],12)||sceneryRoadDist(fp[0],fp[1])<12) continue;
+      hamletField(batch,fp[0],fp[1],alongX?18:14+rnd()*6,alongX?14+rnd()*6:18,rnd()*0.3-0.15,K.crop);
+    }
+  }
+  for(i=0;i<8;i++){
+    var tp2=T((endPlus?-1:1)*(68+rnd()*12),(rnd()*2-1)*24);
+    if(!hamletFree(tp2[0],tp2[1],2.2)) continue;
+    hamletTree(batch,tp2[0],tp2[1],K,rnd,true);
+  }
+  return placed;
+}
+/* a fenced yard behind a house: gate in front of the door, garden rows, a shed and the small pieces of a household */
+function hamletYard(batch,L,su,sv,side,depthIn,u0,u1,last){
+  var T=L.T, rnd=L.rnd, K=L.K, reg=L.reg, i;
+  var vIn=side*4.2, vOut=side*33;
+  function fence(ua,va,ub,vb){ var a=T(ua,va), b=T(ub,vb); hamletFence(batch,a[0],a[1],b[0],b[1]); }
+  /* fences: along the lane with the gate gap, the back, the -u side (and the +u side of the last yard) */
+  fence(u0,vIn,su-1.4,vIn); fence(su+1.4,vIn,u1,vIn);
+  fence(u0,vOut,u1,vOut);
+  fence(u0,vIn,u0,vOut); if(last) fence(u1,vIn,u1,vOut);
+  /* gate posts and a path from the gate to the door */
+  var g1=T(su-1.5,vIn), g2=T(su+1.5,vIn), gm=T(su,vIn), gy=groundH(gm[0],gm[1]);
+  batch.add('box',g1[0],gy+0.9,g1[1],0.24,1.8,0.24,0x5d4326); batch.add('box',g2[0],gy+0.9,g2[1],0.24,1.8,0.24,0x5d4326);
+  batch.add('box',gm[0],gy+1.9,gm[1],L.alongX?3.2:0.16,0.16,L.alongX?0.16:3.2,0x6b4f2e);
+  var vDoor=sv-side*depthIn, pm=T(su,(vIn+vDoor)/2), plen=Math.abs(vDoor-vIn);
+  batch.add('box',pm[0],groundH(pm[0],pm[1])+0.05,pm[1],L.alongX?1.6:plen,0.06,L.alongX?plen:1.6,tintHex(0x9b8866,-0.3));
+  /* the yard behind the house */
+  var vBack=sv+side*(depthIn+1.4), depth=Math.abs(vOut-vBack)-1.5;
+  if(depth<4) return;
+  var items=['garden','woodpile','shed','haystack','oven','beehives','dovecote','tree','tree'];
+  var n=4+Math.floor(rnd()*3), used={}, taken=[];
+  function free(x,z,r){ if(!hamletFree(x,z,r)) return false; for(var t=0;t<taken.length;t++){ var q=taken[t]; if(Math.hypot(q.x-x,q.z-z)<q.r+r) return false; } taken.push({x:x,z:z,r:r}); return true; }
+  var faceHouse=L.alongX?(side<0?'N':'S'):(side<0?'W':'E');          /* looking back at the house */
+  var faceLane=L.faceIn[side];
+  for(i=0;i<n;i++){
+    var it=items[Math.floor(rnd()*items.length)]; if(used[it]&&it!=='tree') continue; used[it]=1;
+    var uu=u0+2.6+rnd()*(u1-u0-5.2), vv=vBack+side*(1.4+rnd()*(depth-2.8)), p=T(uu,vv);
+    if(it==='woodpile'){ if(free(p[0],p[1],1.5)) prefabPlace('prop.woodpile',p[0],p[1],rnd()<0.5?'S':'E',{force:true}); }
+    else if(it==='haystack'){ if(free(p[0],p[1],1.7)) prefabPlace('prop.haystack',p[0],p[1],'S',{force:true}); }
+    else if(it==='oven'){ if(free(p[0],p[1],1.3)) prefabPlace('prop.oven',p[0],p[1],faceLane,{force:true}); }
+    else if(it==='beehives'){ if(free(p[0],p[1],1.6)) prefabPlace('prop.beehives',p[0],p[1],rnd()<0.5?'S':'N',{force:true}); }
+    else if(it==='dovecote'){ if(free(p[0],p[1],1.0)) prefabPlace('prop.dovecote',p[0],p[1],'S',{force:true}); }
+    else if(it==='shed'){ var sk=reg+'.shed1', sp=prefabGet(sk); if(sp){ var sq=T(u0+3.2+rnd()*(u1-u0-6.4), vOut-side*(sp.hz+1.4)); if(free(sq[0],sq[1],Math.hypot(sp.hx,sp.hz)+1.0)) prefabPlace(sk,sq[0],sq[1],faceLane); } }
+    else if(it==='garden'){ var gw=Math.min(depth-2.5,8), gd=7, gq=T((u0+u1)/2+(rnd()-0.5)*6, vBack+side*(gw/2+0.8)); if(gw>3 && free(gq[0],gq[1],Math.hypot(gw,gd)/2+0.3)) hamletGarden(batch,gq[0],gq[1],L.alongX?gd:gw,L.alongX?gw:gd,K.crop); }
+    else { if(free(p[0],p[1],2.2)) hamletTree(batch,p[0],p[1],K,rnd,true); }
+  }
+}
+/* an empty slot: a little orchard behind a low fence */
+function hamletOrchard(batch,L,su,side,u0,u1){
+  var T=L.T, rnd=L.rnd, i;
+  var a=T(u0,side*4.2), b=T(u1,side*4.2); hamletFence(batch,a[0],a[1],b[0],b[1]);
+  for(i=0;i<5;i++){ var p=T(u0+3+rnd()*(u1-u0-6), side*(8+rnd()*22)); if(hamletFree(p[0],p[1],2.4)) hamletTree(batch,p[0],p[1],L.K,rnd,true); }
+}
+function hamletFence(batch,x0,z0,x1,z1){
+  var mx=(x0+x1)/2, mz=(z0+z1)/2;
+  if(sceneryRoadDist(mx,mz)<4||sceneryRoadDist(x0,z0)<3.5||sceneryRoadDist(x1,z1)<3.5) return;
+  if(insideSolid(mx,mz,0.6)) return;
+  batchFence(batch,x0,z0,x1,z1);
+}
+function hamletGarden(batch,x,z,w,d,crop){
+  var y=groundH(x,z), rows=Math.max(3,Math.floor(w/1.3)), i;
+  batch.add('box',x,y+0.05,z,w,0.1,d,0x5a4632);
+  for(i=0;i<rows;i++){ var u=x-w/2+(i+0.5)*(w/rows); batch.add('box',u,y+0.2,z,0.7,0.3,d-0.6,i%2?crop[1]:0x4a6a3a); }
+}
+function hamletField(batch,x,z,w,d,ry,crop){
+  var y=groundH(x,z), i;
+  for(i=0;i<6;i++){ var u=(i-2.5)*(w/6), c=Math.cos(ry), s=Math.sin(ry); batch.add('box',x+u*c,y+0.08,z-u*s,w/6*0.7,0.16,d,i%2?crop[0]:crop[1],ry); }
+}
+/* an orchard / yard tree: a trunk and a round crown (or a fir in the mountains) */
+function hamletTree(batch,x,z,K,rnd,ball){
+  var y=groundH(x,z), c=K.trees[Math.floor(rnd()*K.trees.length)], s=0.8+rnd()*0.5;
+  batch.add('box',x,y+1.1*s,z,0.36,2.2*s,0.36,0x5a4632);
+  if(K.ball&&ball){ batch.add('ball',x,y+2.9*s,z,3.4*s,3.0*s,3.4*s,c); batch.add('ball',x+0.6*s,y+3.6*s,z-0.3*s,2.2*s,2.0*s,2.2*s,tintHex(c,0.12)); }
+  else { batch.add('tree',x,y+3.4*s,z,3.2*s,4.6*s,3.2*s,c); batch.add('tree',x,y+5.2*s,z,2.2*s,3.0*s,2.2*s,tintHex(c,0.1)); }
+  addCollider(x-0.3,z-0.3,x+0.3,z+0.3);
 }
 
 
@@ -6142,44 +6630,36 @@ function buildSettlements(){
    districts.js — the countryside between the named places
    ------------------------------------------------------------
    Farmsteads, herders' folds, quarries and hunting camps
-   scattered over every region (instanced, solid, with doors and
-   windows), the zone economy (SITES / zoneSiteRate) and the
-   "wilds" pass that guarantees every zone has something in it.
+   scattered over every region — real regional houses (prefabs.js:
+   solid, enterable, furnished, hinged doors, lit windows) set in a
+   ring around the well, with barns, sheds, hay, fields and fences —
+   the zone economy (SITES / zoneSiteRate) and the "wilds" pass that
+   guarantees every zone has something in it.
    ============================================================ */
 var SITES=[];
 var zoneSiteRate=null;
-var DISTRICT_C=[];
-(function(){
-  var rnd=srand(90210);
-  for(var i=0;i<900 && DISTRICT_C.length<150;i++){
-    var x=rnd()*5600-2800, z=rnd()*5600-2800;
-    if(Math.abs(x)>2850||Math.abs(z)>2850) continue;
-    var bad=false, k;
-    for(k=0;k<FAC_KEYS_T.length && !bad;k++){ var T=TOWNS[FAC_KEYS_T[k]]; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<Math.pow((TOWN_RADIUS[FAC_KEYS_T[k]]||150)+150,2)) bad=true; }
-    for(k=0;k<SITES_DEF.length && !bad;k++){ var S=SITES_DEF[k]; if((x-S.x)*(x-S.x)+(z-S.z)*(z-S.z)<Math.pow(S.r+110,2)) bad=true; }
-    for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
-    for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
-    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
-    if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
-    if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
-    if(!bad) DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)});
-  }
-})();
-/* instanced well and fence pieces (solid) */
-function batchWell(batch,x,z,roofCol){
-  var y=groundH(x,z);
-  batch.add('box',x,y+0.5,z,2.2,1.0,2.2,0x8f8a80,0.4);
-  batch.add('box',x-0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326); batch.add('box',x+0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326);
-  batch.add('roof',x,y+3.2,z,3.0,0.8,3.0,roofCol||0x6d5a3e,Math.PI/4);
-  addCollider(x-1.1,z-1.1,x+1.1,z+1.1); BUILD_COUNT++;
-}
+/* instanced fence pieces (solid) */
 function batchFence(batch,x0,z0,x1,z1){
   var L=Math.hypot(x1-x0,z1-z0), n=Math.max(1,Math.round(L/2.4)), ry=-Math.atan2(z1-z0,x1-x0), i;
   for(i=0;i<=n;i++){ var t=i/n, px=x0+(x1-x0)*t, pz=z0+(z1-z0)*t; batch.add('box',px,groundH(px,pz)+0.55,pz,0.14,1.1,0.14,0x5d4326); }
   var mx=(x0+x1)/2, mz=(z0+z1)/2; batch.add('box',mx,groundH(mx,mz)+0.9,mz,L,0.08,0.08,0x6b4f2e,ry); batch.add('box',mx,groundH(mx,mz)+0.5,mz,L,0.08,0.08,0x6b4f2e,ry);
   addCollider(Math.min(x0,x1)-0.1,Math.min(z0,z1)-0.1,Math.max(x0,x1)+0.1,Math.max(z0,z1)+0.1);
 }
-function batchHay(batch,x,z,s){ var y=groundH(x,z); batch.add('box',x,y+0.15,z,0.2,0.3,0.2,0x5d4326); batch.add('roof',x,y+1.1*s,z,2.6*s,2.2*s,2.6*s,0xc9b24a,0.3); batch.add('roof',x,y+1.4*s,z,2.0*s,2.0*s,2.0*s,0xb9a13a,0.8); addCollider(x-1.1*s,z-1.1*s,x+1.1*s,z+1.1*s); }
+function batchHay(batch,x,z,s){ if(!insideSolid(x,z,1.6)) prefabPlace('prop.haystack',x,z,'S',{force:true}); }
+/* the side of a house that looks at (tx,tz) */
+function faceToward(x,z,tx,tz){ var dx=tx-x, dz=tz-z; return Math.abs(dx)>Math.abs(dz)?(dx>0?'E':'W'):(dz>0?'S':'N'); }
+/* what each kind of farmstead builds, in order around the ring */
+var DISTRICT_KITS={
+  farm:['farm','barn','cottage','cottage','stable','house','shed','cottage','house','shed'],
+  estate:['house','chapel','farm','barn','house','cottage','stable','cottage','workshop','shed'],
+  vineyard:['farm','barn','cottage','house','shed','cottage'],
+  fold:['cottage','stable','cottage','shed'],
+  quarry:['workshop','cottage','cottage','shed','house'],
+  hunt:['cottage','cottage','shed'],
+  camp:['cottage','workshop','cottage'],
+  fishers:['cottage','cottage','shed','house'],
+  caravan:['workshop','house','cottage','stable','cottage','shed']
+};
 function batchField(batch,x,z,w,d,ry,c1,c2){ var y=groundH(x,z); for(var i=0;i<6;i++){ var u=(i-2.5)*(w/6), c=Math.cos(ry||0), s=Math.sin(ry||0); batch.add('box',x+u*c,y+0.08,z-u*s,w/6*0.7,0.16,d,i%2?c1:c2,ry); } }
 function batchCairn(batch,x,z){ var y=groundH(x,z); batch.add('box',x,y+0.4,z,1.6,0.8,1.4,0x8a8a86,0.3); batch.add('box',x,y+1.0,z,1.1,0.6,1.0,0x8a8a86,0.7); batch.add('box',x,y+1.45,z,0.6,0.5,0.6,0x9a9a96,0.2); addCollider(x-0.8,z-0.7,x+0.8,z+0.7); }
 function siteEcon(x,z,type,rate){ SITES.push({zi:zoneIdxAt(x,z), rate:rate, type:type, region:getRegion(x,z), x:x, z:z}); }
@@ -6210,15 +6690,23 @@ function buildDistricts(){
     else if(reg==='capital') kind=roll<0.7?'farm':'estate';
     else kind=roll<0.5?'farm':roll<0.8?'camp':'fold';
     D.kind=kind;
-    var n=(kind==='farm'?7:kind==='estate'?9:5)+Math.floor(rnd()*4), placed=0, i;
-    var ring=18+n*1.4;
+    var list=DISTRICT_KITS[kind]||DISTRICT_KITS.farm, n=Math.min(list.length, (kind==='farm'?6:kind==='estate'?8:3)+Math.floor(rnd()*3)), placed=0, i;
+    var ring=17+n*1.9, a0=rnd()*TAU;
+    /* the houses stand in a ring around the well, each facing the yard */
     for(i=0;i<n;i++){
-      var a=i/n*TAU+rnd()*0.4, r=ring*(0.75+rnd()*0.4), hx=D.x+Math.cos(a)*r, hz=D.z+Math.sin(a)*r;
-      var type=(i===0&&(kind==='farm'||kind==='estate'))?'farm':(i===1&&kind==='estate')?'chapel':(kind==='quarry'||kind==='caravan')&&i===0?'workshop':'cottage';
-      if(buildSettlementHouse(batch,hx,hz,type)) placed++;
+      var a=a0+i/n*TAU+(rnd()-0.5)*0.3, r=ring*(0.85+rnd()*0.3), hx=D.x+Math.cos(a)*r, hz=D.z+Math.sin(a)*r;
+      var type=list[i], key=reg+'.'+type+(1+Math.floor(rnd()*((type==='cottage'||type==='house')?3:type==='farm'?2:1)));
+      var pf=prefabGet(key); if(!pf) continue;
+      var rr=Math.hypot(pf.hx,pf.hz)+1.5;
+      if(insideSolid(hx,hz,rr)||settlementRoadNear(hx,hz,rr+3)||sceneryRoadDist(hx,hz)<rr+2) continue;
+      if(prefabPlace(key,hx,hz,faceToward(hx,hz,D.x,D.z))) placed++;
+      /* a woodpile, oven or beehives beside the house */
+      var px=D.x+Math.cos(a+0.35)*(r+2), pz=D.z+Math.sin(a+0.35)*(r+2), pk=['prop.woodpile','prop.oven','prop.beehives','prop.woodpile','prop.dovecote'][Math.floor(rnd()*5)];
+      if(!insideSolid(px,pz,1.6)&&!nearDoor(px,pz,2.5)) prefabPlace(pk,px,pz,faceToward(px,pz,D.x,D.z),{force:true});
     }
     if(!placed) return;
-    if(!insideSolid(D.x,D.z,2)) batchWell(batch,D.x,D.z,0x6d5a3e);
+    if(!insideSolid(D.x,D.z,2)) prefabPlace('prop.well',D.x,D.z,'S',{force:true});
+    if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
     if(kind==='farm'||kind==='estate'||kind==='vineyard'){
       for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xc9b24a,kind==='vineyard'?0x5a7a3a:0x928047); }
@@ -6232,7 +6720,7 @@ function buildDistricts(){
       batch.add('box',D.x+8,y+1.2,D.z+8,0.3,2.4,0.3,0x5d4326); batch.add('box',D.x+8,y+2.5,D.z+8,3,0.2,0.2,0x5d4326,0.4);
       siteEcon(D.x,D.z,'mine',0.22);
     } else if(kind==='hunt'||kind==='camp'){
-      for(i=0;i<3;i++){ var ta=rnd()*TAU, tx=D.x+Math.cos(ta)*(ring+8), tz=D.z+Math.sin(ta)*(ring+8); if(insideSolid(tx,tz,3)) continue; batch.add('roof',tx,groundH(tx,tz)+1.3,tz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(tx-1.6,tz-1.6,tx+1.6,tz+1.6); }
+      for(i=0;i<3;i++){ var ta=rnd()*TAU, tx=D.x+Math.cos(ta)*(ring+8), tz=D.z+Math.sin(ta)*(ring+8); if(insideSolid(tx,tz,3)) continue; prefabPlace('prop.tent',tx,tz,faceToward(tx,tz,D.x,D.z),{force:true}); }
       propCampfire(D.x+4,D.z+4,false); siteEcon(D.x,D.z,kind==='hunt'?'hunter':'warcamp',0.14);
     } else if(kind==='fishers'){
       for(i=0;i<3;i++){ var bx=D.x+ring+6+i*4, bz=D.z-6+i*5; batch.add('box',bx,groundH(bx,bz)+0.5,bz,3.2,0.7,1.2,0x6b4f2e,0.5); }
@@ -6262,9 +6750,9 @@ function buildDistricts(){
       if(reg==='carpathian'||wt===0) batchCairn(batch,jx,jz);
       else if(wt===1){ propTroita(jx,jz,rnd()*3); }
       else if(wt===2){ batchHay(batch,jx,jz,1.0); batchHay(batch,jx+4,jz+2,0.8); }
-      else if(wt===3){ buildSettlementHouse(batch,jx,jz,'cottage'); }
+      else if(wt===3){ var lk=reg+'.cottage'+(1+Math.floor(rnd()*3)), lf=['S','E','N','W'][Math.floor(rnd()*4)]; if(prefabPlace(lk,jx,jz,lf)){ if(!insideSolid(jx+6,jz+5,1.6)) prefabPlace('prop.woodpile',jx+6,jz+5,'S',{force:true}); if(!insideSolid(jx-6,jz+6,1.6)) prefabPlace('prop.haystack',jx-6,jz+6,'S',{force:true}); } }
       else if(wt===4){ batch.add('box',jx,groundH(jx,jz)+0.8,jz,4.2,1.6,0.6,0x8a8272,rnd()*3); addCollider(jx-2.2,jz-1.2,jx+2.2,jz+1.2); batch.add('box',jx+1.8,groundH(jx,jz)+1.3,jz+1.2,0.6,2.6,2.2,0x7a7264,rnd()*3); }
-      else { propCampfire(jx,jz,false); batch.add('roof',jx+3,groundH(jx+3,jz)+1.3,jz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(jx+1.4,jz-1.6,jx+4.6,jz+1.6); }
+      else { propCampfire(jx,jz,false); prefabPlace('prop.tent',jx+4.5,jz,'W',{force:true}); }
       found=true; wildsN++;
     }
     window.__contentZi[zi]=1;
@@ -10463,7 +10951,8 @@ function updateBuildings(dt){
     else if(typeof eqNear==='function' && EH.map.size){ if(eqNear(D.x,D.z,2.2,function(e){ return !e.dead; })) want=1; }
     if(want!==D.open){ D.open+=(want-D.open)*Math.min(1,dt*3.2); if(Math.abs(D.open-want)<0.02) D.open=want; }
     var ang=D.base+D.open*D.swing;
-    if(D.g.rotation.y!==ang) D.g.rotation.y=ang;
+    if(D.g){ if(D.g.rotation.y!==ang) D.g.rotation.y=ang; }
+    else if(D.im && D.rot!==ang){ D.rot=ang; D.im.setMatrixAt(D.idx, prefabDoorMatrix(D, BLD.mtx||(BLD.mtx=new THREE.Matrix4()))); D.im.instanceMatrix.needsUpdate=true; }   /* instanced leaf of a countryside house */
   }
   /* ---- windows glow, lights follow ---- */
   var night=DN.night;
@@ -11697,7 +12186,7 @@ window.__game={
     var wet=0, tot=0, i; for(i=0;i<ROADS.length;i+=Math.max(1,Math.floor(ROADS.length/(n||60)))){ var R=ROADS[i]; for(var j=0;j<R.pts.length;j+=4){ var p=R.pts[j]; tot++; var rf=riverField(p[0],p[1]); if(rf.river&&rf.d<riverHalfWidth(rf.river,p[1])*0.9){ var nb=false; for(var k=0;k<BRIDGES.length;k++) if(Math.hypot(BRIDGES[k].x-p[0],BRIDGES[k].z-p[1])<BRIDGES[k].len/2+8) nb=true; if(!nb) wet++; } } }
     return {sampled:tot, wet:wet}; },
   structures:function(){ return STRUCTURES.map(function(S){ return {name:S.name, kind:S.kind, x:+S.x.toFixed(1), z:+S.z.toFixed(1), hx:+S.hx.toFixed(1), hz:+S.hz.toFixed(1), door:S.door?{x:+S.door.x.toFixed(2), z:+S.door.z.toFixed(2)}:null, dw:S.dw||0, enterable:!!S.enterable, fac:S.fac||null}; }); },
-  doorState:function(i){ var D=DOORS[i]; return D?{x:D.x, z:D.z, open:+D.open.toFixed(3), rot:+D.g.rotation.y.toFixed(3), base:+D.base.toFixed(3)}:null; },
+  doorState:function(i){ var D=DOORS[i]; return D?{x:D.x, z:D.z, open:+D.open.toFixed(3), rot:+(D.g?D.g.rotation.y:D.rot).toFixed(3), base:+D.base.toFixed(3), instanced:!D.g}:null; },
   nearestDoor:function(x,z){ var best=-1, bd=1e18; for(var i=0;i<DOORS.length;i++){ var d=(DOORS[i].x-x)*(DOORS[i].x-x)+(DOORS[i].z-z)*(DOORS[i].z-z); if(d<bd){ bd=d; best=i; } } return best; },
   paneGlow:function(){ return +PANE_MAT.emissiveIntensity.toFixed(3); },
   poolLights:function(){ return BLD.lights.filter(function(L){ return L.visible; }).map(function(L){ return {x:+L.position.x.toFixed(1), z:+L.position.z.toFixed(1), i:+L.intensity.toFixed(2)}; }); },
@@ -11707,6 +12196,10 @@ window.__game={
   freeAt:function(x,z,r){ return !insideSolid(x,z,r||0.4); },
   townData:function(f){ var td=townData[f]; return td?{hall:td.hall, barracks:td.barracks, temple:td.temple, r:td.r}:null; },
   glInfo:function(){ return {calls:renderer.info.render.calls, tris:renderer.info.render.triangles}; },
+  /* direct eval inside the game closure — diagnostics only (tests, harnesses) */
+  ev:function(src){ return eval(src); },
+  bootTimes:function(){ return BOOT_TIMES; },
+  memStats:function(){ var tri=0, triInst=0, meshes=0, inst=0, verts=0; scene.traverse(function(o){ if(o.isMesh&&o.geometry&&o.geometry.attributes.position){ var g=o.geometry, n=g.index?g.index.count/3:g.attributes.position.count/3; meshes++; if(o.isInstancedMesh){ inst++; triInst+=n*o.count; } else { tri+=n; verts+=g.attributes.position.count; } } }); return {meshes:meshes, instanced:inst, tris:Math.round(tri), trisInstanced:Math.round(triInst), verts:verts}; },
   fpInfo:function(){ var wd=null;
     if(fpWeapon){ var wp=new THREE.Vector3(); fpWeapon.getWorldPosition(wp); var pj=wp.clone().project(camera);
       var mesh=null; fpWeapon.traverse(function(o){ if(o.isMesh&&!mesh){ o.geometry.computeBoundingSphere();
@@ -11785,17 +12278,19 @@ validateCharacters();
 resetEconomy();
 resetZones();
 if(typeof resetBattleTracking!=='undefined') resetBattleTracking();
-FAC_KEYS.forEach(buildTown);
-buildLandmarks();
-buildVillages();
-buildFlags();
-buildBeacons();
-buildRoads();
-buildDistricts();
-buildSettlements();
-placeRelics();
-flushCellKits();
-snapshotStatics();
+function bootStep(name,fn){ var t0=performance.now(); fn(); BOOT_TIMES[name]=Math.round(performance.now()-t0); }
+bootStep('towns', function(){ FAC_KEYS.forEach(buildTown); });
+bootStep('landmarks', buildLandmarks);
+bootStep('villages', buildVillages);
+bootStep('flags', buildFlags);
+bootStep('beacons', buildBeacons);
+bootStep('roads', buildRoads);
+bootStep('districts', buildDistricts);
+bootStep('settlements', buildSettlements);
+bootStep('prefabs', prefabFlush);        /* countryside prefabs → one InstancedMesh per prefab per cell */
+bootStep('relics', placeRelics);
+bootStep('kits', flushCellKits);
+bootStep('statics', snapshotStatics);
 cullTick();
 loadDoctrineCfg();
 // try restore save (optional persistence)

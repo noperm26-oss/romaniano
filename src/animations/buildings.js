@@ -77,7 +77,8 @@ function updateBuildings(dt){
     else if(typeof eqNear==='function' && EH.map.size){ if(eqNear(D.x,D.z,2.2,function(e){ return !e.dead; })) want=1; }
     if(want!==D.open){ D.open+=(want-D.open)*Math.min(1,dt*3.2); if(Math.abs(D.open-want)<0.02) D.open=want; }
     var ang=D.base+D.open*D.swing;
-    if(D.g.rotation.y!==ang) D.g.rotation.y=ang;
+    if(D.g){ if(D.g.rotation.y!==ang) D.g.rotation.y=ang; }
+    else if(D.im && D.rot!==ang){ D.rot=ang; D.im.setMatrixAt(D.idx, prefabDoorMatrix(D, BLD.mtx||(BLD.mtx=new THREE.Matrix4()))); D.im.instanceMatrix.needsUpdate=true; }   /* instanced leaf of a countryside house */
   }
   /* ---- windows glow, lights follow ---- */
   var night=DN.night;

@@ -6,7 +6,6 @@
    (hall door = spawn, barracks, temple).
    ============================================================ */
 var townData={};
-var TOWN_RADIUS={sparta:150, rome:190, moldavia:215, vikings:150, egypt:150, nippon:530};
 
 /* ---- shared town helpers (axis-aligned streets) ---- */
 function townStreet(x0,z0,x1,z1,w,col){

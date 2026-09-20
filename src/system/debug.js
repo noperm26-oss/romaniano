@@ -128,7 +128,7 @@ window.__game={
     var wet=0, tot=0, i; for(i=0;i<ROADS.length;i+=Math.max(1,Math.floor(ROADS.length/(n||60)))){ var R=ROADS[i]; for(var j=0;j<R.pts.length;j+=4){ var p=R.pts[j]; tot++; var rf=riverField(p[0],p[1]); if(rf.river&&rf.d<riverHalfWidth(rf.river,p[1])*0.9){ var nb=false; for(var k=0;k<BRIDGES.length;k++) if(Math.hypot(BRIDGES[k].x-p[0],BRIDGES[k].z-p[1])<BRIDGES[k].len/2+8) nb=true; if(!nb) wet++; } } }
     return {sampled:tot, wet:wet}; },
   structures:function(){ return STRUCTURES.map(function(S){ return {name:S.name, kind:S.kind, x:+S.x.toFixed(1), z:+S.z.toFixed(1), hx:+S.hx.toFixed(1), hz:+S.hz.toFixed(1), door:S.door?{x:+S.door.x.toFixed(2), z:+S.door.z.toFixed(2)}:null, dw:S.dw||0, enterable:!!S.enterable, fac:S.fac||null}; }); },
-  doorState:function(i){ var D=DOORS[i]; return D?{x:D.x, z:D.z, open:+D.open.toFixed(3), rot:+D.g.rotation.y.toFixed(3), base:+D.base.toFixed(3)}:null; },
+  doorState:function(i){ var D=DOORS[i]; return D?{x:D.x, z:D.z, open:+D.open.toFixed(3), rot:+(D.g?D.g.rotation.y:D.rot).toFixed(3), base:+D.base.toFixed(3), instanced:!D.g}:null; },
   nearestDoor:function(x,z){ var best=-1, bd=1e18; for(var i=0;i<DOORS.length;i++){ var d=(DOORS[i].x-x)*(DOORS[i].x-x)+(DOORS[i].z-z)*(DOORS[i].z-z); if(d<bd){ bd=d; best=i; } } return best; },
   paneGlow:function(){ return +PANE_MAT.emissiveIntensity.toFixed(3); },
   poolLights:function(){ return BLD.lights.filter(function(L){ return L.visible; }).map(function(L){ return {x:+L.position.x.toFixed(1), z:+L.position.z.toFixed(1), i:+L.intensity.toFixed(2)}; }); },
@@ -138,6 +138,10 @@ window.__game={
   freeAt:function(x,z,r){ return !insideSolid(x,z,r||0.4); },
   townData:function(f){ var td=townData[f]; return td?{hall:td.hall, barracks:td.barracks, temple:td.temple, r:td.r}:null; },
   glInfo:function(){ return {calls:renderer.info.render.calls, tris:renderer.info.render.triangles}; },
+  /* direct eval inside the game closure — diagnostics only (tests, harnesses) */
+  ev:function(src){ return eval(src); },
+  bootTimes:function(){ return BOOT_TIMES; },
+  memStats:function(){ var tri=0, triInst=0, meshes=0, inst=0, verts=0; scene.traverse(function(o){ if(o.isMesh&&o.geometry&&o.geometry.attributes.position){ var g=o.geometry, n=g.index?g.index.count/3:g.attributes.position.count/3; meshes++; if(o.isInstancedMesh){ inst++; triInst+=n*o.count; } else { tri+=n; verts+=g.attributes.position.count; } } }); return {meshes:meshes, instanced:inst, tris:Math.round(tri), trisInstanced:Math.round(triInst), verts:verts}; },
   fpInfo:function(){ var wd=null;
     if(fpWeapon){ var wp=new THREE.Vector3(); fpWeapon.getWorldPosition(wp); var pj=wp.clone().project(camera);
       var mesh=null; fpWeapon.traverse(function(o){ if(o.isMesh&&!mesh){ o.geometry.computeBoundingSphere();

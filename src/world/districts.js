@@ -2,44 +2,36 @@
    districts.js — the countryside between the named places
    ------------------------------------------------------------
    Farmsteads, herders' folds, quarries and hunting camps
-   scattered over every region (instanced, solid, with doors and
-   windows), the zone economy (SITES / zoneSiteRate) and the
-   "wilds" pass that guarantees every zone has something in it.
+   scattered over every region — real regional houses (prefabs.js:
+   solid, enterable, furnished, hinged doors, lit windows) set in a
+   ring around the well, with barns, sheds, hay, fields and fences —
+   the zone economy (SITES / zoneSiteRate) and the "wilds" pass that
+   guarantees every zone has something in it.
    ============================================================ */
 var SITES=[];
 var zoneSiteRate=null;
-var DISTRICT_C=[];
-(function(){
-  var rnd=srand(90210);
-  for(var i=0;i<900 && DISTRICT_C.length<150;i++){
-    var x=rnd()*5600-2800, z=rnd()*5600-2800;
-    if(Math.abs(x)>2850||Math.abs(z)>2850) continue;
-    var bad=false, k;
-    for(k=0;k<FAC_KEYS_T.length && !bad;k++){ var T=TOWNS[FAC_KEYS_T[k]]; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<Math.pow((TOWN_RADIUS[FAC_KEYS_T[k]]||150)+150,2)) bad=true; }
-    for(k=0;k<SITES_DEF.length && !bad;k++){ var S=SITES_DEF[k]; if((x-S.x)*(x-S.x)+(z-S.z)*(z-S.z)<Math.pow(S.r+110,2)) bad=true; }
-    for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
-    for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
-    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
-    if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
-    if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
-    if(!bad) DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)});
-  }
-})();
-/* instanced well and fence pieces (solid) */
-function batchWell(batch,x,z,roofCol){
-  var y=groundH(x,z);
-  batch.add('box',x,y+0.5,z,2.2,1.0,2.2,0x8f8a80,0.4);
-  batch.add('box',x-0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326); batch.add('box',x+0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326);
-  batch.add('roof',x,y+3.2,z,3.0,0.8,3.0,roofCol||0x6d5a3e,Math.PI/4);
-  addCollider(x-1.1,z-1.1,x+1.1,z+1.1); BUILD_COUNT++;
-}
+/* instanced fence pieces (solid) */
 function batchFence(batch,x0,z0,x1,z1){
   var L=Math.hypot(x1-x0,z1-z0), n=Math.max(1,Math.round(L/2.4)), ry=-Math.atan2(z1-z0,x1-x0), i;
   for(i=0;i<=n;i++){ var t=i/n, px=x0+(x1-x0)*t, pz=z0+(z1-z0)*t; batch.add('box',px,groundH(px,pz)+0.55,pz,0.14,1.1,0.14,0x5d4326); }
   var mx=(x0+x1)/2, mz=(z0+z1)/2; batch.add('box',mx,groundH(mx,mz)+0.9,mz,L,0.08,0.08,0x6b4f2e,ry); batch.add('box',mx,groundH(mx,mz)+0.5,mz,L,0.08,0.08,0x6b4f2e,ry);
   addCollider(Math.min(x0,x1)-0.1,Math.min(z0,z1)-0.1,Math.max(x0,x1)+0.1,Math.max(z0,z1)+0.1);
 }
-function batchHay(batch,x,z,s){ var y=groundH(x,z); batch.add('box',x,y+0.15,z,0.2,0.3,0.2,0x5d4326); batch.add('roof',x,y+1.1*s,z,2.6*s,2.2*s,2.6*s,0xc9b24a,0.3); batch.add('roof',x,y+1.4*s,z,2.0*s,2.0*s,2.0*s,0xb9a13a,0.8); addCollider(x-1.1*s,z-1.1*s,x+1.1*s,z+1.1*s); }
+function batchHay(batch,x,z,s){ if(!insideSolid(x,z,1.6)) prefabPlace('prop.haystack',x,z,'S',{force:true}); }
+/* the side of a house that looks at (tx,tz) */
+function faceToward(x,z,tx,tz){ var dx=tx-x, dz=tz-z; return Math.abs(dx)>Math.abs(dz)?(dx>0?'E':'W'):(dz>0?'S':'N'); }
+/* what each kind of farmstead builds, in order around the ring */
+var DISTRICT_KITS={
+  farm:['farm','barn','cottage','cottage','stable','house','shed','cottage','house','shed'],
+  estate:['house','chapel','farm','barn','house','cottage','stable','cottage','workshop','shed'],
+  vineyard:['farm','barn','cottage','house','shed','cottage'],
+  fold:['cottage','stable','cottage','shed'],
+  quarry:['workshop','cottage','cottage','shed','house'],
+  hunt:['cottage','cottage','shed'],
+  camp:['cottage','workshop','cottage'],
+  fishers:['cottage','cottage','shed','house'],
+  caravan:['workshop','house','cottage','stable','cottage','shed']
+};
 function batchField(batch,x,z,w,d,ry,c1,c2){ var y=groundH(x,z); for(var i=0;i<6;i++){ var u=(i-2.5)*(w/6), c=Math.cos(ry||0), s=Math.sin(ry||0); batch.add('box',x+u*c,y+0.08,z-u*s,w/6*0.7,0.16,d,i%2?c1:c2,ry); } }
 function batchCairn(batch,x,z){ var y=groundH(x,z); batch.add('box',x,y+0.4,z,1.6,0.8,1.4,0x8a8a86,0.3); batch.add('box',x,y+1.0,z,1.1,0.6,1.0,0x8a8a86,0.7); batch.add('box',x,y+1.45,z,0.6,0.5,0.6,0x9a9a96,0.2); addCollider(x-0.8,z-0.7,x+0.8,z+0.7); }
 function siteEcon(x,z,type,rate){ SITES.push({zi:zoneIdxAt(x,z), rate:rate, type:type, region:getRegion(x,z), x:x, z:z}); }
@@ -70,15 +62,23 @@ function buildDistricts(){
     else if(reg==='capital') kind=roll<0.7?'farm':'estate';
     else kind=roll<0.5?'farm':roll<0.8?'camp':'fold';
     D.kind=kind;
-    var n=(kind==='farm'?7:kind==='estate'?9:5)+Math.floor(rnd()*4), placed=0, i;
-    var ring=18+n*1.4;
+    var list=DISTRICT_KITS[kind]||DISTRICT_KITS.farm, n=Math.min(list.length, (kind==='farm'?6:kind==='estate'?8:3)+Math.floor(rnd()*3)), placed=0, i;
+    var ring=17+n*1.9, a0=rnd()*TAU;
+    /* the houses stand in a ring around the well, each facing the yard */
     for(i=0;i<n;i++){
-      var a=i/n*TAU+rnd()*0.4, r=ring*(0.75+rnd()*0.4), hx=D.x+Math.cos(a)*r, hz=D.z+Math.sin(a)*r;
-      var type=(i===0&&(kind==='farm'||kind==='estate'))?'farm':(i===1&&kind==='estate')?'chapel':(kind==='quarry'||kind==='caravan')&&i===0?'workshop':'cottage';
-      if(buildSettlementHouse(batch,hx,hz,type)) placed++;
+      var a=a0+i/n*TAU+(rnd()-0.5)*0.3, r=ring*(0.85+rnd()*0.3), hx=D.x+Math.cos(a)*r, hz=D.z+Math.sin(a)*r;
+      var type=list[i], key=reg+'.'+type+(1+Math.floor(rnd()*((type==='cottage'||type==='house')?3:type==='farm'?2:1)));
+      var pf=prefabGet(key); if(!pf) continue;
+      var rr=Math.hypot(pf.hx,pf.hz)+1.5;
+      if(insideSolid(hx,hz,rr)||settlementRoadNear(hx,hz,rr+3)||sceneryRoadDist(hx,hz)<rr+2) continue;
+      if(prefabPlace(key,hx,hz,faceToward(hx,hz,D.x,D.z))) placed++;
+      /* a woodpile, oven or beehives beside the house */
+      var px=D.x+Math.cos(a+0.35)*(r+2), pz=D.z+Math.sin(a+0.35)*(r+2), pk=['prop.woodpile','prop.oven','prop.beehives','prop.woodpile','prop.dovecote'][Math.floor(rnd()*5)];
+      if(!insideSolid(px,pz,1.6)&&!nearDoor(px,pz,2.5)) prefabPlace(pk,px,pz,faceToward(px,pz,D.x,D.z),{force:true});
     }
     if(!placed) return;
-    if(!insideSolid(D.x,D.z,2)) batchWell(batch,D.x,D.z,0x6d5a3e);
+    if(!insideSolid(D.x,D.z,2)) prefabPlace('prop.well',D.x,D.z,'S',{force:true});
+    if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
     if(kind==='farm'||kind==='estate'||kind==='vineyard'){
       for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xc9b24a,kind==='vineyard'?0x5a7a3a:0x928047); }
@@ -92,7 +92,7 @@ function buildDistricts(){
       batch.add('box',D.x+8,y+1.2,D.z+8,0.3,2.4,0.3,0x5d4326); batch.add('box',D.x+8,y+2.5,D.z+8,3,0.2,0.2,0x5d4326,0.4);
       siteEcon(D.x,D.z,'mine',0.22);
     } else if(kind==='hunt'||kind==='camp'){
-      for(i=0;i<3;i++){ var ta=rnd()*TAU, tx=D.x+Math.cos(ta)*(ring+8), tz=D.z+Math.sin(ta)*(ring+8); if(insideSolid(tx,tz,3)) continue; batch.add('roof',tx,groundH(tx,tz)+1.3,tz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(tx-1.6,tz-1.6,tx+1.6,tz+1.6); }
+      for(i=0;i<3;i++){ var ta=rnd()*TAU, tx=D.x+Math.cos(ta)*(ring+8), tz=D.z+Math.sin(ta)*(ring+8); if(insideSolid(tx,tz,3)) continue; prefabPlace('prop.tent',tx,tz,faceToward(tx,tz,D.x,D.z),{force:true}); }
       propCampfire(D.x+4,D.z+4,false); siteEcon(D.x,D.z,kind==='hunt'?'hunter':'warcamp',0.14);
     } else if(kind==='fishers'){
       for(i=0;i<3;i++){ var bx=D.x+ring+6+i*4, bz=D.z-6+i*5; batch.add('box',bx,groundH(bx,bz)+0.5,bz,3.2,0.7,1.2,0x6b4f2e,0.5); }
@@ -122,9 +122,9 @@ function buildDistricts(){
       if(reg==='carpathian'||wt===0) batchCairn(batch,jx,jz);
       else if(wt===1){ propTroita(jx,jz,rnd()*3); }
       else if(wt===2){ batchHay(batch,jx,jz,1.0); batchHay(batch,jx+4,jz+2,0.8); }
-      else if(wt===3){ buildSettlementHouse(batch,jx,jz,'cottage'); }
+      else if(wt===3){ var lk=reg+'.cottage'+(1+Math.floor(rnd()*3)), lf=['S','E','N','W'][Math.floor(rnd()*4)]; if(prefabPlace(lk,jx,jz,lf)){ if(!insideSolid(jx+6,jz+5,1.6)) prefabPlace('prop.woodpile',jx+6,jz+5,'S',{force:true}); if(!insideSolid(jx-6,jz+6,1.6)) prefabPlace('prop.haystack',jx-6,jz+6,'S',{force:true}); } }
       else if(wt===4){ batch.add('box',jx,groundH(jx,jz)+0.8,jz,4.2,1.6,0.6,0x8a8272,rnd()*3); addCollider(jx-2.2,jz-1.2,jx+2.2,jz+1.2); batch.add('box',jx+1.8,groundH(jx,jz)+1.3,jz+1.2,0.6,2.6,2.2,0x7a7264,rnd()*3); }
-      else { propCampfire(jx,jz,false); batch.add('roof',jx+3,groundH(jx+3,jz)+1.3,jz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(jx+1.4,jz-1.6,jx+4.6,jz+1.6); }
+      else { propCampfire(jx,jz,false); prefabPlace('prop.tent',jx+4.5,jz,'W',{force:true}); }
       found=true; wildsN++;
     }
     window.__contentZi[zi]=1;

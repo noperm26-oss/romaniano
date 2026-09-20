@@ -51,6 +51,7 @@ function terrainMeshH(x,z){
   return hc+(hb-hc)*(1-u)+(hd-hc)*(1-v);
 }
 (function buildGround(){
+  var _t0=performance.now();
   var size=TM_SIZE, segs=TM_SEGS;
   var geo=new THREE.PlaneGeometry(size,size,segs,segs);
   geo.rotateX(-Math.PI/2);
@@ -186,4 +187,5 @@ function terrainMeshH(x,z){
     m.rotation.x=-Math.PI/2; m.position.set(L.x,y,L.z); m.name='always'; m.receiveShadow=true;
     scene.add(m); waterSurfaces.push(m);
   });
+  BOOT_TIMES.terrain=Math.round(performance.now()-_t0);
 })();

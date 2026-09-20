@@ -110,6 +110,7 @@ function fShelf(kit,x,y,z,w,ry,fill,tall){
       else if(fill==='spice'){ kit.cyln([F.spice,F.spice2,F.herb][i%3], 0.09, 0.11, 0.2, 7, px, yy+0.12, pz); }
       else if(fill==='armor'){ if(i%2) kit.box(F.steel, 0.2, 0.28, 0.16, px, yy+0.16, pz, ry); }
       else if(fill==='bones'){ if(i%2) kit.cyln(F.bone, 0.04, 0.05, 0.3, 5, px, yy+0.05, pz, 0, 0, Math.PI/2); else kit.cyln(F.bone,0.1,0.1,0.14,6,px,yy+0.08,pz); }
+      else if(fill==='tools'){ if(i%3===0) kit.box(F.iron, 0.05, 0.3, 0.14, px, yy+0.16, pz, ry); else if(i%3===1) kit.cyln(F.oak, 0.05, 0.05, 0.3, 5, px, yy+0.16, pz); else kit.box([F.copper,F.glass][i%2], 0.16, 0.18, 0.16, px, yy+0.1, pz, ry); }
     }
   }
   var hx=Math.abs(w/2*c)+Math.abs(0.2*s), hz=Math.abs(w/2*s)+Math.abs(0.2*c);

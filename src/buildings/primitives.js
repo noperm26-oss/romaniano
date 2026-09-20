@@ -6,8 +6,8 @@ function addFlame(x,y,z,scale,noLight){
   var f=new THREE.Mesh(sharedGeometry('flame',function(){ return new THREE.ConeGeometry(0.22,0.55,6); }), s>1.2?FLAME_MAT2:FLAME_MAT);
   f.scale.set(s,s,s);
   f.position.set(x,y,z);
-  propAdd(f);
-  flames.push(f);
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.flames.push({x:x,y:y,z:z,s:s}); }
+  else { propAdd(f); flames.push(f); }
   if(!noLight) regLight(x,y+0.3*s,z,0xff9a3c,0.9*s,10+7*s,1);
   return f;
 }

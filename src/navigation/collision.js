@@ -3,6 +3,7 @@ var colliders=[];
 var collisionVersion=0;
 var colGrid=new Map(); var CCELL=64;
 function addCollider(x0,z0,x1,z1){
+  if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.col.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)]); return; }   /* prefab capture: local footprint, re-added per instance */
   var c={x0:Math.min(x0,x1)-0.05, x1:Math.max(x0,x1)+0.05, z0:Math.min(z0,z1)-0.05, z1:Math.max(z0,z1)+0.05};
   colliders.push(c);
   collisionVersion++;

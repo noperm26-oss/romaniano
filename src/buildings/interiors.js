@@ -281,6 +281,13 @@ addInterior('smokehouse', function(kit,o,y,cx,cz,hw,hd,F){
   kit.collider(cx-0.8,cz-hd*0.4-0.8,cx+0.8,cz-hd*0.4+0.8);
   fBarrel(kit,cx-hw+0.5,y,cz+hd-0.6); fSack(kit,cx+hw-0.6,y,cz+hd-0.6,F.ash);
 });
+/* a yard shed: tools, a barrel, sacks and herbs — the smallest furnished room in the world */
+addInterior('shed', function(kit,o,y,cx,cz,hw,hd,F){
+  fBarrel(kit,cx-hw+0.45,y,cz-hd+0.45,false); fSack(kit,cx+hw-0.45,y,cz-hd+0.4,F.straw); fSack(kit,cx+hw-0.95,y,cz-hd+0.5,F.hay);
+  fShelf(kit,cx-hw*0.2,y,cz-hd+0.2,Math.min(hw*1.4,2.2),FACE.back,'tools');
+  fRack(kit,cx-hw+0.2,y,cz+hd*0.2,FACE.left,'axe'); fHerbs(kit,cx+hw*0.3,y+2.0,cz-hd*0.2,3,0);
+  fCrate(kit,cx+hw-0.55,y,cz+hd-0.6,0.6);
+});
 addInterior('cellar', function(kit,o,y,cx,cz,hw,hd,F){
   var i;
   for(i=0;i<Math.floor((hd*2-1)/1.0);i++){ fBarrel(kit,cx-hw+0.5,y,cz-hd+0.6+i*1.0,true); if(hw>2.6) fBarrel(kit,cx+hw-0.5,y,cz-hd+0.6+i*1.0,i%2===0); }

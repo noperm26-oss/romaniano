@@ -13,7 +13,6 @@ function registerLore(o){ o.idx=LANDMARKS.length; LANDMARKS.push(o); return o; }
 var scenery={};
 
 /* deterministic random for world dressing (same forest every boot) */
-function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 
 /* generic bucketed instancing: items=[{m:Matrix4, c:hex}] → InstancedMesh per 375u cell with cullBounds */
 function bucketIM(geo, items, mat, name, opts){
@@ -60,6 +59,7 @@ function sceneryBlocked(x,z,margin){
 }
 
 (function buildField(){
+  var _t0=performance.now();
   var rnd=srand(20260919);
   /* ---- rim peaks: a square wall of mountains just outside the 6,000 × 6,000 world, highest in the north ---- */
   var rimM=M(0x7d94a5), rimSnow=M(0xe8f0f8), rimDark=M(0x6c8090);
@@ -202,4 +202,5 @@ function sceneryBlocked(x,z,margin){
   bucketIM(boxGeo, vineRows, white, 'vines', {shadow:false});
   bucketIM(stumpGeo, stumps, white, 'stumps', {shadow:false});
   scenery.trees=placed; scenery.rocks=rocks.length+bigRocks.length; scenery.reeds=reeds.length;
+  BOOT_TIMES.scenery=Math.round(performance.now()-_t0);
 })();
