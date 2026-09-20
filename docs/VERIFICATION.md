@@ -16,6 +16,25 @@ npm run test:e2e
 
 The new tests are included as source. Detailed run reports and screenshots are generated under ignored `test-results/`. Historical scripts `test7.js`–`test13.js` mentioned in the uploaded handoff were **not uploaded**; these are newly implemented regression suites, not a claim that those unavailable scripts ran.
 
+## Every building enterable — v3.1 countryside rebuild (2026-09-20)
+
+The ~8,300 instanced box-and-prism hamlet/farmstead houses are gone. `src/buildings/prefabs.js` builds ≈90 regional
+houses, barns, sheds, workshops and chapels once through the normal kit (`structShell` + furnished `INTERIORS`), captures
+their geometry, colliders, door leaf, lights, chimney and structure record, and stamps them as `InstancedMesh` instances
+(one per prefab per 375 u cell). Each instance re-registers its colliders, an animated instanced door leaf, its lights,
+chimney and an enterable structure, so the NO-CLIP audit, the entrance check and the door/light/smoke systems cover it like
+any named building. Hamlets (821, on levelled ground) are lanes with fenced yards, gates, gardens, sheds, ovens, woodpiles,
+beehives, dovecotes, orchards, a chapel or barn, a well and a troiță; farmsteads ring their well; Romaria's blocks are filled
+with alleys and townhouses. Named buildings gained hip roofs, prispă galleries, visible half-timbering, benches, gable
+windows and foundation skirts; the windmill became a real mill tower with a room.
+
+Headless diagnostics (`__game.buildingsLive()`): ~9,500 structures, **~9,420 enterable** (the rest: two water gates, the
+ferry, flags, beacons), ~9,380 hinged doors, ~20,400 light sources, ~10,200 chimneys, ~210,000 colliders (~7 µs per query
+inside a hamlet), boot ≈ 9 s headless. New browser check: *countryside houses are real: the instanced door swings open for the
+player, a furnished lit interior waits behind it* (three houses sampled across the map; door opens > 0.9, ≥ 3 furniture
+colliders, ≥ 1 light and chimney, free threshold inside and out). Existing thresholds were raised (doors/enterable/audited
+walls > 8,000; every non-enterable structure must be a gate, tent, ferry, flag or beacon). 25 browser checks, 25 Node tests.
+
 ## Map rebuild — ROM-MAP-SPEC-003 v3.0 "Lemn și Piatră" (2026-09-20)
 
 The world was brought up to the v3.0 master map specification (`docs/ROM-MAP-SPEC-003.md` records the mapping, the coordinate registry and the deviations D-1..D-10). Headless boot diagnostics: ~1,800 registered structures (1,725 enterable), ~1,680 hinged doors, ~3,970 light sources, ~3,490 chimneys, 143 moving parts, 102 road ribbons (68 village lanes, 15 trails, 98 milestones, 2 toll arches), 22 bridges of which 6 fords, 56 capture flags, 10 beacons, 48 villages from seven regional kits, 12 waystations, 256/256 zones. New checks: `tests/geography.test.mjs` (world frame, regions, villages with lanes ≤ 1400 u, no overlapping pads, roads dry outside bridges/fords, road classes and speed bonus, level homeland flats, massif height) and the browser check "NO-CLIP LAW: every registered wall face is solid, roads never run through river water" (`__game.noclipAudit()` = 0 offenders, `__game.roadProbe()` = 0 wet samples). The ground grid is 512² so rivers keep their troughs; road ribbons sample the rendered triangles (`terrainMeshH`) and never float.
@@ -24,7 +43,7 @@ The world was brought up to the v3.0 master map specification (`docs/ROM-MAP-SPE
 
 The map was rebuilt from `docs/WORLD-ULTRA-EXPANDED.md`. Diagnostics from a headless boot (`__game.buildingsLive()`): about **1,090 registered structures, all enterable**, **1,040 hinged doors**, **2,400 light sources** (a pool of eight point lights follows the player), **3,000 smoking chimneys**, 26 moving parts (mill wheel, hammers, bells, drums, fountains, waterfall), 12 bridges, ~9,700 counted buildings including ~6,900 instanced hamlet houses, 256/256 territories covered. New browser checks assert that every registered structure has a free threshold, a free first step inside and solid wall beside the door; that the hall door swings open when the player stands in it; that window glow rises at night and that lights and smoke are active around the player.
 
-Known limits: interiors are furnished but static (no NPC routines inside); hamlet and farmstead houses are solid exteriors with doors and windows, not walk-in rooms; the crypt maze and tunnels are single-storey; bells and drums are visual (no gameplay effect).
+Known limits: interiors are furnished but static (no NPC routines inside); (v3.1: hamlet and farmstead houses are now walk-in, furnished prefab instances); the crypt maze and tunnels are single-storey; bells and drums are visual (no gameplay effect).
 
 ## World changes (previous edition)
 

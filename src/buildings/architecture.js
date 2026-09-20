@@ -9,6 +9,8 @@
    ============================================================ */
 
 /* ---- colour and randomness helpers (shared by every shell) ---- */
+/* does a wall colour read as plaster (warm, light) rather than stone (grey)? half-timbering only belongs on plaster */
+function plasterLike(c){ var r=(c>>16)&255, g=(c>>8)&255, b=c&255, mx=Math.max(r,g,b), mn=Math.min(r,g,b); return mx>150 && (mx-mn)/Math.max(1,mx)>0.14; }
 function tintHex(c, amt){
   var r=(c>>16)&255, g=(c>>8)&255, b=c&255;
   if(amt>0){ r+=(255-r)*amt; g+=(255-g)*amt; b+=(255-b)*amt; }
@@ -748,7 +750,7 @@ function structShell(o){
   /* foundation skirt: reaches down into sloping ground so no house floats on a hillside */
   kit.box(P.stone, w+0.5, 1.4, d+0.5, cx, y0-0.45, cz);
   structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW);
-  var framed=o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log' && o.style!=='plaster';
+  var framed=o.timberFrame || (o.studs!==false && !church && w>6.5 && o.style!=='log' && o.style!=='plaster' && plasterLike(o.wall||0xd9c8a2));
 
   /* ---- four walls, each with real openings; tall buildings get a second row of windows ---- */
   var two=(o.floors>=2 && h>=5.4), ySplit=two?y0+h*0.52:yTop;

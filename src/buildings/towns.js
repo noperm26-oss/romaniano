@@ -8,8 +8,10 @@
 var townData={};
 
 /* ---- shared town helpers (axis-aligned streets) ---- */
+var TOWN_STREETS=[], TOWN_PLAZAS=[];   /* recorded so the infill can line the streets and keep the squares open */
 function townStreet(x0,z0,x1,z1,w,col){
   var mx=(x0+x1)/2, mz=(z0+z1)/2, kit=cellKit(mx,mz), L=Math.hypot(x1-x0,z1-z0);
+  TOWN_STREETS.push({x0:x0,z0:z0,x1:x1,z1:z1,w:w});
   var n=Math.max(1,Math.ceil(L/24)), i;
   for(i=0;i<n;i++){
     var t0=i/n, t1=(i+1)/n, ax=x0+(x1-x0)*t0, az=z0+(z1-z0)*t0, bx=x0+(x1-x0)*t1, bz=z0+(z1-z0)*t1;
@@ -20,6 +22,7 @@ function townStreet(x0,z0,x1,z1,w,col){
 }
 function townPlaza(x,z,r,col){
   var kit=cellKit(x,z), y=groundH(x,z);
+  TOWN_PLAZAS.push({x:x,z:z,r:r});
   kit.cyln(M2(tintHex(col||0x8a8070,-0.38)), r, r, 0.12, 16, x, y+0.05, z);
   for(var a=0;a<TAU;a+=TAU/8) window.__roadPts.push([x+Math.cos(a)*r*0.6, z+Math.sin(a)*r*0.6]);
 }
@@ -71,13 +74,42 @@ function buildTown(f){
   var T=TOWNS[f], rnd=srand(f.length*977+T.x*3+T.z);
   siteBegin(T.name, T.x, T.z, TOWN_RADIUS[f]+80);
   window.__roadPts=window.__roadPts||[];
-  var td={name:T.name, x:T.x, z:T.z, r:TOWN_RADIUS[f]};
+  var td={name:T.name, x:T.x, z:T.z, r:TOWN_RADIUS[f]}, s0=TOWN_STREETS.length;
   ({sparta:townArdealburg, rome:townCetatea, moldavia:townHotarul, vikings:townStanca, egypt:townDrumulLung, nippon:townRomaria})[f](T.x,T.z,f,rnd,td);
+  if(f!=='nippon') td.infill=townInfill(T, td, rnd, TOWN_STREETS.slice(s0));
   townData[f]=td;
   siteEnd();
   registerTownLore(f);
 }
 
+/* ---- infill: townhouses of the region's kit along every straight street inside the walls (instanced prefabs) ---- */
+function townInfill(T, td, rnd, streets){
+  var reg=getRegion(T.x,T.z), n=0, inside=td.inside||function(x,z){ return Math.hypot(x-T.x,z-T.z)<(td.r||150)-10; };
+  function rect(s){ return {x0:Math.min(s.x0,s.x1)-s.w/2, x1:Math.max(s.x0,s.x1)+s.w/2, z0:Math.min(s.z0,s.z1)-s.w/2, z1:Math.max(s.z0,s.z1)+s.w/2}; }
+  var rects=streets.map(rect);
+  function hitsStreet(ax0,az0,ax1,az1){ for(var i=0;i<rects.length;i++){ var r=rects[i]; if(ax0<r.x1&&ax1>r.x0&&az0<r.z1&&az1>r.z0) return true; } return false; }
+  function nearPlaza(x,z,r){ for(var i=0;i<TOWN_PLAZAS.length;i++){ var p=TOWN_PLAZAS[i]; if(Math.hypot(x-p.x,z-p.z)<p.r+r) return true; } return false; }
+  streets.forEach(function(s){
+    var ax=Math.abs(s.x1-s.x0)>Math.abs(s.z1-s.z0)?'x':'z';
+    if(ax==='x'?Math.abs(s.z1-s.z0)>0.5:Math.abs(s.x1-s.x0)>0.5) return;       /* only the straight grid streets */
+    var u0=Math.min(ax==='x'?s.x0:s.z0, ax==='x'?s.x1:s.z1), u1=Math.max(ax==='x'?s.x0:s.z0, ax==='x'?s.x1:s.z1), cross=ax==='x'?s.z0:s.x0;
+    [-1,1].forEach(function(side){
+      var u=u0+3+rnd()*4;
+      while(u<u1-4){
+        var type=rnd()<0.18?'workshop':rnd()<0.3?'cottage':'house', key=reg+'.'+type+(type==='workshop'?1:1+Math.floor(rnd()*3));
+        var pf=prefabGet(key); if(!pf){ u+=10; continue; }
+        var face=ax==='x'?(side<0?'S':'N'):(side<0?'E':'W'), r=prefabRot(face);
+        var hx=(r%2)?pf.hz:pf.hx, hz=(r%2)?pf.hx:pf.hz, along=ax==='x'?hx:hz, deep=ax==='x'?hz:hx;
+        var cu=u+along, off=s.w/2+1.3+deep, x=ax==='x'?cu:cross+side*off, z=ax==='x'?cross+side*off:cu, rr=Math.hypot(hx,hz)+0.8;
+        if(inside(x,z) && inside(x-hx,z-hz) && inside(x+hx,z+hz) && !insideSolid(x,z,rr) && !nearDoor(x,z,rr+1) && !nearPlaza(x,z,rr) && !hitsStreet(x-hx-0.8,z-hz-0.8,x+hx+0.8,z+hz+0.8)){
+          if(prefabPlace(key,x,z,face,{maxSlope:2.5})) n++;
+        }
+        u=cu+along+1.2+rnd()*3;
+      }
+    });
+  });
+  return n;
+}
 /* ============================================================
    ARDEALBURG — walled Transylvanian market town (sparta)
    ============================================================ */
@@ -85,6 +117,7 @@ function townArdealburg(X,Z,f,rnd,td){
   td.frontZ=1;
   var WALL=0x9a8a6a, WH=[0xe2d6bb,0xd9c8a2,0xe8dcc0], RF=[0x8a4a3a,0x70503a,0x7a4030];
   var hx=112, hz=100;
+  td.inside=function(x,z){ return Math.abs(x-X)<hx-9 && Math.abs(z-Z)<hz-9; };
   /* curtain wall, three gates, corner towers */
   fortWallRun([[X-hx,Z-hz],[X+hx,Z-hz],[X+hx,Z+hz],[X-hx,Z+hz]], {h:10, t:1.8, wall:WALL, slits:true},
     [{x:X+hx,z:Z,w:14},{x:X,z:Z+hz,w:14},{x:X,z:Z-hz,w:14}], true);
@@ -147,6 +180,7 @@ function townCetatea(X,Z,f,rnd,td){
   td.frontZ=-1;
   var WALL=0x8b8579, RF=0x4a4238;
   var hx=136, hz=98;
+  td.inside=function(x,z){ return Math.abs(x-X)<hx-10 && Math.abs(z-Z)<hz-10; };
   /* the moat water and the 20 m curtain walls with four great towers */
   moatWater(X, Z, 150, 112, 14, groundHBase(X+150,Z)+1.0);
   fortWallRun([[X-hx,Z-hz],[X+hx,Z-hz],[X+hx,Z+hz],[X-hx,Z+hz]], {h:20, t:3.2, wall:WALL, slits:true}, [{x:X,z:Z-hz,w:20}], true);
@@ -157,6 +191,8 @@ function townCetatea(X,Z,f,rnd,td){
   for(var s=-1;s<=1;s+=2){ var ch=cyl(0.06,0.06,16,4,M(0x50565e)); ch.position.set(X+s*3.6, by+13, Z-hz-8); ch.rotation.x=0.9; g.add(ch); }
   /* inner courtyard: streets and the keep */
   townStreet(X, Z-200, X, Z+30, 10, 0x8a8070); townStreet(X-110, Z, X+110, Z, 8, 0x8a8070); townStreet(X-110, Z-60, X+110, Z-60, 6, 0x8a8070);
+  townStreet(X-30, Z-92, X-30, Z-30, 5, 0x8a8070); townStreet(X+30, Z-92, X+30, Z-30, 5, 0x8a8070);           /* the lanes of the garrison quarter */
+  townStreet(X-125, Z+36, X-26, Z+36, 5, 0x8a8070); townStreet(X+26, Z+36, X+125, Z+36, 5, 0x8a8070);
   townPlaza(X, Z-10, 26, 0x8a8070);
   var keep=buildBuilding({x:X, z:Z+56, w:40, d:26, h:14, wall:0x7d7669, roofCol:RF, roof:'flat', door:'N', interior:'grandhall', name:'Sala Mare a Cetății', fac:f, battlements:true, buttress:true,
     lore:{key:'sala_mare', icon:'🏰', sub:'Grand hall of the Danube fortress', story:'The Voivode holds court under iron chandeliers. Every treaty with the south was sealed at this table — and broken at least once.'}});
@@ -194,6 +230,7 @@ function townHotarul(X,Z,f,rnd,td){
   td.frontZ=1;
   var TIM=0x5d4326, DK=0x3a2a1a, RF=0x4a3a2a;
   /* earth rampart, double palisade with two gates (north road, south road) */
+  td.inside=function(x,z){ return Math.hypot(x-X,z-Z)<138; };
   rampart(X, Z, 178, 40, 2.2, 7);
   palisade(ringPts(X,Z,172,44), {h:6, gaps:[{x:X,z:Z-172,w:12},{x:X,z:Z+172,w:12}], walk:true});
   palisade(ringPts(X,Z,150,40), {h:5, gaps:[{x:X,z:Z-150,w:12},{x:X,z:Z+150,w:12}], col:0x6b4f2e});
@@ -202,6 +239,8 @@ function townHotarul(X,Z,f,rnd,td){
   fortGate({x:X, z:Z-160, dir:'N', w:6, h:7, tw:4, wall:0x6b4f2e, roofCol:RF, banner:'moldavia', name:'Poarta de Miazănoapte', portcullis:false});
   fortGate({x:X, z:Z+160, dir:'S', w:6, h:7, tw:4, wall:0x6b4f2e, roofCol:RF, banner:'moldavia', name:'Poarta de Miazăzi', portcullis:false});
   townStreet(X, Z-190, X, Z+190, 8, 0x7a7a6a); townStreet(X-120, Z, X+120, Z, 6, 0x7a7a6a);
+  townStreet(X-60, Z-112, X-60, Z+112, 5, 0x7a7a6a); townStreet(X+60, Z-112, X+60, Z+112, 5, 0x7a7a6a);
+  townStreet(X-112, Z-60, X+112, Z-60, 5, 0x7a7a6a); townStreet(X-112, Z+60, X+112, Z+60, 5, 0x7a7a6a);
   townPlaza(X, Z, 22, 0x7a7a6a);
   var hall=buildBuilding({x:X, z:Z-44, w:24, d:14, h:6.5, wall:TIM, roofCol:RF, roof:'long', door:'S', interior:'hall', name:'Casa Pârcălabului', fac:f, style:'log',
     lore:{key:'hotar_hall', icon:'🛡', sub:'Seat of the border captain', story:'The pârcălab of the north keeps the muster horn above his chair. When it sounds, every hamlet between the rivers sends its men.'}});
@@ -240,11 +279,12 @@ function townStanca(X,Z,f,rnd,td){
   var WALL=0x8a9aa8, W2=0x7a8a98, RF=0x3a4048, i;
   /* pentagon curtain: apex north, gate on the south face (U-CA-01) */
   var P5=[[X,Z-100],[X+95,Z-30],[X+60,Z+90],[X-60,Z+90],[X-95,Z-30]];
+  td.inside=function(x,z){ var px=(x-X)/0.88, pz=(z-Z)/0.88, inn=false; for(var i=0,j=4;i<5;j=i++){ var xi=P5[i][0]-X, zi=P5[i][1]-Z, xj=P5[j][0]-X, zj=P5[j][1]-Z; if((zi>pz)!==(zj>pz) && px<(xj-xi)*(pz-zi)/(zj-zi)+xi) inn=!inn; } return inn; };
   fortWallRun(P5, {h:11, t:2.4, wall:WALL, slits:true}, [{x:X,z:Z+90,w:18}], true);
   var tn=['Farul Trecătorii','Turnul Gheții','Turnul Porții de Răsărit','Turnul Porții de Apus','Turnul Vântului'];
   P5.forEach(function(c,k){ fortTower({x:c[0], z:c[1], r:k===0?6.5:6, h:k===0?22:16, sides:8, wall:W2, roofCol:RF, roof:k===0?'open':(k<3?'flat':'cone'), door:Math.atan2(Z-c[1],X-c[0]), brazier:k<3, banner:k===2?'vikings':null, name:tn[k]}); });
   fortGate({x:X, z:Z+90, dir:'S', w:7, h:11, tw:5.5, ph:5.2, wall:W2, roofCol:RF, banner:'vikings', name:'Poarta de Fier'});
-  townStreet(X, Z+90+40, X, Z-60, 9, 0x7a7a82); townStreet(X-80, Z, X+80, Z, 7, 0x7a7a82);
+  townStreet(X, Z+90+40, X, Z-60, 9, 0x7a7a82); townStreet(X-80, Z, X+80, Z, 7, 0x7a7a82); townStreet(X-55, Z+50, X+55, Z+50, 5, 0x7a7a82);
   townPlaza(X, Z+10, 22, 0x7a7a82);
   var keep=buildBuilding({x:X, z:Z-50, w:30, d:22, h:12, wall:0x7a8a98, roofCol:RF, roof:'flat', door:'S', interior:'grandhall', name:'Donjonul Stâncii de Fier', fac:f, battlements:true, buttress:true,
     lore:{key:'stanca_keep', icon:'🏔', sub:'Keep of the iron rock', story:'Bolted to the spur with iron pins, the keep has never been taken. Its beacon answers the Turnul Vântului across the pass.'}});
@@ -274,6 +314,7 @@ function townStanca(X,Z,f,rnd,td){
 function townDrumulLung(X,Z,f,rnd,td){
   td.frontZ=1;
   var AD=0xc2b08a, AD2=0xd9c8a2, RF=0x9a6a3a, RF2=0x7a5a3a;
+  td.inside=function(x,z){ return Math.hypot(x-X,z-Z)<135; };
   townStreet(X-170, Z, X+170, Z, 14, 0xc2b08a); townStreet(X, Z-120, X, Z+120, 8, 0xc2b08a);
   townStreet(X-120, Z-60, X+120, Z-60, 6, 0xc2b08a); townStreet(X-120, Z+60, X+120, Z+60, 6, 0xc2b08a);
   townPlaza(X, Z-30, 30, 0xc2b08a);

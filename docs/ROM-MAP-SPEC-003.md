@@ -5,6 +5,13 @@ supersedes `WORLD-ULTRA-EXPANDED.md` wherever the two differ). It lists where ev
 code, the coordinate registry the build actually uses, the deviations that were necessary, and how the acceptance
 checks are run. Coordinates: x east, z south (north is −z), world 6,000 × 6,000, sixteen 375 u zones per side.
 
+**v3.1 addendum (phase 3 — "every building has an interior")**: the instanced box-and-prism hamlet houses of v3.0 are
+gone. The countryside is rebuilt from real regional houses (`src/buildings/prefabs.js`) — solid walls, hinged doors,
+lit windows, chimneys, furnished rooms — stamped as instances, on levelled hamlet and farmstead ground, in fenced yards
+along lanes (see §1 rows §5.3 and §8, deviations D-11..D-14 and the v3.1 budget in §5). Named buildings gained hip roofs,
+full-length prispă galleries, visible half-timbering, benches, gable windows and foundation skirts; Romaria's blocks are
+filled with alleys and townhouses.
+
 ## 1. Where each section of the spec lives
 
 | Spec | Code |
@@ -16,11 +23,12 @@ checks are run. Coordinates: x east, z south (north is −z), world 6,000 × 6,0
 | §4 roads | `ROADS` (R0/R1/R1t/R2/R3, `ROAD_CLASSES`), 49+ auto village lanes, 15 trails, `densifyPolyline()`, `ROAD_GRID`/`roadField()`/`roadSpeedAt()`; `src/world/roads.js` builds draped vertex-coloured ribbons with kerbs, milestones (250 u), crosses/signposts at junctions, wells (700 u on RG-04), gate lanterns (30 u/200 u), toll arches |
 | §4.8 bridges & fords | computed road×river intersections → `BRIDGES` (stone for R0, timber for R1/R2 over wide water, fords for lanes/trails over small rivers); `buildBridge()` / `buildFord()` in `fortifications.js` |
 | §4.9 waystations & beacons | 12 `waystation` sites (WS-01..12) in `areas.js`; `BEACON_DEF` SB-xx built by `flags.js` (owner-coloured fire at night) |
-| §5 building taxonomy, collision, animation | `architecture.js` shells (real door/window openings), `wallColliders()`, `interiors.js` `buildBuilding()`, `animations/buildings.js` (doors, glow, lights, smoke, wheels, hammers, bells, drums, fountains, waterfall, **windmill sails, shadoof, winch, flag raise, beacon colour**) |
+| §5 building taxonomy, collision, animation | `architecture.js` shells (real door/window openings, gable/long/thatch/**hip**/flat/church roofs, visible half-timbering, **prispă** galleries, benches, gable windows, foundation skirts), `wallColliders()`, `interiors.js` `buildBuilding()`, `animations/buildings.js` (doors — hinged groups **and instanced leaves** —, glow, lights, smoke, wheels, hammers, bells, drums, fountains, waterfall, windmill sails, shadoof, winch, flag raise, beacon colour) |
+| §5.3 the countryside tier (v3.1) | `src/buildings/prefabs.js` — every hamlet / farmstead / lone house is a **real building built once through the kit and instanced**: `prefabCapture()` records geometry, colliders, door leaf, lights, chimney and structure while `PREFAB_REC` is set; `prefabPlace()` stamps an instance (quarter-turn facing) and re-registers colliders/door/lights/chimney/structure; `prefabFlush()` makes one `InstancedMesh` per prefab per 375 u cell. Catalogue `PREFAB_PAL` × {cottage, house, farm, barn, stable, workshop, chapel, shed} × variants (≈90 prefabs) + yard pieces (woodpile, haystack, oven, beehives, dovecote, well, cart, troiță, tent) |
 | §5.9 RBL-01..21 | `src/buildings/vernacular.js` (`rblCasa`, `rblFoisor`, `rblCula`, `rblBordei`, `rblBisericaLemn`, `rblConac`, `rblHan`, `rblCrama`, `rblSura`, `rblGrajd`, `rblStana`, `rblMoaraApa`, `rblMoaraVant`, `rblCumpana`, `rblPoarta`, `rblFanar`, `rblPorumbar`, `rblAfumatoare`, `rblBeci`, `rblFantana`, `rblSalt`) + `RBL_KITS` per region |
 | §6 unit sheets | `towns.js` (six seats), `landmarks.js` + `areas.js` (`SITE_BUILDERS[kind]` for every `SITES_DEF` entry) |
 | §7 new villages & areas | `VILLAGES` (32 ratified + NV-01..16) in `villages.js` with §7.1 features; NA-01..14 kinds in `areas.js`; NV-17 cave village and NA-13 mountain in `areas.js` |
-| §8 settlement kits | `RBL_KITS` (CA AR VA MO TD CP BF) |
+| §8 settlement kits | `RBL_KITS` (CA AR VA MO TD CP BF) for the 48 villages; `HAMLET_KINDS` + `PREFAB_PAL` per region for the countryside; `HAMLETS` (geography.js — four levelled sites per zone) built by `buildHamlet()`: a lane (E-W or N-S), fenced yards with gates and paths, houses facing the lane, gardens, sheds, ovens, woodpiles, beehives, dovecotes, orchards, a chapel or barn closing the lane, well + troiță + hay cart at the open end, fields beyond; `DISTRICT_KITS` farmsteads ring their well facing it; Romaria blocks get an alley cross, townhouses, a well and courtyard trees |
 | §9 relics | `src/world/relics.js` — REL-04 school door, REL-05 throne dais, REL-06 inn door, REL-07 fort chapel yard, REL-08 archive door |
 | §10 homeland walls | Romaria 32-gon r520 (16 towers, 4 axis gates + market postern, two water gates); Ardealburg rectangle; Cetatea rectangle + moat + drawbridge; Hotarul earth rampart + double palisade; Stânca pentagon; Drumul Lung open inn town |
 | §11 gameplay layer | `FLAGS` (56 CMP flags: banner poles that read `zones[zi].owner`), spawns via `townData[f].frontZ`, road speed bonus in `player.js`/`ai.js`, `zone-info.js` terrain classes |
@@ -61,6 +69,10 @@ every entry carries its spec ID.
 | D-8 | ≤ 6,000 colliders | ~47,000 axis-aligned boxes in a 64 u grid | every wall of every enterable building is its own collider (NO-CLIP LAW); the grid keeps queries O(1), the browser suite measures no slowdown |
 | D-9 | milestones carry carved text | plain carved stones with a dark plaque | per-stone canvases would cost more than they show |
 | D-10 | Hotarul gate on the west side | gates north and south (roads RG-01/RG-05 meet at the south gate, RG-01b leaves the north gate) | keeps the existing fort layout and the Salt Road geometry |
+| D-11 | hamlet houses may be "solid silhouettes" (§5.1 T3) | **no silhouettes remain**: every countryside house is an instanced real building with a furnished interior, hinged door, lit windows and chimney (`prefabs.js`) | the player asked for no box-and-triangle buildings anywhere; instancing keeps the memory of ~8,000 houses at ~90 geometries |
+| D-12 | ≤ 6,000 colliders (D-8 said ~47,000) | ~210,000 axis-aligned boxes | every wall, porch post, railing, fence run and piece of furniture of every enterable house collides; the 64 u grid keeps a query at ~7 µs inside a hamlet; `nearDoor()` now uses a 24 u door grid |
+| D-13 | flats only under named places | one flat (r 62) under each of the 821 hamlet sites and one (r 52) under each of the 150 farmsteads, registered in `geography.js` before the terrain is built; `flatsH()` uses a 256 u spatial index so the extra flats cost nothing per query | real interiors need level floors; the terraces blend over 31 u |
+| D-14 | windmill as a sealed tower | the windmill is a square mill tower with a door, two rows of windows and the miller's room (`interior:'windmill'`), sails on the door side | no building without an interior |
 
 ## 4. Acceptance checks
 
@@ -68,16 +80,24 @@ every entry carries its spec ID.
 npm run check          # syntax, duplicates, stale HTML
 npm test               # includes tests/geography.test.mjs: frame, regions, 48 villages with lanes, no pad overlaps,
                        # roads dry outside bridges/fords, road classes, speed bonus, level homeland flats, massif height
-npm run test:e2e       # 24 browser checks, incl. "NO-CLIP LAW: every registered wall face is solid, roads never run through river water"
+npm run test:e2e       # 25 browser checks, incl. "NO-CLIP LAW: every registered wall face is solid, roads never run through river water"
+                       # and "countryside houses are real: the instanced door swings open for the player, a furnished lit interior waits behind it"
 ```
 
 In the browser: `__game.noclipAudit()` probes four faces of every enterable structure (four insets each; doors, back
 doors and gate passages are the only free faces), `__game.roadProbe(n)` samples road points against river water,
 `__game.buildingsLive()` reports doors/structures/lights/chimneys/moving parts/roads/flags/beacons/RBL usage.
 
-## 5. Measured budget (headless boot, `__game.buildingsLive()` / `sceneStats()`)
+## 5. Measured budget (headless boot, `__game.buildingsLive()` / `memStats()` / `bootTimes()`)
 
-~1,800 registered structures (1,725 enterable), ~1,680 hinged doors, ~3,970 light sources (pooled), ~3,490 chimneys,
-143 moving parts, 102 road ribbons / 13,800 quads, 68 lanes, 15 trails, 98 milestones, 22 bridges (6 fords), 56 flags,
-10 beacons, 48 villages, 12 waystations, ~10,170 counted buildings (incl. ~6,500 instanced hamlet houses), 256/256 zones,
-~15,400 meshes / 8.2 M triangles before culling, boot ≈ 6 s in the headless test browser.
+v3.1 (phase 3 — every building enterable): ~9,500 registered structures (**~9,420 enterable**; the rest are the two water
+gates, the ferry, flags and beacons), ~9,380 hinged doors (≈7,700 of them instanced leaves), ~20,400 light sources (pooled
+to 8 point lights), ~10,200 chimneys, 143 moving parts, 821 hamlets in 248 zones (≈6,500 hamlet buildings + yards), 150
+farmsteads (≈760 buildings), ≈470 townhouses in the capital's blocks, 99 prefab geometries (≈237 k triangles) stamped
+≈21,000 times (≈7,800 houses) in 231 cells / ≈6,250 instanced meshes, ~210,000 colliders, 1,075 flats, 102 road ribbons /
+13,800 quads, 68 lanes, 15 trails, 22 bridges (6 fords), 56 flags, 10 beacons, 48 villages, 12 waystations, 256/256 zones.
+Per frame from a hamlet: ~760 draw calls / ~2.3 M triangles after culling. Boot ≈ 9 s in the headless test browser
+(terrain 1.7 s, towns 2.0 s, villages 1.6 s, settlements 1.7 s, prefab flush 0.05 s).
+
+v3.0 for reference: ~1,800 structures (1,725 enterable), ~1,680 doors, ~3,970 lights, ~3,490 chimneys, ~10,170 counted
+buildings of which ~8,300 were instanced box-and-prism silhouettes without interiors.
