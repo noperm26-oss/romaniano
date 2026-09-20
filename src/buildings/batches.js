@@ -43,12 +43,15 @@ function buildSettlementHouse(batch,x,z,type){
   /* door with frame, two glazed windows */
   var fz=dp/2+0.06;
   batch.add('box',x,y+1.05,z+fz,1.2,2.1,0.13,d.trim);
-  batch.add('box',x-w*0.31,y+2.1,z+fz,0.8,0.9,0.1,0x47606c);
-  batch.add('box',x+w*0.31,y+2.1,z+fz,0.8,0.9,0.1,0x47606c);
+  batch.add('box',x-w*0.31,y+2.1,z+fz,0.8,0.9,0.1,PANE_COL);
+  batch.add('box',x+w*0.31,y+2.1,z+fz,0.8,0.9,0.1,PANE_COL);
+  batch.add('box',x-w*0.31,y+2.1,z-fz,0.8,0.9,0.1,PANE_COL);
+  batch.add('box',x+w*0.31,y+2.1,z-fz,0.8,0.9,0.1,PANE_COL);
   if(type==='chapel'){
     batch.add('box',x,y+h+rh+1.0,z,0.2,2,0.2,0xc9a227);
     batch.add('box',x,y+h+rh+1.3,z,1.1,0.2,0.2,0xc9a227);
   }
   addCollider(x-w/2,z-dp/2,x+w/2,z+dp/2);BUILD_COUNT++;
+  if(BUILD_COUNT%4===0) regChimney(x+(alongZ?w*0.26:ridgeLen*0.28),y+h+rh+0.8,z+(alongZ?ridgeLen*0.28:dp*0.26),0.6);
   return true;
 }

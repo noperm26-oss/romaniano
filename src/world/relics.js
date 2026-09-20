@@ -9,15 +9,15 @@ function placeRelics(){
     {x:0,z:-2600, name:'Aegis of the South', icon:'🛡️', buff:'hp',
      story:'Bull-hide and bronze, blessed under the burning sun. It fills the bearer with iron vigor. Carpathian frostwind pass.'},
     /* extended relics */
-    {x:-1800,z:-800, name:'Crown of Ardealburg', icon:'👑', buff:'treasury',
-     story:'Golden crown of Transylvanian princes, hidden in Ardealburg School of Scribes. Grants wealth and wisdom.'},
-    {x:0,z:0, name:'Scepter of Romaria', icon:'🏰', buff:'morale',
-     story:'Royal scepter of Romaria capital, marble and gold. Inspires armies, holds the realm together.'},
-    {x:0,z:2500, name:'Merchant’s Scale of Drumul Lung', icon:'⚖️', buff:'trade',
+    {x:-1828,z:-762, name:'Crown of Ardealburg', icon:'👑', buff:'treasury',
+     story:'Golden crown of Transylvanian princes, kept at the door of the Ardealburg School of Scribes (REL-04). Grants wealth and wisdom.'},
+    {x:0,z:-163, name:'Scepter of Romaria', icon:'🏰', buff:'morale',
+     story:'Royal scepter on the throne dais of the Palatul Regal (REL-05), marble and gold. Inspires armies, holds the realm together.'},
+    {x:0,z:2438, name:'Merchant’s Scale of Drumul Lung', icon:'⚖️', buff:'trade',
      story:'Bronze scale from Southern Trade Route inn — measures not gold but fate. Caravans prosper under its balance.'},
-    {x:1700,z:-700, name:'Wolf Fang of Codrul Vechi', icon:'🐺', buff:'forest',
+    {x:1640,z:-664, name:'Wolf Fang of Codrul Vechi', icon:'🐺', buff:'forest',
      story:'Carved wolf fang shrine in Moldavian Borderlands. Grants sight in forests, speed among trees.'},
-    {x:-1400,z:1300, name:'Banner of Cetatea Dunarii', icon:'🚩', buff:'defense',
+    {x:-1358,z:1306, name:'Banner of Cetatea Dunarii', icon:'🚩', buff:'defense',
      story:'War-torn banner from Wallachian fortress, 20-meter walls could not hold without it. Defense eternal.'}
   ];
   defs.forEach(function(d){

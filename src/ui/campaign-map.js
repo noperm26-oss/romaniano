@@ -56,6 +56,14 @@ function drawWarmap(){
     g.beginPath(); g.moveTo(gx*ZS*sx,0); g.lineTo(gx*ZS*sx,h); g.stroke();
     g.beginPath(); g.moveTo(0,gx*ZS*sz); g.lineTo(w,gx*ZS*sz); g.stroke();
   }
+  /* rivers and the main roads of ROM-MAP-SPEC-003 */
+  if(typeof RIVERS!=='undefined'){
+    g.strokeStyle='rgba(90,150,190,0.85)'; g.lineWidth=3; g.lineJoin='round';
+    RIVERS.forEach(function(R){ g.beginPath(); R.wp.forEach(function(p,i){ if(i===0) g.moveTo(X(p[0]),Z(p[1])); else g.lineTo(X(p[0]),Z(p[1])); }); g.stroke(); });
+    ROADS.forEach(function(R){ if(R.lane||R.cls==='R3') return; g.strokeStyle=R.cls==='R0'?'rgba(240,230,200,0.9)':R.cls==='R1t'?'rgba(220,190,130,0.85)':'rgba(190,160,110,0.75)'; g.lineWidth=R.cls==='R0'?2.2:R.cls==='R2'?1:1.6;
+      g.beginPath(); R.wp.forEach(function(p,i){ if(i===0) g.moveTo(X(p[0]),Z(p[1])); else g.lineTo(X(p[0]),Z(p[1])); }); g.stroke(); });
+    if(typeof FLAGS!=='undefined') FLAGS.forEach(function(F){ var zi=zoneIdxAt(F.x,F.z), o=zones[zi]&&zones[zi].owner; g.fillStyle=o&&FACS[o]?FACS[o].bannerBg:'#9a9a8a'; g.fillRect(X(F.x)-2,Z(F.z)-2,4,4); });
+  }
   /* towns */
   g.font='bold 13px Georgia'; g.textAlign='center';
   FAC_KEYS.forEach(function(f){
@@ -78,7 +86,7 @@ function drawWarmap(){
   g.fillStyle='rgba(110,95,67,0.9)';
   g.beginPath(); g.arc(X(0), Z(0), 14, 0, TAU); g.fill();
   g.fillStyle='#f1e4c3';
-  g.fillText('The Field', X(0), Z(0)+4);
+  g.fillText('Romaria', X(0), Z(0)+4);
 
   // highlight hovered zone
   if(warmapHoverZi>=0){

@@ -1,7 +1,8 @@
-/* ---------------- battlefield props — ROMANIAN MEDIEVAL WAR WORLD EXTENDED ----------------
-   Carpathian peaks, Transylvanian orchards, Wallachian marshes, Moldavian forests,
-   Trade Route caravan stops, Romaria boulevards, battlefields, secret areas
-*/
+/* ============================================================
+   scenery.js — the living land: rim peaks, forests, rocks,
+   reeds, vineyards, clouds. Instanced per 375u bucket so the
+   whole 6,000u world costs a few dozen draw calls.
+   ============================================================ */
 var clouds=[], flames=[];
 var waveBanners=[];
 var nightLights=[];
@@ -10,192 +11,195 @@ var critters=[];
 var chests=[];
 function registerLore(o){ o.idx=LANDMARKS.length; LANDMARKS.push(o); return o; }
 var scenery={};
-(function buildField(){
-  /* mountains ring at the edge of the world — now Carpathian ridge emphasis north */
-  for(var mi=0; mi<34; mi++){
-    var ma=mi/34*TAU+rand(-0.14,0.14), mr=rand(2670,2870), mh=rand(60,140);
-    // bias north for Carpathian ridge
-    if(mi<14){
-      ma = -Math.PI/2 + rand(-0.9,0.9);
-      mr = rand(2550,2920);
-      mh = rand(90,180);
-    }
-    var mtn=cone(rand(130,260), mh, M(0x7d94a5), 7); mtn.name='always';
-    mtn.position.set(Math.cos(ma)*mr, mh*0.32, Math.sin(ma)*mr);
-    mtn.castShadow=false;
-    scene.add(mtn);
-  }
-  /* continuous wall of peaks so the world's rim is SEEN, not felt — extended north */
-  for(var wi=0; wi<72; wi++){
-    var wa=wi/72*TAU+rand(-0.03,0.03), wr=rand(2980,3080), wh=rand(95,180);
-    if(wa>-2.5 && wa<-0.6){ wh+=40; } // north higher
-    var wall=cone(rand(210,360), wh, M(0x71879a), 7); wall.name='always';
-    wall.position.set(Math.cos(wa)*wr, wh*0.32, Math.sin(wa)*wr);
-    wall.castShadow=false;
-    scene.add(wall);
-  }
-  /* spent arrows + broken shields on the field — battlefields scattered */
-  try{
-    var aGeo=new THREE.CylinderGeometry(0.02,0.02,0.8,4);
-    var aMat=new THREE.MeshLambertMaterial({color:0xb59a63});
-    var sticks=new THREE.InstancedMesh(aGeo, aMat, 160);
-    var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), e=new THREE.Euler(), v=new THREE.Vector3(), s=new THREE.Vector3(1,1,1);
-    for(var ai=0; ai<160; ai++){
-      var regionPick = rand(0,1);
-      var ax, az;
-      if(regionPick<0.3){
-        ax=rand(-2800,2800); az=rand(200,1800); // Wallachian battlefields
-      } else if(regionPick<0.6){
-        ax=rand(-2000,2000); az=rand(-800,800); // central
-      } else {
-        ax=rand(-380,380); az=rand(-380,380);
-      }
-      e.set(rand(-0.5,0.5),rand(0,TAU),rand(0.4,1.1)); q.setFromEuler(e);
-      v.set(ax, groundH(ax,az)+0.28, az);
-      m4.compose(v,q,s);
-      sticks.setMatrixAt(ai,m4);
-    }
-    scene.add(sticks);
-  }catch(err){}
-  for(var bi=0; bi<24; bi++){
-    var bx, bz;
-    if(bi<8){ bx=rand(-2600,2600); bz=rand(300,1800); }
-    else if(bi<16){ bx=rand(-1800,1800); bz=rand(-600,600); }
-    else { bx=rand(-330,330); bz=rand(-330,330); }
-    var sh=cyl(0.34,0.34,0.05, M(choice([0x7a3434,0x50565e,0x5b4a86])), 10);
-    sh.rotation.set(Math.PI/2+rand(-0.4,0.4), rand(0,TAU), 0);
-    sh.position.set(bx, groundH(bx,bz)+0.06, bz);
-    scene.add(sh);
-  }
-  /* great bonfire at Romaria's heart + additional fires per region */
-  var fx2=0, fz2=26, fy=groundH(fx2,fz2);
-  for(var si=0; si<9; si++){
-    var sa=si/9*TAU;
-    scene.add(box(0.34,0.26,0.34, M(0x777772), fx2+Math.cos(sa)*0.75, fy+0.1, fz2+Math.sin(sa)*0.75));
-  }
-  var lg1=cyl(0.11,0.13,1.5, M(0x5d4326), 6); lg1.rotation.z=Math.PI/2; lg1.rotation.y=0.5; lg1.position.set(fx2,fy+0.24,fz2); scene.add(lg1);
-  var lg2=cyl(0.11,0.13,1.5, M(0x5d4326), 6); lg2.rotation.z=Math.PI/2; lg2.rotation.y=-0.7; lg2.position.set(fx2,fy+0.42,fz2); scene.add(lg2);
-  var fireLight=new THREE.PointLight(0xff9a3c, 1.1, 26, 2);
-  fireLight.position.set(fx2, fy+1.2, fz2); scene.add(fireLight);
-  fireLight.userData.base=1.1; nightLights.push(fireLight);
-  var flame=new THREE.Mesh(new THREE.ConeGeometry(0.45,1.2,7), new THREE.MeshBasicMaterial({color:0xffa531}));
-  flame.position.set(fx2, fy+0.95, fz2); scene.add(flame);
-  var flame2=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.7,6), new THREE.MeshBasicMaterial({color:0xffe28a}));
-  flame2.position.set(fx2, fy+1.15, fz2); scene.add(flame2);
-  flames.push(flame, flame2);
-  scenery.fire={light:fireLight, flame:flame, flame2:flame2, y:fy};
 
-  /* regional bonfires */
-  [
-    [0,-2400, 'Stanca de Fier beacon'],
-    [-1800,-800, 'Ardealburg market fire'],
-    [-1400,1300, 'Cetatea Dunarii war fire'],
-    [1700,-700, 'Hotarul de Nord watchfire'],
-    [0,2500, 'Drumul Lung inn fire']
-  ].forEach(function(f){
-    var fy2=groundH(f[0],f[1]);
-    var fl=new THREE.Mesh(new THREE.ConeGeometry(0.35,0.9,6), new THREE.MeshBasicMaterial({color:0xffa531}));
-    fl.position.set(f[0],fy2+0.8,f[1]); scene.add(fl); flames.push(fl);
-    var li=new THREE.PointLight(0xff9a3c, 0.8, 20, 2); li.position.set(f[0],fy2+1.1,f[1]); scene.add(li); li.userData.base=0.8; nightLights.push(li);
+/* deterministic random for world dressing (same forest every boot) */
+function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+
+/* generic bucketed instancing: items=[{m:Matrix4, c:hex}] → InstancedMesh per 375u cell with cullBounds */
+function bucketIM(geo, items, mat, name, opts){
+  opts=opts||{};
+  if(!items.length) return 0;
+  var buckets=new Map(), cell=opts.cell||375;
+  items.forEach(function(it,i){
+    var e=it.m.elements, bx=Math.floor((e[12]+WORLD.half)/cell), bz=Math.floor((e[14]+WORLD.half)/cell), key=bx+':'+bz;
+    if(!buckets.has(key)) buckets.set(key,{x:bx,z:bz,items:[]});
+    buckets.get(key).items.push(i);
   });
+  var made=0;
+  buckets.forEach(function(b){
+    var im=new THREE.InstancedMesh(geo, mat, b.items.length);
+    b.items.forEach(function(orig,i){ im.setMatrixAt(i, items[orig].m); if(items[orig].c!==undefined) im.setColorAt(i, new THREE.Color(items[orig].c)); });
+    im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true;
+    im.frustumCulled=false; im.name=name||'scenery-chunk';
+    im.castShadow=opts.shadow!==false; im.receiveShadow=true;
+    im.userData.cullBounds={x:(b.x+0.5)*cell-WORLD.half, z:(b.z+0.5)*cell-WORLD.half, r:cell*0.76};
+    scene.add(im); made++;
+  });
+  return made;
+}
+var _imM4=new THREE.Matrix4(), _imQ=new THREE.Quaternion(), _imE=new THREE.Euler(), _imV=new THREE.Vector3(), _imS=new THREE.Vector3();
+function imItem(x,y,z,ry,sx,sy,sz,col,rx,rz){
+  _imE.set(rx||0,ry||0,rz||0); _imQ.setFromEuler(_imE); _imV.set(x,y,z); _imS.set(sx,sy,sz);
+  _imM4.compose(_imV,_imQ,_imS);
+  return {m:_imM4.clone(), c:col};
+}
 
-  /* clouds — more over Carpathians */
-  var cm=new THREE.MeshLambertMaterial({color:0xffffff, emissive:0x8a97a8});
-  for(var ci=0; ci<22; ci++){
+/* keep-out test shared by trees, rocks, reeds: sites, towns, roads, rivers, lakes */
+function sceneryRoadDist(x,z){ var f=roadField(x,z); return f.d-(f.w||8)/2; }
+function sceneryBlocked(x,z,margin){
+  var i;
+  for(i=0;i<FLATS.length;i++){
+    var f=FLATS[i], dx=x-f.x, dz=z-f.z, rr=f.r+(margin||0);
+    if(dx*dx+dz*dz<rr*rr) return true;
+  }
+  if(sceneryRoadDist(x,z)<5) return true;
+  var rf=riverField(x,z);
+  if(rf.river && rf.d<rf.river.hw*1.25+3) return true;
+  for(i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<(L.r+6)*(L.r+6)) return true; }
+  return false;
+}
+
+(function buildField(){
+  var rnd=srand(20260919);
+  /* ---- rim peaks: a square wall of mountains just outside the 6,000 × 6,000 world, highest in the north ---- */
+  var rimM=M(0x7d94a5), rimSnow=M(0xe8f0f8), rimDark=M(0x6c8090);
+  function peak(x,z,wrad,wh,dark){
+    var wall=cone(wrad, wh, dark?rimDark:rimM, 7); wall.name='always';
+    wall.position.set(x, wh*0.32, z); wall.castShadow=false; scene.add(wall);
+    var cap=cone(wrad*0.34, wh*0.34, rimSnow, 7); cap.name='always';
+    cap.position.set(x, wh*0.32+wh*0.33, z); cap.castShadow=false; scene.add(cap);
+  }
+  for(var wi=0; wi<128; wi++){
+    var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
+    if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
+    var north=wz<-2400?1:0;
+    peak(wx, wz, 190+rnd()*110, 95+rnd()*85+north*90, wi%3===0);
+  }
+  /* inland peaks of the Carpathian ridge, kept clear of every named place */
+  function peakBlocked(x,z,r){
+    var i;
+    for(i=0;i<SITES_DEF.length;i++){ var S=SITES_DEF[i]; if(Math.hypot(x-S.x,z-S.z)<S.r+r+30) return true; }
+    for(i=0;i<VILLAGES.length;i++){ if(Math.hypot(x-VILLAGES[i].x,z-VILLAGES[i].z)<r+90) return true; }
+    for(i=0;i<FAC_KEYS_T.length;i++){ var T=TOWNS[FAC_KEYS_T[i]]; if(Math.hypot(x-T.x,z-T.z)<r+320) return true; }
+    if(sceneryRoadDist(x,z)<r*0.6) return true;
+    return false;
+  }
+  for(var mi=0; mi<60; mi++){
+    var mx=rnd()*5400-2700, mz=-3000+rnd()*1050, mrad=110+rnd()*120, mh=(70+rnd()*90)*(1-ss(-2600,-1950,mz))+40;
+    if(mz>-1950||peakBlocked(mx,mz,mrad)) continue;
+    peak(mx, mz, mrad, mh, mi%2===0);
+  }
+  /* ---- clouds: iron-grey overcast, thicker over the Carpathians ---- */
+  var cm=new THREE.MeshLambertMaterial({color:0xe6eaee, emissive:0x7d8a99});
+  for(var ci=0; ci<30; ci++){
     var cl=new THREE.Group();
-    var parts=randi(3,5);
+    var parts=3+Math.floor(rnd()*3);
     for(var pi=0; pi<parts; pi++){
-      var ps=sph(rand(3,5.5), cm, 8, 6);
-      ps.scale.y=0.45; ps.castShadow=false;
-      ps.position.set(rand(-4,4), rand(-0.5,0.5), rand(-2,2));
+      var ps=sph(3+rnd()*3, cm, 8, 6);
+      ps.scale.y=0.42; ps.castShadow=false;
+      ps.position.set(rnd()*9-4.5, rnd()-0.5, rnd()*4-2);
       cl.add(ps);
     }
-    if(ci<8) cl.position.set(rand(-900,900), rand(56,76), rand(-2400,-1600)); // over Carpathians
-    else cl.position.set(rand(-900,900), rand(46,66), rand(-900,900));
+    if(ci<10) cl.position.set(rnd()*2400-1200, 92+rnd()*24, -2650+rnd()*900);
+    else cl.position.set(rnd()*2400-1200, 52+rnd()*26, rnd()*2400-1200);
     scene.add(cl); clouds.push(cl);
   }
-  /* trees across the world — region specific */
-  function tree(x,z, type){
-    var y=groundH(x,z);
-    var t=new THREE.Group(); t.position.set(x,y,z);
-    var trunk=cyl(0.16,0.28,rand(1.5,2.4), M(0x5d4326), 7);
-    trunk.position.y=1.1; t.add(trunk);
-    if(type==='pine' || Math.random()<0.5){
-      var pc=M(type==='pine'?0x2f4a2e:0x2f5233);
-      [[1.6,2.2,1.5],[2.8,1.8,1.15],[3.9,1.4,0.9]].forEach(function(l){
-        var c=cone(l[2],l[1],pc,8); c.position.y=l[0]; t.add(c);
-      });
-    } else {
-      var gc=M(0x4a7a37);
-      for(var i=0;i<3;i++){
-        var sp=sph(rand(0.85,1.3), Math.random()<0.5?gc:M(0x57893f), 8, 6);
-        sp.position.set(rand(-0.6,0.6), rand(2.1,3.3), rand(-0.6,0.6));
-        sp.scale.y=0.8; t.add(sp);
-      }
-    }
-    scene.add(t);
-  }
-  function farFromTowns(x,z){
-    if(x*x+z*z < 580*580) return false; // keep capital clear
-    for(var i=1;i<FLATS.length;i++){
-      var f=FLATS[i];
-      var dx=x-f.x, dz=z-f.z;
-      if(dx*dx+dz*dz < 360*360) return false;
-    }
-    return true;
-  }
-  var placed=0, guard=0;
-  while(placed<240 && guard<2500){
-    guard++;
-    var tx=rand(-WORLD.half+200, WORLD.half-200);
-    var tz=rand(-WORLD.half+200, WORLD.half-200);
-    var reg = getRegion(tx,tz);
-    if(reg==='carpathian'){
-      if(Math.random()<0.7){ /* dense pine forests */
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz,'pine'); placed++;
-      }
-    } else if(reg==='transylvanian'){
-      if(Math.random()<0.55){
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz,'oak'); placed++;
-      }
-    } else if(reg==='moldavian'){
-      if(Math.random()<0.65){
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz, Math.random()<0.6?'pine':'oak'); placed++;
-      }
-    } else if(reg==='wallachian'){
-      if(Math.random()<0.25){
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz,'oak'); placed++;
-      }
-    } else if(reg==='trade_route'){
-      if(Math.random()<0.12){
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz,'oak'); placed++;
-      }
-    } else {
-      if(Math.random()<0.4){
-        tx*=0.55; tz*=0.55;
-        if(!farFromTowns(tx,tz)) continue;
-        tree(tx,tz); placed++;
-      }
-    }
-  }
-  for(var ri=0; ri<36; ri++){
-    var rx2=rand(-2400,2400), rz2=rand(-2400,2400);
-    if(!farFromTowns(rx2,rz2)) continue;
-    var reg2=getRegion(rx2,rz2);
-    var rockCol = reg2==='carpathian'?0x8a8a86:reg2==='trade_route'?0xa09070:0x8a8a86;
-    var rock=new THREE.Mesh(new THREE.IcosahedronGeometry(rand(0.6,2.2),0), M(rockCol));
-    rock.position.set(rx2, groundH(rx2,rz2)+0.2, rz2);
-    rock.rotation.set(rand(0,3),rand(0,3),rand(0,3));
-    rock.castShadow=true;
-    scene.add(rock);
-  }
-})();
 
-/* ============================================================
-   BUILDINGS — real walls, doors & interiors — EXTENDED
-   ============================================================ */
+  /* ---- forests ---- */
+  var pineTrunk=[], pineTop=[], oakTrunk=[], oakTop=[], deadTrunk=[], rocks=[], bigRocks=[], reeds=[], vinePosts=[], vineRows=[], stumps=[];
+  var w={}, placed=0;
+  for(var gz=-2880; gz<2880; gz+=22) for(var gx=-2880; gx<2880; gx+=22){
+    var x=gx+rnd()*20-10, z=gz+rnd()*20-10;
+    regionWeights(x,z,w);
+    var n=Math.sin(x*0.0072+1.1)*Math.cos(z*0.0066-0.3)+0.5*Math.sin(x*0.021)*Math.sin(z*0.019);
+    var h=groundH(x,z);
+    var kind=null, p=0;
+    if(w.carpathian>0.5){ p=h<27 ? 0.62-0.012*Math.max(0,h-12) : 0; kind='pine'; if(n<-0.55) p*=0.25; }
+    else if(w.moldavian>0.5){ p=0.55+0.25*n; kind=rnd()<0.75?'pine':'oak'; }
+    else if(w.transylvanian>0.5){ p=h>7 ? 0.55 : 0.09; kind='oak'; }
+    else if(w.wallachian>0.5){ p=0.09; kind='oak'; }
+    else if(w.trade_route>0.5){ p=0.045; kind='oak'; }
+    else if(w.capital>0.5){ p=Math.max(Math.abs(x),Math.abs(z))>430 ? 0.16 : 0; kind='oak'; }
+    else { p=0.14+0.1*n; kind=rnd()<0.3?'dead':'oak'; }
+    if(p<=0||rnd()>p) continue;
+    if(sceneryBlocked(x,z,14)) continue;
+    var s=0.8+rnd()*0.55, ry=rnd()*TAU;
+    if(kind==='pine'){
+      var dark=w.moldavian>0.5;
+      pineTrunk.push(imItem(x,h+1.4*s,z,ry,0.36*s,2.8*s,0.36*s,0x4a3a2a));
+      pineTop.push(imItem(x,h+3.6*s,z,ry,2.6*s,4.2*s,2.6*s,dark?0x2a4126:(h>18?0x3d5a3c:0x2f4a2e)));
+      pineTop.push(imItem(x,h+5.6*s,z,ry+0.4,1.8*s,3.2*s,1.8*s,dark?0x243a20:0x35533a));
+    } else if(kind==='oak'){
+      var dusty=w.trade_route>0.5;
+      oakTrunk.push(imItem(x,h+1.1*s,z,ry,0.42*s,2.2*s,0.42*s,0x5d4326));
+      oakTop.push(imItem(x,h+3.1*s,z,ry,3.0*s,2.6*s,3.0*s,dusty?0x7a8a5a:(rnd()<0.5?0x4a7a37:0x57893f)));
+      if(rnd()<0.6) oakTop.push(imItem(x+0.7*s,h+3.7*s,z-0.4*s,ry,2.0*s,1.9*s,2.0*s,0x3f6a30));
+    } else {
+      deadTrunk.push(imItem(x,h+1.5*s,z,ry,0.32*s,3.0*s,0.32*s,0x3a3028,0,0.12));
+      deadTrunk.push(imItem(x+0.5*s,h+2.6*s,z,ry,0.12*s,1.5*s,0.12*s,0x3a3028,0,0.8));
+    }
+    placed++;
+  }
+  /* ---- rocks: Carpathian scree, Moldavian outcrops, boulders on every plain ---- */
+  for(var ri=0; ri<2600; ri++){
+    var rx=rnd()*5800-2900, rz=rnd()*5800-2900;
+    regionWeights(rx,rz,w);
+    var pr=w.carpathian*0.9+w.moldavian*0.5+w.battlefield*0.2+w.transylvanian*0.12+w.wallachian*0.05+w.trade_route*0.15+w.capital*0.05;
+    if(rnd()>pr) continue;
+    if(sceneryBlocked(rx,rz,10)) continue;
+    var rh=groundH(rx,rz), rs=0.5+rnd()*1.6+(w.carpathian>0.5?rnd()*1.6:0);
+    var col=w.carpathian>0.5?0x8a8a86:(w.trade_route>0.5?0xa09070:0x777772);
+    if(rs>1.7){ bigRocks.push(imItem(rx,rh+rs*0.35,rz,rnd()*3,rs*1.4,rs,rs*1.2,col,rnd()*0.5,rnd()*0.5)); addCollider(rx-rs*0.6,rz-rs*0.55,rx+rs*0.6,rz+rs*0.55); }
+    else rocks.push(imItem(rx,rh+rs*0.3,rz,rnd()*3,rs*1.3,rs*0.9,rs,col,rnd()*0.5,rnd()*0.5));
+  }
+  /* ---- reeds along Wallachian water and marsh hollows ---- */
+  for(var qi=0; qi<9000; qi++){
+    var qx=rnd()*5800-2900, qz=rnd()*5800-2900;
+    regionWeights(qx,qz,w);
+    if(w.wallachian<0.4 && w.trade_route<0.4 && w.capital<0.4) continue;
+    var rf=riverField(qx,qz), qh=groundH(qx,qz), ok=false;
+    if(rf.river && rf.d>rf.river.hw*0.85 && rf.d<rf.river.hw*1.7) ok=true;
+    if(w.wallachian>0.5 && qh<-1.3) ok=rnd()<0.5;
+    for(var lk=0; lk<LAKES.length && !ok; lk++){ var L=LAKES[lk]; var dl=Math.hypot(qx-L.x,qz-L.z); if(!L.frozen && dl>L.r*0.95 && dl<L.r+9) ok=true; }
+    if(!ok) continue;
+    if(sceneryRoadDist(qx,qz)<3) continue;
+    for(var fi=0; fi<FLATS.length; fi++){ var F=FLATS[fi]; if(F.r>100 && (qx-F.x)*(qx-F.x)+(qz-F.z)*(qz-F.z)<F.r*F.r){ ok=false; break; } }
+    if(!ok) continue;
+    var qs=0.8+rnd()*0.7;
+    reeds.push(imItem(qx,qh+0.9*qs,qz,rnd()*TAU,0.9*qs,1.8*qs,0.9*qs,rnd()<0.5?0x8a9a5a:0x6f8a48,rnd()*0.2-0.1,rnd()*0.2-0.1));
+  }
+  /* ---- vineyards on Transylvanian slopes ---- */
+  for(var vi=0; vi<2600; vi++){
+    var vx=rnd()*1900-2950, vz=rnd()*1900-1750;
+    if(getRegion(vx,vz)!=='transylvanian') continue;
+    var vn=Math.sin(vx*0.011+1.7)*Math.cos(vz*0.009-0.4);
+    if(vn>-0.45) continue;
+    if(sceneryBlocked(vx,vz,20)) continue;
+    var vh=groundH(vx,vz), va=Math.round(vn*4)%2?0:Math.PI/2;
+    vinePosts.push(imItem(vx,vh+0.8,vz,va,0.14,1.6,0.14,0x5d4326));
+    vineRows.push(imItem(vx,vh+0.95,vz,va,4.6,0.9,0.5,0x6b8f3a));
+  }
+  /* ---- stumps and log piles at the woodcutters' edges ---- */
+  for(var si=0; si<500; si++){
+    var sx=rnd()*5800-2900, sz=rnd()*5800-2900;
+    regionWeights(sx,sz,w);
+    if(w.moldavian+w.transylvanian+w.carpathian<0.6) continue;
+    if(sceneryBlocked(sx,sz,12)) continue;
+    stumps.push(imItem(sx,groundH(sx,sz)+0.25,sz,rnd()*TAU,0.9,0.5,0.9,0x6b4f2e));
+  }
+  var trunkGeo=new THREE.CylinderGeometry(0.4,0.55,1,6), coneGeo=new THREE.ConeGeometry(0.5,1,7), sphGeo=new THREE.SphereGeometry(0.5,7,5);
+  var rockGeo=new THREE.IcosahedronGeometry(0.5,0), boxGeo=new THREE.BoxGeometry(1,1,1), reedGeo=new THREE.ConeGeometry(0.08,1,4), stumpGeo=new THREE.CylinderGeometry(0.5,0.6,1,7);
+  var white=M(0xffffff);
+  bucketIM(trunkGeo, pineTrunk, white, 'forest');
+  bucketIM(coneGeo, pineTop, white, 'forest');
+  bucketIM(trunkGeo, oakTrunk, white, 'forest');
+  bucketIM(sphGeo, oakTop, white, 'forest');
+  bucketIM(trunkGeo, deadTrunk, white, 'forest');
+  bucketIM(rockGeo, rocks, white, 'rocks');
+  bucketIM(rockGeo, bigRocks, white, 'rocks');
+  bucketIM(reedGeo, reeds, white, 'reeds', {shadow:false});
+  bucketIM(boxGeo, vinePosts, white, 'vines', {shadow:false});
+  bucketIM(boxGeo, vineRows, white, 'vines', {shadow:false});
+  bucketIM(stumpGeo, stumps, white, 'stumps', {shadow:false});
+  scenery.trees=placed; scenery.rocks=rocks.length+bigRocks.length; scenery.reeds=reeds.length;
+})();

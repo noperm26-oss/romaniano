@@ -1,477 +1,136 @@
-/* ---------------- districts — ROMANIAN MEDIEVAL WAR WORLD EXTENDED 2× EDITION ----------------
-   Farms, mines, markets, caves, ruins, plus NEW: watchtowers, monasteries, outposts,
-   war camps, trade posts, inns, shrines, secret crypts — per region, instanced
-*/
+/* ============================================================
+   districts.js — the countryside between the named places
+   ------------------------------------------------------------
+   Farmsteads, herders' folds, quarries and hunting camps
+   scattered over every region (instanced, solid, with doors and
+   windows), the zone economy (SITES / zoneSiteRate) and the
+   "wilds" pass that guarantees every zone has something in it.
+   ============================================================ */
 var SITES=[];
 var zoneSiteRate=null;
 var DISTRICT_C=[];
-var LMS=[
-  [0,0],           /* Romaria capital */
-  [-1800,-800],    /* Ardealburg */
-  [-1400,1300],    /* Cetatea Dunarii */
-  [1700,-700],     /* Hotarul de Nord */
-  [0,-2400],       /* Stanca de Fier */
-  [0,2500],        /* Drumul Lung */
-  [575,850],[915,570],[990,705],[635,950],[805,710],[710,680],
-  [580,-850],[-580,-850],[-580,850],
-  [-465,-2080],[465,2080],
-  [-2200,-2000],[2200,-1900],[-2100,-400],[2100,200],
-  [-2200,1800],[2200,2200],[0,-1600],[1200,0]
-];
 (function(){
-  // Generate districts across all regions, avoiding towns & landmarks
-  for(var i=0;i<400;i++){
-    if(DISTRICT_C.length>=220) break;
-    var a=i*2.39996, r=220+Math.pow((i%85)/85,0.68)*2700;
-    var x=Math.cos(a)*r, z=Math.sin(a)*r;
-    if(Math.abs(x)>2920||Math.abs(z)>2920) continue;
-    var reg = getRegion(x,z);
-    if(reg==='capital' && Math.sqrt(x*x+z*z)<620) continue; // keep capital clear for hand-placed palace
-    var bad=false;
-    FAC_KEYS_T.forEach(function(fk){
-      var T=TOWNS[fk];
-      if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<320*320) bad=true;
-    });
-    for(var v=0;v<VILLAGES.length;v++){ var V=VILLAGES[v];
-      if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<110*110) bad=true; }
-    for(var L=0;L<LMS.length;L++){ if((x-LMS[L][0])*(x-LMS[L][0])+(z-LMS[L][1])*(z-LMS[L][1])<130*130) bad=true; }
-    for(var d=0;d<DISTRICT_C.length;d++){ var D=DISTRICT_C[d];
-      if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<140*140) bad=true; }
-    if(!bad) DISTRICT_C.push({x:x, z:z, region:reg});
+  var rnd=srand(90210);
+  for(var i=0;i<900 && DISTRICT_C.length<150;i++){
+    var x=rnd()*5600-2800, z=rnd()*5600-2800;
+    if(Math.abs(x)>2850||Math.abs(z)>2850) continue;
+    var bad=false, k;
+    for(k=0;k<FAC_KEYS_T.length && !bad;k++){ var T=TOWNS[FAC_KEYS_T[k]]; if((x-T.x)*(x-T.x)+(z-T.z)*(z-T.z)<Math.pow((TOWN_RADIUS[FAC_KEYS_T[k]]||150)+150,2)) bad=true; }
+    for(k=0;k<SITES_DEF.length && !bad;k++){ var S=SITES_DEF[k]; if((x-S.x)*(x-S.x)+(z-S.z)*(z-S.z)<Math.pow(S.r+110,2)) bad=true; }
+    for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
+    for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
+    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
+    if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
+    if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
+    if(!bad) DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)});
   }
 })();
+/* instanced well and fence pieces (solid) */
+function batchWell(batch,x,z,roofCol){
+  var y=groundH(x,z);
+  batch.add('box',x,y+0.5,z,2.2,1.0,2.2,0x8f8a80,0.4);
+  batch.add('box',x-0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326); batch.add('box',x+0.9,y+1.6,z,0.13,2.4,0.13,0x5d4326);
+  batch.add('roof',x,y+3.2,z,3.0,0.8,3.0,roofCol||0x6d5a3e,Math.PI/4);
+  addCollider(x-1.1,z-1.1,x+1.1,z+1.1); BUILD_COUNT++;
+}
+function batchFence(batch,x0,z0,x1,z1){
+  var L=Math.hypot(x1-x0,z1-z0), n=Math.max(1,Math.round(L/2.4)), ry=-Math.atan2(z1-z0,x1-x0), i;
+  for(i=0;i<=n;i++){ var t=i/n, px=x0+(x1-x0)*t, pz=z0+(z1-z0)*t; batch.add('box',px,groundH(px,pz)+0.55,pz,0.14,1.1,0.14,0x5d4326); }
+  var mx=(x0+x1)/2, mz=(z0+z1)/2; batch.add('box',mx,groundH(mx,mz)+0.9,mz,L,0.08,0.08,0x6b4f2e,ry); batch.add('box',mx,groundH(mx,mz)+0.5,mz,L,0.08,0.08,0x6b4f2e,ry);
+  addCollider(Math.min(x0,x1)-0.1,Math.min(z0,z1)-0.1,Math.max(x0,x1)+0.1,Math.max(z0,z1)+0.1);
+}
+function batchHay(batch,x,z,s){ var y=groundH(x,z); batch.add('box',x,y+0.15,z,0.2,0.3,0.2,0x5d4326); batch.add('roof',x,y+1.1*s,z,2.6*s,2.2*s,2.6*s,0xc9b24a,0.3); batch.add('roof',x,y+1.4*s,z,2.0*s,2.0*s,2.0*s,0xb9a13a,0.8); addCollider(x-1.1*s,z-1.1*s,x+1.1*s,z+1.1*s); }
+function batchField(batch,x,z,w,d,ry,c1,c2){ var y=groundH(x,z); for(var i=0;i<6;i++){ var u=(i-2.5)*(w/6), c=Math.cos(ry||0), s=Math.sin(ry||0); batch.add('box',x+u*c,y+0.08,z-u*s,w/6*0.7,0.16,d,i%2?c1:c2,ry); } }
+function batchCairn(batch,x,z){ var y=groundH(x,z); batch.add('box',x,y+0.4,z,1.6,0.8,1.4,0x8a8a86,0.3); batch.add('box',x,y+1.0,z,1.1,0.6,1.0,0x8a8a86,0.7); batch.add('box',x,y+1.45,z,0.6,0.5,0.6,0x9a9a96,0.2); addCollider(x-0.8,z-0.7,x+0.8,z+0.7); }
+function siteEcon(x,z,type,rate){ SITES.push({zi:zoneIdxAt(x,z), rate:rate, type:type, region:getRegion(x,z), x:x, z:z}); }
+
 function buildDistricts(){
-  var wallMats=[], wallCols=[], roofMats=[], roofCols=[], cylMats=[], moundMats=[], darkMats=[], flatMats=[], flatCols=[];
-  var m4=new THREE.Matrix4(), q=new THREE.Quaternion(), eu=new THREE.Euler(), v3=new THREE.Vector3(), s3=new THREE.Vector3();
-  function pushM(arr,x,y,z,ry,sx,sy,sz){ eu.set(0,ry||0,0); q.setFromEuler(eu); v3.set(x,y,z); s3.set(sx,sy,sz); m4.compose(v3,q,s3); arr.push(m4.clone()); if(arr===wallMats)wallCols.push(0x8a7a5e); if(arr===roofMats)roofCols.push(0x6d5a3e); if(arr===flatMats)flatCols.push(0x7a8f4a); }
-  function site(x,z,type,rate){ var zi=zoneIdxAt(x,z); SITES.push({zi:zi, rate:rate, type:type, region:getRegion(x,z)}); }
-
-  DISTRICT_C.forEach(function(D, di){
-    var n=36+(di*7)%28;
-    var region = D.region || getRegion(D.x,D.z);
-    for(var b=0;b<n;b++){
-      var row=Math.floor(b/8),col=b%8;
-      var x=D.x+(col-3.5)*15+(col>=4?6:-6), z=D.z+(row-3.5)*15;
-      if(insideSolid(x,z,5.5))continue;
-      var y=groundH(x,z), ry=0;
-      var roll=(b*29+di*17)%100;
-      var hb=choice([0x8a7a5e,0x7a6a50,0x94826a,0x6e6152]), rb=choice([0x6d5a3e,0x5d4a38,0x4a4238]);
-
-      /* ---------- REGION-SPECIFIC STRUCTURES ---------- */
-      if(region==='carpathian'){
-        if(roll<25){
-          // Carpathian Watchtower — tall wooden tower with stone foundation
-          addCollider(x-2.2,z-2.2,x+2.2,z+2.2);
-          pushM(wallMats,x,y+3.5,z,ry,4.5,7,4.5); wallCols[wallCols.length-1]=0x8a7a6e;
-          pushM(roofMats,x,y+8.2,z,ry+0.78,6.2,2.2,6.2); roofCols[roofCols.length-1]=0x5d4a38;
-          pushM(cylMats,x,y+0.6,z,0,3.2,1.2,3.2);
-          BUILD_COUNT+=2;
-          site(x,z,'watchtower',0.18);
-        } else if(roll<45){
-          // Hermit's Cave / Monastery cell
-          pushM(moundMats,x,y+1.4,z,ry,12,3.2,10);
-          pushM(darkMats,x+Math.cos(ry)*2.8,y+1.0,z+Math.sin(ry)*2.8,ry,1.8,1.8,0.5);
-          BUILD_COUNT++;
-          site(x,z,'cave',0.32);
-        } else if(roll<65){
-          // Mountain Fort Stanca de Fier — iron-reinforced
-          addCollider(x-3.5,z-3,x+3.5,z+3);
-          pushM(wallMats,x,y+2.2,z,ry,7,4.4,5.5); wallCols[wallCols.length-1]=0x6e6e6e;
-          pushM(wallMats,x,y+5.2,z,ry,0.22,2.8,0.22);
-          pushM(roofMats,x,y+5.5,z,ry,8.5,1.2,6.5); roofCols[roofCols.length-1]=0x4a4238;
-          BUILD_COUNT++;
-          site(x,z,'fort',0.25);
-        } else if(roll<80){
-          // Frozen shrine
-          pushM(wallMats,x,y+1.1,z,ry,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
-          pushM(wallMats,x+1.8,y+1.1,z,ry,0.22,2.2,0.22);
-          pushM(wallMats,x,y+2.3,z,ry,2.4,0.24,0.3);
-          BUILD_COUNT+=3;
-          site(x,z,'shrine',0.15);
-        } else {
-          // Avalanche debris + boulders
-          pushM(moundMats,x,y+0.9,z,wr,3.4,2.2,3);
-          pushM(moundMats,x+2.4,y+0.6,z-1.4,wr+1,2.2,1.5,2);
-          BUILD_COUNT+=2;
-        }
-      } else if(region==='transylvanian'){
-        if(roll<35){
-          // Transylvanian cottage — vineyard house
-          addCollider(x-2.5,z-2,x+2.5,z+2);
-          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=hb;
-          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=rb;
-          pushM(flatMats,x-5,y+0.08,z+4,ry,9,1,7); flatCols[flatCols.length-1]=0x6b8f3a; // vineyard
-          BUILD_COUNT++;
-          site(x,z,'farm',0.12);
-        } else if(roll<50){
-          // School of Scribes
-          addCollider(x-3.2,z-2.2,x+3.2,z+2.2);
-          pushM(wallMats,x,y+1.6,z,ry,6.5,3.2,4.5); wallCols[wallCols.length-1]=0xd8d2c0;
-          pushM(roofMats,x,y+3.9,z,ry+0.78,9.2,1.8,9.2); roofCols[roofCols.length-1]=0x2a5caa;
-          BUILD_COUNT++;
-          site(x,z,'school',0.18);
-        } else if(roll<65){
-          // Hunter's Cabin
-          addCollider(x-2.7,z-2.2,x+2.7,z+2.2);
-          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
-          pushM(roofMats,x,y+3.5,z,ry,6.5,1.2,6); roofCols[roofCols.length-1]=0x4a4238;
-          BUILD_COUNT++;
-          site(x,z,'hunter',0.14);
-        } else if(roll<80){
-          // Bathhouse
-          addCollider(x-3,z-2.5,x+3,z+2.5);
-          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0x8a7a5e;
-          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0x8a9a8a;
-          BUILD_COUNT++;
-          site(x,z,'bath',0.12);
-        } else {
-          // Orchards
-          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5);
-          pushM(moundMats,x-1.5,y+0.3,z-1,0,3.2,0.8,2.8);
-          BUILD_COUNT+=2;
-          site(x,z,'orchard',0.08);
-        }
-      } else if(region==='wallachian'){
-        if(roll<30){
-          // Wallachian War Camp tent + training
-          pushM(roofMats,x,y+1.3,z,ry,3.2,2.6,3.2); roofCols[roofCols.length-1]=0x8f6f4a;
-          pushM(flatMats,x+2.2,y+0.06,z+1.6,ry,2.4,1,2.4); flatCols[flatCols.length-1]=0x5a4a38;
-          BUILD_COUNT+=2;
-          site(x,z,'warcamp',0.22);
-        } else if(roll<50){
-          // Siege workshop
-          addCollider(x-3,z-2.5,x+3,z+2.5);
-          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0x7a6a50;
-          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc0272d;
-          BUILD_COUNT++;
-          site(x,z,'forge',0.18);
-        } else if(roll<70){
-          // Horse doctor / stable
-          addCollider(x-2.5,z-2,x+2.5,z+2);
-          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x6d5a3e;
-          BUILD_COUNT++;
-          site(x,z,'stable',0.15);
-        } else if(roll<85){
-          // Marsh reed + mine
-          pushM(moundMats,x,y+1.6,z+2.2,ry,8.4,2.6,7.2);
-          BUILD_COUNT++;
-          site(x,z,'mine',0.20);
-        } else {
-          // Muddy farm
-          addCollider(x-3.2,z-2.2,x+3.2,z+2.2);
-          pushM(wallMats,x,y+1.6,z,ry,6.5,3.2,4.5); wallCols[wallCols.length-1]=hb;
-          pushM(flatMats,x-5,y+0.08,z+4,ry,9,1,7); flatCols[flatCols.length-1]=0x5a6a4a;
-          BUILD_COUNT++;
-          site(x,z,'farm',0.10);
-        }
-      } else if(region==='moldavian'){
-        if(roll<30){
-          // Border fort palisade
-          addCollider(x-3,z-3,x+3,z+3);
-          pushM(wallMats,x,y+2,z,ry,6,4,5); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(cylMats,x,y+0.6,z,0,4,1.2,4);
-          BUILD_COUNT++;
-          site(x,z,'borderfort',0.22);
-        } else if(roll<55){
-          // Forest village Codrul Vechi — wooden hut
-          addCollider(x-2.5,z-2,x+2.5,z+2);
-          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x5d4a38;
-          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x3a5a2e;
-          BUILD_COUNT++;
-          site(x,z,'forestvillage',0.16);
-        } else if(roll<70){
-          // Woodcutter + mushroom cellar
-          pushM(wallMats,x,y+1.4,z,ry,0.22,2.8,0.22);
-          pushM(moundMats,x,y+0.3,z-1,0,3.2,0.8,2.8);
-          pushM(darkMats,x,y+0.5,z,ry,1.5,1.2,1.5);
-          BUILD_COUNT+=3;
-          site(x,z,'woodcutter',0.12);
-        } else if(roll<85){
-          // Wolf shrine carved stones
-          pushM(wallMats,x,y+2.6,z,ry,1.1,5.2,0.9); wallCols[wallCols.length-1]=0x70685a;
-          pushM(moundMats,x,y+0.3,z,0,2.2,0.8,2);
-          BUILD_COUNT+=2;
-          site(x,z,'shrine',0.18);
-        } else {
-          // Herbalist
-          pushM(wallMats,x,y+1.4,z,ry,4.5,2.8,4); wallCols[wallCols.length-1]=0x7a6a50;
-          pushM(roofMats,x,y+3.2,z,ry,6,1.2,5.5); roofCols[roofCols.length-1]=0x6d5a3e;
-          BUILD_COUNT++;
-          site(x,z,'herbalist',0.10);
-        }
-      } else if(region==='trade_route'){
-        if(roll<35){
-          // Trade post wooden building + crates
-          addCollider(x-3,z-2.5,x+3,z+2.5);
-          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0xb09a6e;
-          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc9b24a;
-          pushM(cylMats,x+2,y+0.55,z+1,0,0.8,1.1,0.8);
-          BUILD_COUNT++;
-          site(x,z,'market',0.20);
-        } else if(roll<60){
-          // Inn Drumul Lung — beds, kitchen, stable
-          addCollider(x-3.5,z-2.5,x+3.5,z+2.5);
-          pushM(wallMats,x,y+2,z,ry,7.5,4,5.5); wallCols[wallCols.length-1]=0x8a7a5e;
-          pushM(roofMats,x,y+5,z,ry+0.78,11,2.2,11); roofCols[roofCols.length-1]=0x5d4a38;
-          BUILD_COUNT++;
-          site(x,z,'inn',0.18);
-        } else if(roll<75){
-          // Checkpoint gate
-          pushM(wallMats,x,y+2.2,z,ry,0.5,4.4,5.5); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(wallMats,x+4,y+2.2,z,ry,0.5,4.4,5.5);
-          pushM(wallMats,x+2,y+4.5,z,ry,5,0.5,0.5);
-          BUILD_COUNT+=3;
-          site(x,z,'checkpoint',0.15);
-        } else if(roll<90){
-          // Roadside Orthodox shrine
-          pushM(wallMats,x-0.9,y+1.1,z,ry,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
-          pushM(wallMats,x+0.9,y+1.1,z,ry,0.22,2.2,0.22);
-          pushM(wallMats,x,y+2.3,z,ry,2.4,0.24,0.3);
-          BUILD_COUNT+=3;
-          site(x,z,'shrine',0.12);
-        } else {
-          // Caravan repair workshop
-          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
-          BUILD_COUNT++;
-          site(x,z,'workshop',0.14);
-        }
-      } else if(region==='capital'){
-        if(roll<30){
-          // Romaria noble estate / merchant
-          addCollider(x-3.5,z-2.5,x+3.5,z+2.5);
-          pushM(wallMats,x,y+2.2,z,ry,7,4.4,5.5); wallCols[wallCols.length-1]=0xd8d2c0;
-          pushM(roofMats,x,y+5.2,z,ry+0.78,9.2,2.2,9.2); roofCols[roofCols.length-1]=0xc0272d;
-          BUILD_COUNT++;
-          site(x,z,'noble',0.25);
-        } else if(roll<55){
-          // Grand market spice / book / armor
-          addCollider(x-3,z-2.5,x+3,z+2.5);
-          pushM(wallMats,x,y+1.7,z,ry,6,3.4,5); wallCols[wallCols.length-1]=0xc2b89a;
-          pushM(flatMats,x,y+3.7,z,ry,7,1,5.6); flatCols[flatCols.length-1]=0xc9a83a;
-          BUILD_COUNT++;
-          site(x,z,'market',0.22);
-        } else if(roll<70){
-          // Artisan quarter
-          addCollider(x-2.7,z-2.2,x+2.7,z+2.2);
-          pushM(wallMats,x,y+1.6,z,ry,5.5,3.2,4.5); wallCols[wallCols.length-1]=0x8a7a5e;
-          pushM(cylMats,x+2.2,y+3.4,z,0,0.7,3.6,0.7);
-          BUILD_COUNT++;
-          site(x,z,'forge',0.20);
-        } else if(roll<85){
-          // River docks / garden courtyard
-          pushM(flatMats,x,y+0.08,z,ry,8,0.2,6); flatCols[flatCols.length-1]=0x6a8a5a;
-          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5);
-          BUILD_COUNT+=2;
-          site(x,z,'dock',0.15);
-        } else {
-          // Royal library / servant quarters
-          addCollider(x-2.5,z-2,x+2.5,z+2);
-          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0xe8e0cf;
-          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x6d4a34;
-          BUILD_COUNT++;
-          site(x,z,'library',0.18);
-        }
-      } else {
-        // battlefield / generic — broken carts, burned houses, mass graves, memorials
-        if(roll<30){
-          pushM(wallMats,x,y+0.7,z,ry,4.5,1.4,0.5); wallCols[wallCols.length-1]=0x5a4a3a;
-          pushM(moundMats,x-1.5,y+0.3,z-1,0,3.2,0.8,2.8);
-          BUILD_COUNT+=2;
-          site(x,z,'ruin',0.12);
-        } else if(roll<55){
-          addCollider(x-2.5,z-2,x+2.5,z+2);
-          pushM(wallMats,x,y+1.5,z,ry,5,3,4); wallCols[wallCols.length-1]=0x6e6152;
-          pushM(roofMats,x,y+3.8,z,ry+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=0x4a4238;
-          BUILD_COUNT++;
-          site(x,z,'burned',0.10);
-        } else if(roll<70){
-          pushM(moundMats,x,y+1.4,z,ry,14,3.4,12);
-          pushM(darkMats,x+Math.cos(ry)*3.4,y+1.1,z+Math.sin(ry)*3.4,ry,2.2,2.2,0.6);
-          BUILD_COUNT++;
-          site(x,z,'cave',0.20);
-        } else {
-          pushM(wallMats,x,y+1.4,z,ry,0.22,2.8,0.22);
-          pushM(moundMats,x,y+1.6,z+2.2,ry,8.4,2.6,7.2);
-          BUILD_COUNT+=2;
-          site(x,z,'memorial',0.10);
-        }
-      }
-    }
-    if(di%7===0){
-      var regName = WORLD_REGIONS[region] ? WORLD_REGIONS[region].name : 'District';
-      registerLore({key:'district'+di, x:D.x, z:D.z, r:70, icon:region==='carpathian'?'🏔️':region==='trade_route'?'🐪':region==='capital'?'🏰':'🏘️',
-        name:regName+' — Sector '+(di+1), sub:region+' hamlets, works and wilds',
-        story:'A working district of '+regName+' — '+(
-          region==='carpathian'?'monasteries, watchtowers and frozen shrines keep the northern pass':
-          region==='transylvanian'?'vineyards, scribe schools and hunter cabins feed Ardealburg':
-          region==='wallachian'?'war camps, siege workshops and horse doctors supply Cetatea Dunarii':
-          region==='moldavian'?'border forts, wolf shrines and forest villages guard the frontier':
-          region==='trade_route'?'caravan posts, inns and Orthodox shrines serve the long road':
-          region==='capital'?'noble estates, markets and artisan quarters surround Romaria':
-          'battlefields, burned villages and memorials tell the cost of war'
-        )});
-    }
+  var batch=createBuildingBatch(), rnd=srand(1337);
+  window.__contentZi=window.__contentZi||{};
+  /* economy of the named places */
+  FAC_KEYS_T.forEach(function(f){ var T=TOWNS[f]; siteEcon(T.x,T.z,'market',0.5); siteEcon(T.x,T.z,'fort',0.4); siteEcon(T.x,T.z,'forge',0.3); window.__contentZi[zoneIdxAt(T.x,T.z)]=1; });
+  SITES_DEF.forEach(function(s){
+    var t={watchtower:'watchtower',cave:'shrine',monastery:'library',outpost:'fort',village:'farm',warcamp:'warcamp',forestvillage:'hunter',tradepost:'tradepost',checkpoint:'checkpoint',graves:'shrine',crossing:'watchtower',siege:'warcamp',ambush:'cave',burned:'farm',memorial:'shrine',trench:'fort',caveshrine:'shrine',ruinmonastery:'library',bandits:'cave',crypt:'cave',waterfall:'shrine',lostwatchtower:'watchtower',tunnels:'tradepost',witch:'shrine'}[s.kind]||'shrine';
+    siteEcon(s.x,s.z,t,s.secret?0.22:0.3);
+    if(s.kind==='monastery'){ siteEcon(s.x,s.z,'school',0.2); siteEcon(s.x,s.z,'shrine',0.2); }
+    if(s.kind==='village'){ siteEcon(s.x,s.z,'inn',0.15); siteEcon(s.x,s.z,'stable',0.1); }
+    if(s.kind==='checkpoint'||s.kind==='tradepost') siteEcon(s.x,s.z,'stable',0.1);
+    window.__contentZi[zoneIdxAt(s.x,s.z)]=1;
   });
-
-  /* ---- ROADS: every village/district connects to its nearest town + Romaria capital ---- */
-  window.__roadPts=[];
-  var roadMats=[], roadRots=[];
-  function layRoad(x0,z0,x1,z1){
-    var dx=x1-x0, dz=z1-z0, L=Math.sqrt(dx*dx+dz*dz);
-    if(L<30) return;
-    var ux=dx/L, uz=dz/L, px=-uz, pz=ux;
-    var hop=20;
-    for(var s=0;s<L;s+=hop){
-      var wx=x0+ux*s, wz=z0+uz*s;
-      if(insideSolid(wx,wz,3.5)) continue;
-      var ry=Math.atan2(ux,uz);
-      pushM(roadMats, wx, groundH(wx,wz)+0.06, wz, ry, 5.2,1,hop*1.06);
-      roadRots.push(0);
-      window.__roadPts.push([wx,wz]);
-      if(s>60 && s<L-60 && ((s/hop)|0)%3===0 && Math.random()<0.55){
-        var side=((s/hop)%2)?1:-1;
-        var hx=wx+px*side*11, hz=wz+pz*side*11;
-        if(!insideSolid(hx,hz,3.2)){
-          var hy=groundH(hx,hz), hr=0;
-          var roll=Math.random();
-          addCollider(hx-2.5,hz-2,hx+2.5,hz+2);
-          if(roll<0.62){
-            pushM(wallMats,hx,hy+1.5,hz,hr,5,3,4); wallCols[wallCols.length-1]=choice([0x8a7a5e,0x7a6a50,0x94826a]);
-            pushM(roofMats,hx,hy+3.8,hz,hr+0.78,6.8,1.7,6.8); roofCols[roofCols.length-1]=choice([0x6d5a3e,0x5d4a38]);
-          } else {
-            pushM(wallMats,hx,hy+1.3,hz,hr,4.6,2.6,3.6); wallCols[wallCols.length-1]=0x6e6152;
-            pushM(roofMats,hx,hy+3.1,hz,hr+0.78,6.2,1.5,5.6); roofCols[roofCols.length-1]=0x4a4238;
-          }
-          BUILD_COUNT++;
-        }
-      }
+  VILLAGES.forEach(function(v){ siteEcon(v.x,v.z,'farm',0.18); window.__contentZi[zoneIdxAt(v.x,v.z)]=1; });
+  /* farmsteads and camps */
+  DISTRICT_C.forEach(function(D,di){
+    var reg=D.region, kind;
+    var roll=rnd();
+    if(reg==='carpathian') kind=roll<0.45?'fold':roll<0.8?'quarry':'hunt';
+    else if(reg==='transylvanian') kind=roll<0.6?'farm':roll<0.85?'vineyard':'fold';
+    else if(reg==='wallachian') kind=roll<0.6?'farm':roll<0.85?'fishers':'fold';
+    else if(reg==='moldavian') kind=roll<0.5?'hunt':roll<0.8?'farm':'fold';
+    else if(reg==='trade_route') kind=roll<0.5?'caravan':roll<0.8?'farm':'fold';
+    else if(reg==='capital') kind=roll<0.7?'farm':'estate';
+    else kind=roll<0.5?'farm':roll<0.8?'camp':'fold';
+    D.kind=kind;
+    var n=(kind==='farm'?7:kind==='estate'?9:5)+Math.floor(rnd()*4), placed=0, i;
+    var ring=18+n*1.4;
+    for(i=0;i<n;i++){
+      var a=i/n*TAU+rnd()*0.4, r=ring*(0.75+rnd()*0.4), hx=D.x+Math.cos(a)*r, hz=D.z+Math.sin(a)*r;
+      var type=(i===0&&(kind==='farm'||kind==='estate'))?'farm':(i===1&&kind==='estate')?'chapel':(kind==='quarry'||kind==='caravan')&&i===0?'workshop':'cottage';
+      if(buildSettlementHouse(batch,hx,hz,type)) placed++;
     }
-  }
-  var roadTowns=FAC_KEYS_T.map(function(f){ return TOWNS[f]; });
-  // towns fully connected (ring + spokes to Romaria)
-  for(var ti=0;ti<roadTowns.length;ti++){
-    var next = roadTowns[(ti+1)%roadTowns.length];
-    layRoad(roadTowns[ti].x,roadTowns[ti].z,next.x,next.z);
-    layRoad(roadTowns[ti].x,roadTowns[ti].z,0,0); // all roads lead to Romaria
-  }
-  // Trade Route main east-west artery
-  layRoad(-2800,2500,2800,2500);
-  layRoad(-2800,2300,2800,2300);
-  // Carpathian ridge pass
-  layRoad(-2800,-2400,2800,-2400);
-  layRoad(-2800,-2000,2800,-2000);
-
-  function nearestTown(x,z){
-    var bt=null, bd=1e18;
-    for(var t=0;t<roadTowns.length;t++){
-      var T=roadTowns[t], d=(T.x-x)*(T.x-x)+(T.z-z)*(T.z-z);
-      if(d<bd){ bd=d; bt=T; }
+    if(!placed) return;
+    if(!insideSolid(D.x,D.z,2)) batchWell(batch,D.x,D.z,0x6d5a3e);
+    var y=groundH(D.x,D.z);
+    if(kind==='farm'||kind==='estate'||kind==='vineyard'){
+      for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xc9b24a,kind==='vineyard'?0x5a7a3a:0x928047); }
+      for(i=0;i<3;i++){ var ha=rnd()*TAU, hx2=D.x+Math.cos(ha)*(ring+10), hz2=D.z+Math.sin(ha)*(ring+10); if(!insideSolid(hx2,hz2,2.5)) batchHay(batch,hx2,hz2,0.8+rnd()*0.5); }
+      siteEcon(D.x,D.z,'farm',0.16+rnd()*0.08); if(kind==='estate') siteEcon(D.x,D.z,'noble',0.2);
+    } else if(kind==='fold'){
+      var px=D.x+ring+12, pz=D.z; if(!insideSolid(px,pz,14)){ batchFence(batch,px-10,pz-10,px+10,pz-10); batchFence(batch,px+10,pz-10,px+10,pz+10); batchFence(batch,px+10,pz+10,px-10,pz+10); batchFence(batch,px-10,pz+10,px-10,pz-2); for(i=0;i<5;i++) batch.add('box',px-6+rnd()*12,groundH(px,pz)+0.45,pz-6+rnd()*12,1.1,0.8,0.6,0xe8e0cf,rnd()*3); }
+      batchHay(batch,D.x-ring-6,D.z+4,0.9); siteEcon(D.x,D.z,'farm',0.12);
+    } else if(kind==='quarry'){
+      for(i=0;i<6;i++){ var qa=rnd()*TAU, qx=D.x+Math.cos(qa)*(ring+14), qz=D.z+Math.sin(qa)*(ring+14); if(insideSolid(qx,qz,3)) continue; batch.add('box',qx,groundH(qx,qz)+0.9,qz,2.4+rnd()*2,1.8+rnd()*1.5,2+rnd(),0x8a8a86,rnd()*3); addCollider(qx-1.6,qz-1.4,qx+1.6,qz+1.4); }
+      batch.add('box',D.x+8,y+1.2,D.z+8,0.3,2.4,0.3,0x5d4326); batch.add('box',D.x+8,y+2.5,D.z+8,3,0.2,0.2,0x5d4326,0.4);
+      siteEcon(D.x,D.z,'mine',0.22);
+    } else if(kind==='hunt'||kind==='camp'){
+      for(i=0;i<3;i++){ var ta=rnd()*TAU, tx=D.x+Math.cos(ta)*(ring+8), tz=D.z+Math.sin(ta)*(ring+8); if(insideSolid(tx,tz,3)) continue; batch.add('roof',tx,groundH(tx,tz)+1.3,tz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(tx-1.6,tz-1.6,tx+1.6,tz+1.6); }
+      propCampfire(D.x+4,D.z+4,false); siteEcon(D.x,D.z,kind==='hunt'?'hunter':'warcamp',0.14);
+    } else if(kind==='fishers'){
+      for(i=0;i<3;i++){ var bx=D.x+ring+6+i*4, bz=D.z-6+i*5; batch.add('box',bx,groundH(bx,bz)+0.5,bz,3.2,0.7,1.2,0x6b4f2e,0.5); }
+      batch.add('box',D.x-ring-4,y+1.1,D.z,0.12,2.2,0.12,0x5d4326); batch.add('box',D.x-ring-4,y+2.0,D.z,3,0.06,0.06,0x5d4326); batch.add('box',D.x-ring-4,y+1.2,D.z,2.6,1.4,0.04,0x8a9a5a);
+      siteEcon(D.x,D.z,'market',0.14);
+    } else if(kind==='caravan'){
+      for(i=0;i<3;i++) propCart(D.x+ring+8, D.z-8+i*7, 0.1*i, false);
+      batchFence(batch,D.x+ring+2,D.z-14,D.x+ring+2,D.z+14); propCampfire(D.x+ring+14,D.z+18,true);
+      siteEcon(D.x,D.z,'tradepost',0.18);
     }
-    return bt;
-  }
-  VILLAGES.forEach(function(V){ var T=nearestTown(V.x,V.z); layRoad(V.x,V.z,T.x,T.z); });
-  DISTRICT_C.forEach(function(D){ var T=nearestTown(D.x,D.z); layRoad(D.x,D.z,T.x,T.z); });
-
-  /* ---- WILDS: every zone gets something — no empty green anywhere ---- */
-  window.__contentZi={};
-  DISTRICT_C.forEach(function(D){ window.__contentZi[zoneIdxAt(D.x,D.z)]=1; });
-  VILLAGES.forEach(function(V){ window.__contentZi[zoneIdxAt(V.x,V.z)]=1; });
-  LMS.forEach(function(L){ window.__contentZi[zoneIdxAt(L[0],L[1])]=1; });
-  [[2000,-2000],[-2000,2000],[0,-2600]].forEach(function(R){ window.__contentZi[zoneIdxAt(R[0],R[1])]=1; });
-  var wildsN=0;
-  for(var gz=0; gz<ZN; gz++) for(var gx=0; gx<ZN; gx++){
+    /* fences and a lane to the yard */
+    batchFence(batch,D.x-ring-2,D.z-ring-2,D.x+ring*0.5,D.z-ring-2);
+    for(var s=-ring;s<=ring;s+=6){ if(!insideSolid(D.x,D.z+s,2.5)){ batch.add('box',D.x,groundH(D.x,D.z+s)+0.04,D.z+s,4.5,0.08,6.2,0x9b8866); window.__roadPts.push([D.x,D.z+s]); } }
+    D.buildings=placed;
+    window.__contentZi[zoneIdxAt(D.x,D.z)]=1;
+  });
+  /* ---- WILDS: every remaining zone gets a feature ---- */
+  var wildsN=0, gx, gz;
+  for(gz=0;gz<ZN;gz++) for(gx=0;gx<ZN;gx++){
     var zi=gz*ZN+gx;
     if(window.__contentZi[zi]) continue;
-    var cx=(gx+0.5)*(6000/ZN)-3000, cz=(gz+0.5)*(6000/ZN)-3000;
-    var near=false;
-    FAC_KEYS_T.forEach(function(fk){ var T=TOWNS[fk];
-      if((cx-T.x)*(cx-T.x)+(cz-T.z)*(cz-T.z)<300*300) near=true; });
-    if(!near) for(var v2=0;v2<VILLAGES.length;v2++){ var V2=VILLAGES[v2];
-      if((cx-V2.x)*(cx-V2.x)+(cz-V2.z)*(cz-V2.z)<160*160) near=true; }
-    if(!near) for(var L2=0;L2<LMS.length;L2++){ if((cx-LMS[L2][0])*(cx-LMS[L2][0])+(cz-LMS[L2][1])*(cz-LMS[L2][1])<140*140) near=true; }
-    if(!near) for(var d2=0;d2<DISTRICT_C.length;d2++){ var D2=DISTRICT_C[d2];
-      if((cx-D2.x)*(cx-D2.x)+(cz-D2.z)*(cz-D2.z)<200*200) near=true; }
-    if(near){ window.__contentZi[zi]=1; continue; }
-    var jx=cx+(((gz*7+gx*13)%61)-30)*1.7, jz=cz+(((gx*11+gz*5)%61)-30)*1.7;
-    var wy=groundH(jx,jz), wr=((gx+gz)%12)*0.5236, wt=(gx*3+gz*5)%8;
-    var regionWild = getRegion(jx,jz);
-    if(regionWild==='carpathian'){
-      if(wt%3===0){
-        pushM(wallMats,jx,wy+0.8,jz,wr,4.2,1.6,0.6); wallCols[wallCols.length-1]=0x8a8272;
-        pushM(moundMats,jx,wy+1.2,jz,wr,2.5,2.0,2.5);
-        addCollider(jx-2.2,jz-1.2,jx+2.8,jz+2.2); BUILD_COUNT+=2;
-      } else {
-        pushM(moundMats,jx,wy+0.9,jz,wr,3.4,2.2,3);
-        pushM(moundMats,jx+2.4,wy+0.6,jz-1.4,wr+1,2.2,1.5,2);
-        BUILD_COUNT+=2;
-      }
-    } else if(regionWild==='trade_route'){
-      if(wt%2===0){
-        pushM(roofMats,jx,wy+1.1,jz,wr,2.6,2.2,2.6); roofCols[roofCols.length-1]=0xc9a83a;
-        pushM(cylMats,jx+2,wy+0.55,jz+1,0,0.8,1.1,0.8);
-        BUILD_COUNT+=2;
-      } else {
-        pushM(wallMats,jx-0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
-        pushM(wallMats,jx+0.9,wy+1.1,jz,wr,0.22,2.2,0.22);
-        pushM(wallMats,jx,wy+2.3,jz,wr,2.4,0.24,0.3);
-        BUILD_COUNT+=3;
-      }
-    } else if(wt===0){
-      pushM(wallMats,jx,wy+0.8,jz,wr,4.2,1.6,0.6); wallCols[wallCols.length-1]=0x8a8272;
-      pushM(wallMats,jx+1.8,wy+1.3,jz+1.2,wr+0.5,0.6,2.6,2.2); wallCols[wallCols.length-1]=0x7a7264;
-      addCollider(jx-2.2,jz-1.2,jx+2.8,jz+2.2); BUILD_COUNT+=2;
-    } else if(wt===1){
-      pushM(wallMats,jx-0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
-      pushM(wallMats,jx+0.9,wy+1.1,jz,wr,0.22,2.2,0.22); wallCols[wallCols.length-1]=0x6b4f2e;
-      pushM(wallMats,jx,wy+2.3,jz,wr,2.4,0.24,0.3); wallCols[wallCols.length-1]=0x7a5a36;
-      BUILD_COUNT+=3;
-    } else if(wt===2){
-      pushM(roofMats,jx,wy+1.1,jz,wr,2.6,2.2,2.6); roofCols[roofCols.length-1]=0xc9a83a;
-      pushM(cylMats,jx+2,wy+0.55,jz+1,0,0.8,1.1,0.8);
-      BUILD_COUNT+=2;
-    } else if(wt===3){
-      pushM(moundMats,jx,wy+0.9,jz,wr,3.4,2.2,3);
-      pushM(moundMats,jx+2.4,wy+0.6,jz-1.4,wr+1,2.2,1.5,2);
-      BUILD_COUNT+=2;
-    } else if(wt===4){
-      pushM(roofMats,jx,wy+1.3,jz,wr,3.2,2.6,3.2); roofCols[roofCols.length-1]=0x8f6f4a;
-      pushM(flatMats,jx+2.2,wy+0.06,jz+1.6,wr,2.4,1,2.4); flatCols[flatCols.length-1]=0x5a4a38;
-      BUILD_COUNT+=2;
-    } else {
-      pushM(wallMats,jx,wy+2.6,jz,wr,1.1,5.2,0.9); wallCols[wallCols.length-1]=0x70685a;
-      pushM(moundMats,jx,wy+0.3,jz,0,2.2,0.8,2);
-      addCollider(jx-0.8,jz-0.7,jx+0.8,jz+0.7); BUILD_COUNT+=2;
+    var cx=(gx+0.5)*ZS-WORLD.half, cz=(gz+0.5)*ZS-WORLD.half, found=false;
+    for(var tries=0;tries<12 && !found;tries++){
+      var jx=cx+(rnd()*2-1)*140, jz=cz+(rnd()*2-1)*140;
+      if(sceneryBlocked(jx,jz,6)||insideSolid(jx,jz,8)) continue;
+      var reg=getRegion(jx,jz), wt=(gx*3+gz*5+tries)%6;
+      if(reg==='carpathian'||wt===0) batchCairn(batch,jx,jz);
+      else if(wt===1){ propTroita(jx,jz,rnd()*3); }
+      else if(wt===2){ batchHay(batch,jx,jz,1.0); batchHay(batch,jx+4,jz+2,0.8); }
+      else if(wt===3){ buildSettlementHouse(batch,jx,jz,'cottage'); }
+      else if(wt===4){ batch.add('box',jx,groundH(jx,jz)+0.8,jz,4.2,1.6,0.6,0x8a8272,rnd()*3); addCollider(jx-2.2,jz-1.2,jx+2.2,jz+1.2); batch.add('box',jx+1.8,groundH(jx,jz)+1.3,jz+1.2,0.6,2.6,2.2,0x7a7264,rnd()*3); }
+      else { propCampfire(jx,jz,false); batch.add('roof',jx+3,groundH(jx+3,jz)+1.3,jz,4.2,2.6,4.2,0xb5a487,rnd()); addCollider(jx+1.4,jz-1.6,jx+4.6,jz+1.6); }
+      found=true; wildsN++;
     }
-    window.__contentZi[zi]=1; wildsN++;
+    window.__contentZi[zi]=1;
   }
   window.__wildsN=wildsN;
-  function makeIM(geo,mats,mat,cols){
-    if(!mats.length)return;
-    var buckets=new Map();
-    mats.forEach(function(matrix,i){
-      var x=Math.floor((matrix.elements[12]+WORLD.half)/375),z=Math.floor((matrix.elements[14]+WORLD.half)/375),key=x+':'+z;
-      if(!buckets.has(key))buckets.set(key,{x:x,z:z,items:[]});buckets.get(key).items.push(i);
-    });
-    var material=mat||M(0xffffff);
-    buckets.forEach(function(b){
-      var im=new THREE.InstancedMesh(geo,material,b.items.length);
-      b.items.forEach(function(original,i){im.setMatrixAt(i,mats[original]);if(cols)im.setColorAt(i,new THREE.Color(cols[original]===undefined?0x8a7a5e:cols[original]));});
-      im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;
-      im.frustumCulled=false;im.name='district-chunk';
-      im.userData.cullBounds={x:(b.x+0.5)*375-WORLD.half,z:(b.z+0.5)*375-WORLD.half,r:285};
-      scene.add(im);
-    });
-  }
-  makeIM(new THREE.BoxGeometry(1,1,1), wallMats, null, wallCols);
-  makeIM(new THREE.ConeGeometry(0.5,1,4), roofMats, null, roofCols);
-  makeIM(new THREE.CylinderGeometry(0.5,0.5,1,6), cylMats, NM(0x9a9284));
-  makeIM(new THREE.SphereGeometry(0.5,8,6), moundMats, NM(0x77706a));
-  makeIM(new THREE.BoxGeometry(1,1,1), darkMats, new THREE.MeshBasicMaterial({color:0x14100c}));
-  makeIM(new THREE.BoxGeometry(1,1,1), flatMats, new THREE.MeshLambertMaterial({color:0xffffff}), flatCols);
-  makeIM(new THREE.BoxGeometry(1,1,1), roadMats, new THREE.MeshLambertMaterial({color:0x9a815a}), null);
+  batch.finish();
   zoneSiteRate=new Float32Array(ZN*ZN);
-  for(var s=0;s<SITES.length;s++) zoneSiteRate[SITES[s].zi]+=SITES[s].rate;
+  for(var s2=0;s2<SITES.length;s2++) zoneSiteRate[SITES[s2].zi]+=SITES[s2].rate;
 }

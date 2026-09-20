@@ -30,8 +30,21 @@ function kitCreate(){
   var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3();
   var e1=new THREE.Vector3(), e2=new THREE.Vector3(), nv=new THREE.Vector3();
   var tx=0, ty=0, tz=0;
+  /* local frame: everything placed after frame(cx,cz,a) is rotated by a about (cx,cz) */
+  var fx=0, fz=0, fa=0, fc=1, fs=0;
+  function frame(cx,cz,a){ fx=cx||0; fz=cz||0; fa=a||0; fc=Math.cos(fa); fs=Math.sin(fa); }
+  function toWorld(x,z){ if(!fa) return {x:x,z:z}; var dx=x-fx, dz=z-fz; return {x:fx+dx*fc+dz*fs, z:fz-dx*fs+dz*fc}; }
   function bag(m){ var b=bags.get(m); if(!b){ b={p:[],n:[],u:[]}; bags.set(m,b); } return b; }
-  function place(x,y,z,rx,ry,rz){ tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul); }
+  function place(x,y,z,rx,ry,rz){
+    if(fa){ var w=toWorld(x||0,z||0); x=w.x; z=w.z; ry=(ry||0)+fa; }
+    tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul);
+  }
+  /* axis-aligned collider given in local coordinates (rotated to a world AABB) */
+  function collider(x0,z0,x1,z1){
+    var a=toWorld(x0,z0), b=toWorld(x1,z1), c=toWorld(x0,z1), d=toWorld(x1,z0);
+    addCollider(Math.min(a.x,b.x,c.x,d.x), Math.min(a.z,b.z,c.z,d.z), Math.max(a.x,b.x,c.x,d.x), Math.max(a.z,b.z,c.z,d.z));
+  }
+  function angle(){ return fa; }
   function push(b,v,n){
     b.p.push(v.x+tx, v.y+ty, v.z+tz);
     b.n.push(n.x, n.y, n.z);
@@ -107,7 +120,7 @@ function kitCreate(){
     bags.clear();
     return made;
   }
-  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, flush:flush};
+  return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
 }
 
 /* ============================================================
@@ -125,7 +138,7 @@ function structPal(o){
     roof2:  M2(tintHex(roof,-0.14)),
     trim:   M2(o.trim||0x513820),
     dark:   M2(ARCH_DARK),
-    pane:   M2(o.pane||ARCH_PANE),
+    pane:   o.pane?M2(o.pane):PANE_MAT,
     floor:  M2(o.floorCol||0x8a7a5c)
   };
 }
@@ -176,17 +189,25 @@ function openingTrim(kit, P, sp, hole, rng){
   wallBox(kit,P.timber,axis,u+(w/2+0.08),cross,0,(b+tp)/2, 0.16, hh+0.16, thick);
   wallBox(kit,P.timber,axis,u,cross,0,tp+0.09, w+0.48, 0.18, thick);
   if(hole.kind==='door'){
-    wallBox(kit,P.trim,axis,u,cross,-f*0.02,b+hh/2, w-0.1, hh-0.04, 0.13);
+    if(sp.leaf===false){
+      wallBox(kit,P.trim,axis,u,cross,-f*0.02,b+hh/2, w-0.1, hh-0.04, 0.13);
+      wallBox(kit,P.timber,axis,u,cross,f*(t*0.5-0.03),b+hh*0.22, w-0.12, 0.11, 0.17);
+      wallBox(kit,P.timber,axis,u,cross,f*(t*0.5-0.03),b+hh*0.78, w-0.12, 0.11, 0.17);
+    } else {
+      /* a real leaf on a hinge: it swings open for whoever walks up (animations/buildings.js) */
+      var hinge=(axis==='x')?kit.toWorld(u-w/2+0.04, cross):kit.toWorld(cross, u-w/2+0.04);
+      var ang=kit.angle()+(axis==='x'?0:-Math.PI/2);
+      var cw=(axis==='x')?kit.toWorld(u, cross):kit.toWorld(cross, u);
+      spawnDoorLeaf(hinge.x, hinge.z, b, ang, w, hh, P.trim, P.dark, cw.x, cw.z, f>0?1.9:-1.9);
+    }
     wallBox(kit,P.dark,axis,u-w*0.3,cross,f*(t*0.5-0.02),b+hh/2, 0.05, hh-0.24, 0.05);
     wallBox(kit,P.dark,axis,u+w*0.3,cross,f*(t*0.5-0.02),b+hh/2, 0.05, hh-0.24, 0.05);
-    wallBox(kit,P.timber,axis,u,cross,f*(t*0.5-0.03),b+hh*0.22, w-0.12, 0.11, 0.17);
-    wallBox(kit,P.timber,axis,u,cross,f*(t*0.5-0.03),b+hh*0.78, w-0.12, 0.11, 0.17);
     wallBox(kit,P.stone,axis,u,cross+f*0.2,0,b+0.09, w+0.55, 0.22, t+0.6);
   } else {
     wallBox(kit,P.timber,axis,u,cross,f*0.06,b-0.07, w+0.46, 0.14, t+0.3);
     wallBox(kit,P.timber,axis,u,cross,0,b+hh/2, 0.08, hh-0.08, t*0.55);
     wallBox(kit,P.timber,axis,u,cross,0,b+hh*0.56, w-0.1, 0.08, t*0.55);
-    if(rng()<0.55) wallBox(kit,P.pane,axis,u,cross,-f*t*0.3,b+hh/2, w-0.14, hh-0.12, 0.05);
+    if(sp.pane!==false && rng()<0.82) wallBox(kit,P.pane,axis,u,cross,-f*t*0.3,b+hh/2, w-0.14, hh-0.12, 0.05);
     var sw=(w-0.12)/2, ph=rng()<0.5?0.45:0.05;
     for(var s=-1;s<=1;s+=2){
       var hinge=u+s*(w/2+0.03);
@@ -195,6 +216,22 @@ function openingTrim(kit, P, sp, hole, rng){
       else kit.box(P.trim, 0.09, hh-0.06, sw, co, b+hh/2, cu, f*ph);
     }
   }
+}
+/* animated door leaf: hinge at (hx,hz,y), leaf extends along the frame's +x, swings toward -z (inside) */
+function spawnDoorLeaf(hx,hz,y,ang,w,hh,matLeaf,matDark,cx,cz,swing){
+  var g=new THREE.Group(); g.position.set(hx, y, hz); g.rotation.y=ang;
+  /* unit leaf: planks, two iron bands, a ring handle — scaled to the opening */
+  var geo=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
+    {w:1,h:1,d:0.11,x:0.5,y:0.5,z:0,c:0x513820},
+    {w:0.96,h:0.05,d:0.15,x:0.5,y:0.24,z:0,c:0x241d16},{w:0.96,h:0.05,d:0.15,x:0.5,y:0.76,z:0,c:0x241d16},
+    {w:0.02,h:1,d:0.13,x:0.34,y:0.5,z:0,c:0x3a2a18},{w:0.02,h:1,d:0.13,x:0.66,y:0.5,z:0,c:0x3a2a18},
+    {w:0.08,h:0.08,d:0.2,x:0.86,y:0.48,z:0,c:0x50565e}]); });
+  var leaf=new THREE.Mesh(geo, DOOR_MAT);
+  leaf.scale.set(w-0.12, hh-0.06, 1); leaf.castShadow=true; g.add(leaf);
+  propAdd(g);
+  var D={g:g, base:ang, x:cx, z:cz, open:0, w:w, swing:swing||1.9};
+  DOORS.push(D);
+  return D;
 }
 /* evenly spaced window slots along a wall stretch */
 function winSlots(a0,a1,maxN){
@@ -357,6 +394,7 @@ function structChimney(kit,P,cx,cz,R,u,thatch){
   kit.box(P.stone, w+0.22, 0.18, w+0.22, x, top-0.6, z);
   kit.box(P.stone, w+0.34, 0.16, w+0.34, x, top+0.02, z);
   kit.box(P.dark, w*0.46, 0.22, w*0.46, x, top+0.13, z);
+  var cwp=kit.toWorld(x,z); regChimney(cwp.x, top+0.3, cwp.z, 1);
 }
 function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   var fz=cz+doorS*(d/2-t/2), hh=2.8, sw=deep||1.35, pw=doorW+1.6, i, s;
@@ -366,10 +404,69 @@ function structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,deep){
   }
   kit.box(P.roof, pw+0.55, 0.16, sw+0.55, cx, y0+hh+0.32, fz+doorS*(sw/2-0.05), 0, doorS*0.22);
   kit.box(P.timber, pw+0.55, 0.15, 0.15, cx, y0+hh+0.26, fz+doorS*(sw+0.2));
-  kit.box(P.timber, pw-0.3, 0.13, 0.12, cx, y0+1.08, fz+doorS*(sw-0.18));
-  for(i=-2;i<=2;i++) kit.box(P.timber, 0.1, 1.02, 0.1, cx+i*(pw-0.6)/4, y0+0.56, fz+doorS*(sw-0.18));
+  /* railing either side of the steps — the doorway itself stays open */
+  var railL=(pw-0.3)/2-(doorW/2+0.25);
+  if(railL>0.3){
+    for(s=-1;s<=1;s+=2){
+      var rc=cx+s*(doorW/2+0.25+railL/2);
+      kit.box(P.timber, railL, 0.13, 0.12, rc, y0+1.08, fz+doorS*(sw-0.18));
+      for(i=0;i<Math.max(1,Math.round(railL/0.45));i++) kit.box(P.timber, 0.1, 1.02, 0.1, cx+s*(doorW/2+0.4+i*0.45), y0+0.56, fz+doorS*(sw-0.18));
+    }
+  }
   kit.box(P.stone, doorW+1.0, 0.16, 0.5, cx, y0+0.32, fz+doorS*(sw+0.36));
   kit.box(P.stone, doorW+1.4, 0.16, 0.5, cx, y0+0.16, fz+doorS*(sw+0.82));
+}
+
+/* extras: log courses, buttresses, battlements, corner tower, dome, arcade, hanging sign */
+function structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng){
+  var i, s, h=yTop-y0;
+  if(o.style==='log'){
+    var n=Math.floor(h/0.62);
+    for(i=1;i<n;i++){
+      var yy=y0+i*0.62;
+      kit.box(P.timber, w+0.3, 0.12, 0.1, cx, yy, cz+(d/2+0.02)); kit.box(P.timber, w+0.3, 0.12, 0.1, cx, yy, cz-(d/2+0.02));
+      kit.box(P.timber, 0.1, 0.12, d+0.3, cx+(w/2+0.02), yy, cz); kit.box(P.timber, 0.1, 0.12, d+0.3, cx-(w/2+0.02), yy, cz);
+    }
+    for(s=-1;s<=1;s+=2) for(var q=-1;q<=1;q+=2) kit.cyln(P.timber, 0.2, 0.2, h+0.3, 6, cx+s*(w/2+0.05), y0+h/2, cz+q*(d/2+0.05));
+  }
+  if(o.buttress){
+    var nb=Math.max(2,Math.floor(d/5));
+    for(i=0;i<nb;i++){ var bz=cz-d/2+1.2+i*(d-2.4)/(nb-1); for(s=-1;s<=1;s+=2){ kit.box(P.stone, 1.0, h*0.7, 0.9, cx+s*(w/2+0.45), y0+h*0.35, bz); kit.prism(P.stone, 1.0, 1.2, 0.9, cx+s*(w/2+0.45), y0+h*0.7+0.6, bz, 0, 0, 0, s>0?-1:1); kit.collider(cx+s*(w/2+0.45)-0.5, bz-0.45, cx+s*(w/2+0.45)+0.5, bz+0.45); } }
+  }
+  if(o.battlements){
+    var m=Math.floor(w/1.6), k=Math.floor(d/1.6);
+    for(i=0;i<m;i++){ var ux=cx-w/2+0.8+i*(w-1.6)/(m-1); if(i%2) continue; kit.box(P.wall, 0.9, 1.1, 0.5, ux, yTop+0.85, cz+d/2+0.05); kit.box(P.wall, 0.9, 1.1, 0.5, ux, yTop+0.85, cz-d/2-0.05); }
+    for(i=0;i<k;i++){ var uz=cz-d/2+0.8+i*(d-1.6)/(k-1); if(i%2) continue; kit.box(P.wall, 0.5, 1.1, 0.9, cx+w/2+0.05, yTop+0.85, uz); kit.box(P.wall, 0.5, 1.1, 0.9, cx-w/2-0.05, yTop+0.85, uz); }
+    kit.box(P.stone, w+0.7, 0.35, d+0.7, cx, yTop+0.32, cz);
+  }
+  if(o.tower){
+    var tw=Math.min(4.2, w*0.22), tx=cx-w/2+tw/2+0.3, tz=cz-doorS*(d/2-tw/2-0.3), th=h+tw*1.4;
+    kit.box(P.wall, tw, th, tw, tx, y0+th/2, tz);
+    kit.box(P.trim, tw+0.3, 0.26, tw+0.3, tx, y0+th, tz);
+    for(i=0;i<3;i++){ kit.box(P.dark, 0.4, 0.8, 0.2, tx, y0+th*0.5+i*1.6, tz+doorS*(tw/2+0.02)); }
+    kit.pyr(P.roof, tw*0.85, tw*1.3, 4, tx, y0+th+0.26+tw*0.65, tz, Math.PI/4);
+    kit.box(M2(COL_GOLD), 0.1, 1.0, 0.1, tx, y0+th+0.26+tw*1.3+0.5, tz);
+  }
+  if(o.dome){
+    var r=Math.min(w,d)*0.24, dy=(o.roof==='flat')?yTop+0.3:yTop+Math.max(0.9,(Math.min(w,d)/2+0.6)*0.7)+0.2, dm=M2(o.domeCol||0x3f7a5e);
+    kit.cyln(P.wall, r*0.9, r*0.95, 2.2, 12, cx, dy+1.1, cz);
+    for(i=0;i<4;i++) kit.box(P.dark, 0.5, 1.1, 0.2, cx+Math.cos(i*Math.PI/2)*r*0.9, dy+1.2, cz+Math.sin(i*Math.PI/2)*r*0.9, -i*Math.PI/2);
+    kit.cyln(dm, r*1.0, r*1.05, 0.5, 12, cx, dy+2.45, cz); kit.cyln(dm, r*0.82, r*1.0, 0.6, 12, cx, dy+3.0, cz); kit.cyln(dm, r*0.52, r*0.82, 0.55, 12, cx, dy+3.55, cz); kit.cyln(dm, r*0.15, r*0.52, 0.45, 12, cx, dy+4.05, cz);
+    kit.box(M2(COL_GOLD), 0.12, 1.4, 0.12, cx, dy+5.0, cz); kit.box(M2(COL_GOLD), 0.7, 0.12, 0.12, cx, dy+5.3, cz);
+  }
+  if(o.arcade){
+    var fz=cz+doorS*(d/2+1.6), nc=Math.max(3,Math.floor(w/3.2)), ch=Math.min(3.6,h*0.55);
+    kit.box(P.stone, w+0.8, 0.25, 3.4, cx, y0+0.12, cz+doorS*(d/2+1.7));
+    for(i=0;i<=nc;i++){ var ax=cx-w/2+i*(w/nc); if(Math.abs(ax-cx)<doorW/2+0.6&&i!==0&&i!==nc) continue; kit.cyln(P.stone, 0.28, 0.32, ch, 8, ax, y0+ch/2, fz); kit.box(P.stone, 0.7, 0.2, 0.7, ax, y0+ch+0.1, fz); kit.collider(ax-0.32,fz-0.32,ax+0.32,fz+0.32); }
+    kit.box(P.timber, w+0.8, 0.3, 0.3, cx, y0+ch+0.3, fz);
+    kit.box(P.roof, w+1.2, 0.16, 3.6, cx, y0+ch+0.55, cz+doorS*(d/2+1.8), 0, doorS*0.16);
+  }
+  if(o.sign){
+    var sx=cx+doorW/2+1.2, sy=y0+2.6, sz=cz+doorS*(d/2+0.02);
+    kit.box(P.dark, 0.06, 0.06, 0.9, sx, sy+0.35, sz+doorS*0.45);
+    var sc={wolf:0x7a3434, butcher:0x8a3a2a, tailor:0x2f5a7a, spice:0xc46a2a, bookseller:0x5b4a86, armorer:0x50565e, horsetrader:0x7a5c39}[o.sign]||0x7a5c39;
+    kit.box(M2(sc), 0.9, 0.7, 0.06, sx, sy-0.1, sz+doorS*0.85); kit.box(P.trim, 1.0, 0.8, 0.04, sx, sy-0.1, sz+doorS*0.84);
+  }
 }
 
 /* ============================================================
@@ -413,28 +510,39 @@ function structTempleRoof(kit,P,o,cx,cz,w,d,yTop){
 /* Moldavian church: altar apse, brâu band, entrance tower, dome, cross */
 function structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS){
   var domeM=M2(0x3f7a5e), gold=M2(COL_GOLD), gy=groundH(cx,cz), i;
+  var sc=clamp(w/10, 1, 2.6), ar=clamp(w*0.16, 1.5, 4.2), ah=Math.min(o.h*0.75, 3.0*sc+1);
   /* altar apse at the far end */
-  kit.cyln(P.wall, 1.5, 1.6, 3.0, 10, cx, gy+1.5, cz-doorS*(d/2+0.8));
-  kit.cyln(P.roof, 0.12, 1.75, 1.4, 10, cx, gy+3.4, cz-doorS*(d/2+0.8));
+  kit.cyln(P.wall, ar, ar+0.1, ah, 12, cx, gy+ah/2, cz-doorS*(d/2+ar*0.55));
+  kit.cyln(P.roof, 0.12, ar+0.25, ar*0.9, 12, cx, gy+ah+ar*0.45, cz-doorS*(d/2+ar*0.55));
+  /* portal: arch and a round window over the door */
+  var fz=cz+doorS*(d/2+0.02), dw=clamp(w*0.14,1.6,3.2)+0.9, dh=clamp(o.h*0.36,2.4,4.6);
+  kit.box(P.stone, dw+0.9, 0.35, 0.5, cx, gy+dh+0.45, fz);
+  kit.box(P.stone, 0.4, dh+0.5, 0.5, cx-dw/2-0.25, gy+(dh+0.5)/2, fz); kit.box(P.stone, 0.4, dh+0.5, 0.5, cx+dw/2+0.25, gy+(dh+0.5)/2, fz);
+  kit.cyln(P.stone, dw*0.55, dw*0.55, 0.4, 12, cx, gy+dh+0.5, fz, 0, Math.PI/2, 0);
+  kit.cyln(P.dark, dw*0.42, dw*0.42, 0.44, 12, cx, gy+dh+0.5, fz, 0, Math.PI/2, 0);
+  if(o.h>7){ kit.cyln(P.stone, w*0.11, w*0.11, 0.3, 14, cx, gy+o.h*0.7, fz, 0, Math.PI/2, 0); kit.cyln(P.pane, w*0.085, w*0.085, 0.34, 14, cx, gy+o.h*0.7, fz, 0, Math.PI/2, 0); for(i=0;i<6;i++) kit.box(P.dark, 0.1, w*0.19, 0.36, cx, gy+o.h*0.7, fz, 0, 0, i*Math.PI/6); }
   /* the twisted brâu belt around the nave */
   var by=gy+o.h*0.6;
   kit.box(P.trim, w+0.5, 0.3, 0.17, cx, by, cz+(d/2-0.17));
   kit.box(P.trim, w+0.5, 0.3, 0.17, cx, by, cz-(d/2-0.17));
   kit.box(P.trim, 0.17, 0.3, d+0.5, cx+(w/2-0.17), by, cz);
   kit.box(P.trim, 0.17, 0.3, d+0.5, cx-(w/2-0.17), by, cz);
-  /* bell tower over the entrance */
-  var tz=cz+doorS*(d/2-2.0), ty=yTop+rh*0.3;
-  kit.box(P.wall, 3.4, 3.6, 3.4, cx, ty+1.8, tz);
-  kit.box(P.trim, 3.7, 0.26, 3.7, cx, ty+3.7, tz);
-  kit.cyln(P.wall, 1.2, 1.28, 1.5, 10, cx, ty+4.55, tz);
-  kit.pyr(domeM, 1.4, 2.2, 12, cx, ty+6.35, tz);
-  kit.cyln(P.roof, 0.34, 0.42, 0.32, 8, cx, ty+7.5, tz);
-  kit.box(gold, 0.11, 1.2, 0.11, cx, ty+8.25, tz);
-  kit.box(gold, 0.66, 0.11, 0.11, cx, ty+8.5, tz);
+  /* bell tower over the entrance, scaled with the nave */
+  var tw=3.4*sc, tz=cz+doorS*(d/2-tw/2-0.3), ty=yTop+rh*0.3, th=3.6*sc;
+  kit.box(P.wall, tw, th+rh*0.3+0.2, tw, cx, ty-rh*0.15+th/2, tz);
+  kit.box(P.trim, tw+0.3, 0.26, tw+0.3, cx, ty+th+0.1, tz);
+  kit.cyln(P.wall, 1.2*sc, 1.28*sc, 1.5*sc, 10, cx, ty+th+0.85*sc+0.1, tz);
+  kit.pyr(domeM, 1.4*sc, 2.2*sc, 12, cx, ty+th+1.6*sc+1.1*sc+0.1, tz);
+  kit.cyln(P.roof, 0.34*sc, 0.42*sc, 0.32, 8, cx, ty+th+3.8*sc+0.2, tz);
+  kit.box(gold, 0.11, 1.2*sc, 0.11, cx, ty+th+3.8*sc+0.8*sc+0.3, tz);
+  kit.box(gold, 0.66*sc, 0.11, 0.11, cx, ty+th+3.8*sc+1.05*sc+0.3, tz);
   for(i=-1;i<=1;i+=2){
-    kit.box(P.dark, 0.55, 1.0, 0.18, cx+i*0.8, ty+2.6, tz+1.74);
-    kit.box(P.dark, 0.18, 1.0, 0.55, cx+1.74, ty+2.6, tz+i*0.8);
+    kit.box(P.dark, 0.55*sc, 1.0*sc, 0.18, cx+i*0.8*sc, ty+th*0.7, tz+doorS*(tw/2+0.04));
+    kit.box(P.dark, 0.18, 1.0*sc, 0.55*sc, cx+tw/2+0.04, ty+th*0.7, tz+i*0.8*sc);
+    kit.box(P.dark, 0.18, 1.0*sc, 0.55*sc, cx-tw/2-0.04, ty+th*0.7, tz+i*0.8*sc);
   }
+  /* side domes on big churches */
+  if(sc>1.6){ for(i=-1;i<=1;i+=2){ kit.cyln(P.wall, 1.1*sc, 1.15*sc, 1.4*sc, 10, cx+i*w*0.3, yTop+rh*0.55+0.7*sc, cz); kit.pyr(domeM, 1.3*sc, 1.8*sc, 12, cx+i*w*0.3, yTop+rh*0.55+1.4*sc+0.9*sc, cz); kit.box(gold, 0.1, 0.9*sc, 0.1, cx+i*w*0.3, yTop+rh*0.55+1.4*sc+1.8*sc+0.4*sc, cz); } }
 }
 
 /* ============================================================
@@ -445,18 +553,24 @@ function structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS){
        porch,chimney,studs,seed,windows,doorW,doorH,sill,winW,winH,maxWin,rh}
   Returns {yTop, ridgeY, meshes}.
 */
+function doorAngle(side){ return side==='N'?Math.PI:side==='E'?Math.PI/2:side==='W'?-Math.PI/2:0; }
 function structShell(o){
   var cx=o.x, cz=o.z, w=o.w, d=o.d, h=o.h;
-  var gy=groundH(cx,cz), y0=gy, yTop=gy+h;
+  var gy=(o.y!==undefined)?o.y:groundH(cx,cz), y0=gy, yTop=gy+h;
   var P=structPal(o);
-  var kit=kitCreate();
+  var own=false;
+  var kit=o.kit||SITE_KIT||cellKit(cx,cz);
+  /* the shell is built with its door on the local south side; the frame turns it N/E/W */
+  var fang=doorAngle(o.door||'S');
+  kit.frame(cx,cz,fang);
   var rng=seedRand(o.seed===undefined?(Math.abs(Math.round(cx*7.3+cz*13.1))||3):o.seed);
-  var t=0.34, doorS=o.door==='S'?1:-1;
+  var t=0.34, doorS=1;
   var style=o.roof||'gable';
   var alongZ=(d>w+0.5);
   var ridgeLen=alongZ?d:w, crossLen=alongZ?w:d;
-  var doorW=(o.doorW!==undefined)?o.doorW:clamp(Math.min(1.55, w*0.3), 1.15, 2.4);
-  var doorH=o.doorH||clamp(h-1.0, 1.95, 2.5);
+  var church=(o.roof==='church'), grand=(w>=18||h>=9);
+  var doorW=(o.doorW!==undefined)?o.doorW:(church||grand)?clamp(w*0.14, 1.6, 3.2):clamp(Math.min(1.55, w*0.3), 1.15, 2.4);
+  var doorH=o.doorH||((church||grand)?clamp(h*0.36, 2.4, 4.6):clamp(h-1.0, 1.95, 2.5));
   var thatch=(style==='thatch');
   var ov=thatch?0.8:0.6, rake=0.44, th=thatch?0.42:0.22;
   var rh=(o.rh!==undefined)?o.rh:Math.max(0.9,(crossLen/2+ov)*(thatch?0.84:0.7));
@@ -464,33 +578,38 @@ function structShell(o){
          rh:rh, ov:ov, rake:rake, th:th, thatch:thatch,
          profile:roofProfile(style, crossLen/2+ov, rh, 0.34)};
   var frontIn=cz+doorS*(d/2-t/2), backIn=cz-doorS*(d/2-t/2);
-  var wallOpt={sill:o.sill||1.15, winH:o.winH||1.15, winW:o.winW||0.95,
-               doorH:doorH, maxWin:o.maxWin||2};
+  var wallOpt={sill:o.sill||(church?1.9:grand?1.4:1.15), winH:o.winH||(church?clamp(h*0.42,1.6,3.4):grand?1.5:1.15), winW:o.winW||(church?1.1:0.95),
+               doorH:doorH, maxWin:o.maxWin||clamp(Math.round(w/4.2),2,8)};
   var i, holes, sp;
 
   kit.box(P.floor, w+0.5, 0.24, d+0.5, cx, gy+0.1, cz);
   structPlinth(kit,P,cx,cz,w,d,y0,doorS,doorW);
 
-  /* ---- four walls, each with real openings ---- */
-  holes=wallHoles(cx-w/2, cx+w/2, doorW, y0, yTop, wallOpt);
-  sp={axis:'x', a0:cx-w/2, a1:cx+w/2, cross:frontIn, y0:y0, top:yTop, t:t, holes:holes, f:doorS};
-  wallRun(kit,P.wall,sp);
-  for(i=0;i<holes.length;i++) openingTrim(kit,P,sp,holes[i],rng);
-
-  holes=(o.windows===false)?[]:wallHoles(cx-w/2, cx+w/2, 0, y0, yTop, wallOpt);
-  sp={axis:'x', a0:cx-w/2, a1:cx+w/2, cross:backIn, y0:y0, top:yTop, t:t, holes:holes, f:-doorS};
-  wallRun(kit,P.wall,sp);
-  for(i=0;i<holes.length;i++) openingTrim(kit,P,sp,holes[i],rng);
-
-  for(var sx=-1;sx<=1;sx+=2){
-    holes=(o.windows===false)?[]:wallHoles(cz-d/2+t, cz+d/2-t, 0, y0, yTop,
-      {sill:wallOpt.sill, winH:wallOpt.winH, winW:wallOpt.winW,
-       maxWin:clamp(Math.round(d/4.2),1,5)});
-    sp={axis:'z', a0:cz-d/2+t, a1:cz+d/2-t, cross:cx+sx*(w/2-t/2), y0:y0, top:yTop, t:t, holes:holes, f:sx};
-    wallRun(kit,P.wall,sp);
-    for(i=0;i<holes.length;i++) openingTrim(kit,P,sp,holes[i],rng);
+  /* ---- four walls, each with real openings; tall buildings get a second row of windows ---- */
+  var two=(o.floors>=2 && h>=5.4), ySplit=two?y0+h*0.52:yTop;
+  var lowTop=two?ySplit:yTop;
+  function wallWithRows(axis,a0,a1,cross,f,doorWidth,noWin,maxWin){
+    var hl=noWin?[]:wallHoles(a0,a1,doorWidth,y0,lowTop,{sill:wallOpt.sill,winH:wallOpt.winH,winW:wallOpt.winW,doorH:doorH,maxWin:maxWin});
+    if(noWin&&doorWidth) hl=wallHoles(a0,a1,doorWidth,y0,lowTop,{sill:wallOpt.sill,winH:wallOpt.winH,winW:wallOpt.winW,doorH:doorH,maxWin:maxWin}).filter(function(hh){ return hh.kind==='door'; });
+    var spl={axis:axis, a0:a0, a1:a1, cross:cross, y0:y0, top:lowTop, t:t, holes:hl, f:f, leaf:o.leaf, pane:o.pane!==null};
+    wallRun(kit,P.wall,spl);
+    for(var k=0;k<hl.length;k++) openingTrim(kit,P,spl,hl[k],rng);
+    if(two){
+      var hu=noWin?[]:wallHoles(a0,a1,0,ySplit,yTop,{sill:0.75,winH:Math.min(wallOpt.winH,yTop-ySplit-1.3),winW:wallOpt.winW*0.9,maxWin:Math.max(maxWin,3)});
+      var spu={axis:axis, a0:a0, a1:a1, cross:cross, y0:ySplit, top:yTop, t:t, holes:hu, f:f, pane:o.pane!==null};
+      wallRun(kit,P.wall,spu);
+      for(var k2=0;k2<hu.length;k2++) openingTrim(kit,P,spu,hu[k2],rng);
+      /* floor band between storeys */
+      if(axis==='x') kit.box(P.timber, a1-a0, 0.22, t+0.12, (a0+a1)/2, ySplit, cross); else kit.box(P.timber, t+0.12, 0.22, a1-a0, cross, ySplit, (a0+a1)/2);
+    }
   }
-  structPosts(kit,P,cx,cz,w,d,y0,yTop,t,o.studs!==false && w>6.5);
+  wallWithRows('x', cx-w/2, cx+w/2, frontIn, doorS, (o.doorW===0)?0:doorW, false, wallOpt.maxWin);
+  wallWithRows('x', cx-w/2, cx+w/2, backIn, -doorS, o.backDoor?doorW:0, o.windows===false, wallOpt.maxWin);
+  for(var sx=-1;sx<=1;sx+=2){
+    wallWithRows('z', cz-d/2+t, cz+d/2-t, cx+sx*(w/2-t/2), sx, 0, o.windows===false, clamp(Math.round(d/4.2),1,5));
+  }
+  structPosts(kit,P,cx,cz,w,d,y0,yTop,t,o.studs!==false && !church && (w>6.5||o.timberFrame) && o.style!=='log');
+  structExtras(kit,P,o,cx,cz,w,d,y0,yTop,t,doorS,doorW,rng);
 
   /* ---- roof ---- */
   if(style==='temple'){
@@ -517,25 +636,41 @@ function structShell(o){
   }
 
   /* ---- porch: the Moldavian pridvor ---- */
-  var wantPorch=o.porch!==false && (style==='gable'||style==='thatch'||style==='hall');
+  var wantPorch=o.porch!==false && !o.arcade && (style==='gable'||style==='thatch'||style==='hall');
   if(wantPorch) structPorch(kit,P,cx,cz,w,d,y0,doorS,doorW,t,o.porch);
 
-  var meshes=kit.flush(scene);
-  return {yTop:yTop, ridgeY:yTop+rh, meshes:meshes, pal:P};
+  var meshes=0;
+  if(own && !o.deferFlush){ meshes=kit.flush(o.parent||PROP_PARENT||scene); kit.frame(0,0,0); }
+  return {yTop:yTop, ridgeY:yTop+rh, meshes:meshes, pal:P, kit:kit, own:own, y0:y0, doorW:doorW, doorH:doorH, ang:fang, t:t};
 }
 
 /* ============================================================
    8. Collision footprints — same planes as the original walls
    ============================================================ */
-function wallColliders(cx,cz,w,d,h,doorSide){
-  var t=0.35, gap=2.0, z0, z1;
-  addCollider(cx-w/2, cz-d/2, cx+w/2, cz-d/2+t);
-  addCollider(cx-w/2, cz-d/2, cx-w/2+t, cz+d/2);
-  addCollider(cx+w/2-t, cz-d/2, cx+w/2, cz+d/2);
-  if(doorSide==='S'){ z0=cz+d/2-t; z1=cz+d/2; } else { z0=cz-d/2; z1=cz-d/2+t; }
-  addCollider(cx-w/2, z0, cx-gap/2, z1);
-  addCollider(cx+gap/2, z0, cx+w/2, z1);
+function wallColliders(cx,cz,w,d,h,doorSide,gapW,backDoor){
+  /* w along x, d along z for S/N doors; for E/W the building is turned, so swap */
+  var t=0.35, gap=gapW||2.0, side=doorSide||'S';
+  var opp={S:'N',N:'S',E:'W',W:'E'}[side];
+  var hx=(side==='E'||side==='W')?d/2:w/2, hz=(side==='E'||side==='W')?w/2:d/2;
+  function wallOf(sd,gapped){
+    if(sd==='N'){ if(!gapped) addCollider(cx-hx, cz-hz, cx+hx, cz-hz+t); else { addCollider(cx-hx, cz-hz, cx-gap/2, cz-hz+t); addCollider(cx+gap/2, cz-hz, cx+hx, cz-hz+t); } }
+    if(sd==='S'){ if(!gapped) addCollider(cx-hx, cz+hz-t, cx+hx, cz+hz); else { addCollider(cx-hx, cz+hz-t, cx-gap/2, cz+hz); addCollider(cx+gap/2, cz+hz-t, cx+hx, cz+hz); } }
+    if(sd==='W'){ if(!gapped) addCollider(cx-hx, cz-hz, cx-hx+t, cz+hz); else { addCollider(cx-hx, cz-hz, cx-hx+t, cz-gap/2); addCollider(cx-hx, cz+gap/2, cx-hx+t, cz+hz); } }
+    if(sd==='E'){ if(!gapped) addCollider(cx+hx-t, cz-hz, cx+hx, cz+hz); else { addCollider(cx+hx-t, cz-hz, cx+hx, cz-gap/2); addCollider(cx+hx-t, cz+gap/2, cx+hx, cz+hz); } }
+  }
+  ['N','S','E','W'].forEach(function(sd){ wallOf(sd, sd===side || (backDoor && sd===opp)); });
 }
+/* world position of the door threshold (just outside the wall) */
+function doorPoint(o,out){
+  var side=o.door||'S', dist=out||0;
+  var hx=(side==='E'||side==='W')?o.d/2:o.w/2, hz=(side==='E'||side==='W')?o.w/2:o.d/2;
+  if(side==='S') return {x:o.x, z:o.z+hz+dist};
+  if(side==='N') return {x:o.x, z:o.z-hz-dist};
+  if(side==='E') return {x:o.x+hx+dist, z:o.z};
+  return {x:o.x-hx-dist, z:o.z};
+}
+/* world footprint half sizes */
+function shellHalf(o){ var side=o.door||'S'; var e=(side==='E'||side==='W'); return {hx:e?o.d/2:o.w/2, hz:e?o.w/2:o.d/2}; }
 
 /* Unit triangular prism used by the instanced settlement roofs:
    base 1x1 in X/Z, apex on the centre line, ridge along X. */
@@ -557,11 +692,14 @@ function gablePrismGeometry(){
 function buildSolidStructure(x,z,w,d,h,wallCol,roofCol,roof,opts){
   opts=opts||{};
   var shell={x:x, z:z, w:w, d:d, h:h, wall:wallCol, roofCol:roofCol, roof:roof||'gable',
-             door:opts.door||'S', windows:true, porch:false, studs:false,
+             door:opts.door||'S', windows:true, porch:false, studs:false, leaf:false,
              chimney:opts.chimney!==false, seed:opts.seed, maxWin:1};
   if(roof==='flat') shell.rh=0;
   var r=structShell(shell);
-  addCollider(x-w/2, z-d/2, x+w/2, z+d/2);
+  r.kit.frame(0,0,0);
+  var hh=shellHalf(shell);
+  addCollider(x-hh.hx, z-hh.hz, x+hh.hx, z+hh.hz);
   BUILD_COUNT++;
+  regStructure({name:opts.name||'', kind:opts.kind||'solid', x:x, z:z, hx:hh.hx, hz:hh.hz, door:null, enterable:false});
   return r;
 }

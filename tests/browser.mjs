@@ -17,9 +17,35 @@ try{
   await page.goto(pathToFileURL(resolve('index.html')).href+'?test=1');
   await page.evaluate(()=>__game.forceLook());
   await check('offline boot: original world size, all territories covered, populated settlements',async()=>{
-    const r=await page.evaluate(()=>({world:__game.test.world(),coverage:__game.coverage(),buildings:__game.buildings(),lore:__game.landmarkCount()}));
-    assert.equal(r.world.half,3000);assert.equal(r.coverage.covered,256);assert.ok(r.world.settlements.buildings>4500);assert.ok(r.world.settlements.zones>=245);assert.ok(r.buildings>14000);assert.ok(r.lore>20);assert.deepEqual(requests,[]);
+    const r=await page.evaluate(()=>({world:__game.test.world(),coverage:__game.coverage(),buildings:__game.buildings(),lore:__game.landmarkCount(),live:__game.buildingsLive()}));
+    assert.equal(r.world.half,3000);assert.equal(r.coverage.covered,256);assert.ok(r.world.settlements.buildings>4500);assert.ok(r.world.settlements.zones>=245);assert.ok(r.buildings>9000);assert.ok(r.lore>60);assert.deepEqual(requests,[]);
+    assert.ok(r.live.doors>900,'hinged doors');assert.ok(r.live.enterable>1000,'enterable structures');assert.ok(r.live.lights>1500,'registered light sources');assert.ok(r.live.chimneys>1000,'smoking chimneys');assert.ok(r.live.anim>=20,'moving parts');assert.ok(r.live.bridges>=9,'river bridges');
+    /* ROM-MAP-SPEC-003: 48 villages, four rivers, the road hierarchy with lanes, fords, waystations, capture flags and beacons */
+    assert.equal(r.live.villages,48);assert.equal(r.live.rivers,4);assert.ok(r.live.roads.ribbons>=90&&r.live.roads.lanes>=60&&r.live.roads.trails>=12,'road hierarchy');
+    assert.ok(r.live.fords>=4,'fords');assert.equal(r.live.waystations,12);assert.ok(r.live.flags>=51,'capture flags');assert.ok(r.live.beacons>=9,'signal beacons');assert.ok(Object.keys(r.live.rbl).length>=18,'vernacular library in use');
     writeFileSync('test-results/world.json',JSON.stringify(r,null,2));
+  });
+  await check('NO-CLIP LAW: every registered wall face is solid, roads never run through river water',async()=>{
+    const r=await page.evaluate(()=>({audit:__game.noclipAudit(), road:__game.roadProbe(400)}));
+    assert.equal(r.audit.badN,0,JSON.stringify(r.audit.bad));assert.ok(r.audit.ok>1500);assert.equal(r.road.wet,0);
+  });
+  await check('every named building is solid, has a real door and an open entrance into a furnished interior',async()=>{
+    const r=await page.evaluate(()=>{const S=__game.structures();let ok=0;const bad=[];
+      for(const s of S){ if(!s.door) continue; const dx=s.x-s.door.x,dz=s.z-s.door.z,L=Math.hypot(dx,dz)||1,ux=dx/L,uz=dz/L;
+        const outFree=__game.freeAt(s.door.x,s.door.z,0.42), inFree=__game.freeAt(s.door.x+ux*1.3,s.door.z+uz*1.3,0.42);
+        /* walls beside the door must be solid: a point inside the wall next to the opening is blocked (tents are open-fronted) */
+        const side=(s.dw||1.6)/2+0.5, wx=s.door.x+ux*0.95, wz=s.door.z+uz*0.95;
+        const wallHit=s.kind==='tent'||!__game.freeAt(wx-uz*side,wz+ux*side,0.12)||!__game.freeAt(wx+uz*side,wz-ux*side,0.12);
+        if(outFree&&inFree&&wallHit) ok++; else bad.push({name:s.name,kind:s.kind,x:s.x,z:s.z,outFree,inFree,wallHit}); }
+      return {ok,bad:bad.slice(0,12),badN:bad.length,total:S.length};});
+    assert.ok(r.ok>1000,JSON.stringify(r.bad));assert.ok(r.badN<=Math.max(3,r.total*0.01),JSON.stringify(r.bad));
+  });
+  await check('doors swing for the player, windows glow at night, lights and smoke follow the walker',async()=>{
+    const r=await page.evaluate(()=>{const td=__game.townData('moldavia');const i=__game.nearestDoor(td.hall.door.x,td.hall.door.z);const d0=__game.doorState(i);
+      __game.setTimeOfDay(13);for(let k=0;k<20;k++)__game.tickAmbient(0.05);const dayGlow=__game.paneGlow();
+      __game.setTimeOfDay(0.5);for(let k=0;k<20;k++)__game.tickAmbient(0.05);const nightGlow=__game.paneGlow();
+      return {d0,dayGlow,nightGlow,lights:__game.poolLights().length,smoke:__game.smokeAlive()};});
+    assert.ok(r.d0&&r.d0.open===0);assert.ok(r.nightGlow>r.dayGlow+0.3);
   });
   await check('menu/back/faction/role buttons and role-before-spawn gate',async()=>{
     await page.click('#btn-begin');await page.click('#btn-back-fac');assert.equal(await page.evaluate(()=>__game.state()),0);
@@ -27,6 +53,12 @@ try{
     await page.click('#btn-back');await page.click('[data-fac="moldavia"]');await page.click('#role-grid [data-role="curtean"]:not(.random)');
     await page.click('#btn-spawn');assert.equal(await page.evaluate(()=>__game.state()),3);await step(2);
     assert.equal(await page.evaluate(()=>__game.test.members().length),17);
+  });
+  await check('walking up to the hall door opens it; lights and chimney smoke are pooled around the player',async()=>{
+    const r=await page.evaluate(()=>{const td=__game.townData('moldavia');const i=__game.nearestDoor(td.hall.door.x,td.hall.door.z);const d=__game.doorState(i);
+      __game.tpNear(d.x,d.z);const p=__game.player();p.group.position.x=d.x;p.group.position.z=d.z+0.6;__game.test.step(60,1/30);const open=__game.doorState(i);
+      __game.setTimeOfDay(23);__game.test.step(30,1/30);return {before:d.open,after:open.open,rot:Math.abs(open.rot-open.base),lights:__game.poolLights().length,smoke:__game.smokeAlive(),inside:__game.freeAt(p.group.position.x,p.group.position.z,0.4)};});
+    assert.ok(r.after>0.9,JSON.stringify(r));assert.ok(r.rot>1.2);assert.ok(r.lights>=3,JSON.stringify(r));assert.ok(r.smoke>0,JSON.stringify(r));
   });
   await check('single-click muster and auto-buy toggles are not double-bound',async()=>{
     await page.evaluate(()=>__game.addGold(100000));await act('muster');

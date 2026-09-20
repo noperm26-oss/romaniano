@@ -9,6 +9,12 @@ function settlementRoadNear(x,z,r){
     for(var i=0;i<pts.length;i++)if(Math.hypot(x-pts[i][0],z-pts[i][1])<r)return true;
   }return false;
 }
+function hamletWater(x,z){
+  var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+40) return true;
+  for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+50,2)) return true; }
+  for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+40) return true; }
+  return false;
+}
 function buildSettlements(){
   (window.__roadPts||[]).forEach(function(p){var key=Math.floor(p[0]/32)+':'+Math.floor(p[1]/32);if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
   var batch=createBuildingBatch(),covered=new Set();
@@ -17,7 +23,7 @@ function buildSettlements(){
     var region = getRegion(center.x, center.z);
     for(var quadrant=0;quadrant<4;quadrant++){
       var x=center.x+(quadrant%2?88:-88),z=center.z+(quadrant>1?88:-88);
-      var protectedSite=FAC_KEYS.some(function(f){return Math.hypot(x-TOWNS[f].x,z-TOWNS[f].z)<240;})||LANDMARKS.some(function(l){return Math.hypot(x-l.x,z-l.z)<Math.max(55,l.r||0);});
+      var protectedSite=nearTown(x,z,30)||nearSite(x,z,30)||hamletWater(x,z);
       if(protectedSite)continue;
       var added=0;
       for(var h=0;h<8;h++){
@@ -47,7 +53,7 @@ function buildSettlements(){
       // Street segments are tested against actual walls, including legacy buildings.
       for(var step=-36;step<=36;step+=6){
         if(!insideSolid(x,z+step,4)){
-          var roadCol = region==='carpathian'?0x7a7a82:region==='trade_route'?0xc2b08a:region==='capital'?0x9a9a8a:0x9b8866;
+          var roadCol = tintHex(region==='carpathian'?0x7a7a82:region==='trade_route'?0xc2b08a:region==='capital'?0x9a9a8a:0x9b8866, -0.38);
           batch.add('box',x,groundH(x,z+step)+0.04,z+step,6,0.08,6.2,roadCol);
           window.__roadPts.push([x,z+step]);
         }

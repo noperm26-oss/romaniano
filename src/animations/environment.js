@@ -57,4 +57,6 @@ function updateAmbient(dt){
   }
   /* ---- wildlife ---- */
   updateCritters(dt);
+  /* ---- doors, lights, smoke, wheels, bells ---- */
+  updateBuildings(dt);
 }

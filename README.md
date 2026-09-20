@@ -30,14 +30,20 @@ Choose a kingdom, then a character, then spawn. The optional button panel runs t
 | `src/characters/` | Humanoid/horse/worker/villager/wildlife mesh builders, rig registry and extension point |
 | `src/weapons/` | Blade, spear, axe, bow, shield and quiver designs; weapon catalog and wrist sockets |
 | `src/animations/` | Character, weapon-string, horse, wildlife, environment and effect poses |
-| `src/buildings/` | Building designs, collidable architecture, town interiors, landmarks and batch rendering |
-| `src/world/` | Geography, terrain, district layouts and Romanian homesteads |
+| `src/buildings/` | The building kit: merged-geometry architecture with real doors/windows, furniture, fortifications, furnished interiors, the six faction towns, every named site and the 32 villages |
+| `src/world/` | The ULTRA EXPANDED geography (regions, rivers, lakes, moats, roads, bridges), terrain, roads, countryside farmsteads and hamlets |
 | `src/navigation/` | Collision hash, swept movement, exact line clearance and cached multi-resolution A* |
 | `src/groups/` | Unlimited formation creation, precise command scopes, doctrine and reinforcement reservations |
 | `src/system/` | Input, simulation, combat timing, economy, AI, lifecycle, rendering and state |
 | `src/ui/` | HTML/CSS, menus, recruitment, maps, settings and optional controls |
 
 **Start with [docs/EDITING.md](docs/EDITING.md)** before handing characters or weapons to another agent. Do not edit the generated HTML as source.
+
+## The world — ROM-MAP-SPEC-003 "Lemn și Piatră"
+
+The 6,000 × 6,000 map is built to the master map specification recorded in [docs/ROM-MAP-SPEC-003.md](docs/ROM-MAP-SPEC-003.md) (which supersedes [docs/WORLD-ULTRA-EXPANDED.md](docs/WORLD-ULTRA-EXPANDED.md) where they differ): seven regions on a 16×16 zone grid, four rivers (the Little Danube, the Royal River through the capital, the Glacier River and the Salt River), ponds, marshes and a frozen tarn, a five-class road hierarchy (imperial vias, regional roads, the caravan artery, 49 village lanes, 15 trails) laid as ribbons that follow the ground, stone and timber bridges plus fords with stepping stones, 12 waystations, 48 villages built from seven regional vernacular kits (RBL-01..21: cottages with porches, foișor houses, cule, bordeie, wooden churches with tall spires, shadoof wells, carved gates, hay racks, corn cribs, salt stores…), 14 new areas from a charcoal hamlet to a salt mine, a caravanserai and an oasis, the Raven Mountain with its cave village, a circular capital with ring road, palace core, docks and a cathedral quarter, 56 capture flags that raise the owner's banner and a chain of signal beacons.
+
+Every building in the world is **solid and has a real entrance**: hinged doors that swing open for whoever walks up, window openings with shutters and glass that glows at dusk, chimneys that smoke, torches and hearths that light the streets at night, mill wheels, forge hammers, bells, drums and fountains that move. More than a thousand named buildings — the Ardealburg town hall and the tavern Lupul Roșu, the grand hall, dungeon, archive and armoury of Cetatea Dunării, the palisaded Hotarul de Nord, the keep of Stânca de Fier, the inn Drumul Lung, the royal palace and the Great Cathedral Sf. Mihail with its six market shops, the monastery Sf. Andrei, Valea Lupilor with its turning watermill, Codrul Vechi, the war camp, Oaza Drumului, Poarta Sud, the bandit den, the crypt maze, the witch's hut and the rest — can be walked into and are furnished inside. The countryside farmsteads and hamlets are solid too, with doors and windows, but are exterior scenery.
 
 ### Build and test (authoring only)
 

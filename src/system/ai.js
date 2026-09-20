@@ -213,7 +213,8 @@ function updateAI(e, dt){
     }
     // morale bonus near king
     var morale= (e.moraleBonusT>0?1.15:1) * (e.dmgMult||1);
-    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1) / terrCost * moveMod * morale;
+    var roadMod=(typeof roadSpeedAt!=='undefined')?roadSpeedAt(e.group.position.x, e.group.position.z):1;
+    var sp=spd*(e.animT>=0&&e.weapon!=='spear'&&e.weapon!=='dory'?0.6:1)*(e.rallyT>0?1.28:1) / terrCost * moveMod * morale * roadMod;
     moveWithCollision(e.group.position,mvx/mvl*Math.min(mvl,1)*sp*dt,mvz/mvl*Math.min(mvl,1)*sp*dt,0.5);
     collideCircle(e.group.position, 0.5);          /* v8: no more phasing through walls */
     var nmove=Math.abs(e.group.position.x-ex)+Math.abs(e.group.position.z-ez);

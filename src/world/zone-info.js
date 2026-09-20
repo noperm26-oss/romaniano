@@ -13,8 +13,10 @@ function zoneTerrain(zi){
   var h=groundH(c.x,c.z);
   var n=Math.sin(c.x*0.0017+c.z*0.0023)*0.5 + Math.cos(c.x*0.0031-c.z*0.0027)*0.5;
   var d=Math.sqrt(c.x*c.x+c.z*c.z);
-  if(d<520) return 'capital'; /* Romaria capital */
-  if(d<420) return 'city'; /* the Field legacy */
+  if(d<560) return 'capital'; /* Romaria inside the circular wall (r520) and its glacis */
+  /* river zones: a zone whose centre lies on one of the four rivers fights on the water */
+  if(typeof riverField!=='undefined'){ var rf=riverField(c.x,c.z); if(rf.river && rf.d<60) return 'river'; }
+  if(typeof MASSIF!=='undefined' && Math.hypot(c.x-MASSIF.x,c.z-MASSIF.z)<MASSIF.r) return 'mountains';
   if(region==='carpathian'){
     if(h>8) return 'mountains';
     if(h>4) return 'carpathian';
@@ -37,7 +39,6 @@ function zoneTerrain(zi){
     return 'hills';
   }
   if(region==='trade_route'){
-    if(Math.abs(c.x)<120 && Math.abs(c.z-2500)<200) return 'river';
     if(n<-0.3) return 'desert';
     return 'trade_route';
   }
@@ -46,9 +47,6 @@ function zoneTerrain(zi){
   }
   if(region==='battlefield'){
     return 'battlefield';
-  }
-  if(Math.abs(c.x)<120 && Math.abs(c.z)<2600) {
-    if(Math.abs(c.x)<24) return 'river';
   }
   if(h>7.5) return 'mountains';
   if(h>4.2) return 'hills';
