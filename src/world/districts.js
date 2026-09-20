@@ -81,7 +81,7 @@ function buildDistricts(){
     if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
     if(kind==='farm'||kind==='estate'||kind==='vineyard'){
-      for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xc9b24a,kind==='vineyard'?0x5a7a3a:0x928047); }
+      for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xb4a15a,kind==='vineyard'?0x5a7a3a:0x928047); }
       for(i=0;i<3;i++){ var ha=rnd()*TAU, hx2=D.x+Math.cos(ha)*(ring+10), hz2=D.z+Math.sin(ha)*(ring+10); if(!insideSolid(hx2,hz2,2.5)) batchHay(batch,hx2,hz2,0.8+rnd()*0.5); }
       siteEcon(D.x,D.z,'farm',0.16+rnd()*0.08); if(kind==='estate') siteEcon(D.x,D.z,'noble',0.2);
     } else if(kind==='fold'){
@@ -103,9 +103,19 @@ function buildDistricts(){
       batchFence(batch,D.x+ring+2,D.z-14,D.x+ring+2,D.z+14); propCampfire(D.x+ring+14,D.z+18,true);
       siteEcon(D.x,D.z,'tradepost',0.18);
     }
-    /* fences and a lane to the yard */
-    batchFence(batch,D.x-ring-2,D.z-ring-2,D.x+ring*0.5,D.z-ring-2);
+    /* the lane through the yard, then the yard fence: a ring of fence runs around the farmstead, open where the lane
+       comes in and out (north and south); a few trees inside the fence */
     for(var s=-ring;s<=ring;s+=6){ if(!insideSolid(D.x,D.z+s,2.5)){ batch.add('box',D.x,groundH(D.x,D.z+s)+0.04,D.z+s,4.5,0.08,6.2,0x9b8866); window.__roadPts.push([D.x,D.z+s]); } }
+    var R=ring+9, segs=12, ai;
+    for(ai=0;ai<segs;ai++){
+      var b0=ai/segs*TAU, b1=(ai+1)/segs*TAU, fx0=D.x+Math.cos(b0)*R, fz0=D.z+Math.sin(b0)*R, fx1=D.x+Math.cos(b1)*R, fz1=D.z+Math.sin(b1)*R;
+      if(Math.abs(Math.sin((b0+b1)/2))>0.9) continue;
+      var fmx=(fx0+fx1)/2, fmz=(fz0+fz1)/2;
+      if(insideSolid(fx0,fz0,0.5)||insideSolid(fx1,fz1,0.5)||insideSolid(fmx,fmz,0.7)||nearDoor(fmx,fmz,2.5)||sceneryRoadDist(fmx,fmz)<4||settlementRoadNear(fmx,fmz,3)) continue;
+      propFence(fx0,fz0,fx1,fz1,1.05);
+    }
+    var TK=HAMLET_KINDS[reg]||HAMLET_KINDS.wallachian;
+    for(i=0;i<5;i++){ var ta2=rnd()*TAU, tr=ring*(0.35+rnd()*0.5), tx2=D.x+Math.cos(ta2)*tr, tz2=D.z+Math.sin(ta2)*tr; if(insideSolid(tx2,tz2,2.4)||nearDoor(tx2,tz2,3)||Math.abs(tx2-D.x)<3.5) continue; hamletTree(batch,tx2,tz2,TK,rnd,true); }
     D.buildings=placed;
     window.__contentZi[zoneIdxAt(D.x,D.z)]=1;
   });

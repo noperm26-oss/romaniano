@@ -69,20 +69,24 @@ function sceneryBlocked(x,z,margin){
     var cap=cone(wrad*0.34, wh*0.34, rimSnow, 7); cap.name='always';
     cap.position.set(x, wh*0.32+wh*0.33, z); cap.castShadow=false; scene.add(cap);
   }
-  for(var wi=0; wi<128; wi++){
-    var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
-    if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
-    var north=wz<-2400?1:0;
-    peak(wx, wz, 190+rnd()*110, 95+rnd()*85+north*90, wi%3===0);
-  }
-  /* inland peaks of the Carpathian ridge, kept clear of every named place */
+  /* a peak may not swallow anything built: named places, villages, towns, roads — and the hamlets and farmsteads
+     of the countryside (a cone over a hamlet hides the hamlet from outside and shows its underside from within) */
   function peakBlocked(x,z,r){
     var i;
     for(i=0;i<SITES_DEF.length;i++){ var S=SITES_DEF[i]; if(Math.hypot(x-S.x,z-S.z)<S.r+r+30) return true; }
     for(i=0;i<VILLAGES.length;i++){ if(Math.hypot(x-VILLAGES[i].x,z-VILLAGES[i].z)<r+90) return true; }
     for(i=0;i<FAC_KEYS_T.length;i++){ var T=TOWNS[FAC_KEYS_T[i]]; if(Math.hypot(x-T.x,z-T.z)<r+320) return true; }
+    for(i=0;i<HAMLETS.length;i++){ if(Math.hypot(x-HAMLETS[i].x,z-HAMLETS[i].z)<r+85) return true; }
+    for(i=0;i<DISTRICT_C.length;i++){ if(Math.hypot(x-DISTRICT_C[i].x,z-DISTRICT_C[i].z)<r+70) return true; }
     if(sceneryRoadDist(x,z)<r*0.6) return true;
     return false;
+  }
+  for(var wi=0; wi<128; wi++){
+    var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
+    if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
+    var north=wz<-2400?1:0, wrad=190+rnd()*110, wh=95+rnd()*85+north*90;
+    if(peakBlocked(wx,wz,wrad)){ wrad=150; if(peakBlocked(wx,wz,wrad)) continue; }   /* the rim keeps its skirt off the border hamlets */
+    peak(wx, wz, wrad, wh, wi%3===0);
   }
   for(var mi=0; mi<60; mi++){
     var mx=rnd()*5400-2700, mz=-3000+rnd()*1050, mrad=110+rnd()*120, mh=(70+rnd()*90)*(1-ss(-2600,-1950,mz))+40;

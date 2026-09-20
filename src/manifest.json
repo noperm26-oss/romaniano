@@ -6,6 +6,7 @@
   "src/system/audio.js",
   "src/system/renderer.js",
   "src/system/meshes.js",
+  "src/system/surface.js",
   "src/characters/emblems.js",
   "src/world/terrain.js",
   "src/world/scenery.js",

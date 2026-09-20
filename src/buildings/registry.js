@@ -96,4 +96,4 @@ function mergedColoredBoxes(parts){
   geo.setIndex(idx); geo.computeBoundingSphere();
   return geo;
 }
-var DOOR_MAT=new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true});
+var DOOR_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true}), SURF.WOOD);

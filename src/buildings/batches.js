@@ -16,7 +16,7 @@ function createBuildingBatch(){
       b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,new THREE.Color(item.color));});
       mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
       mesh.userData.cullBounds={x:(b.x+0.5)*375-WORLD.half,z:(b.z+0.5)*375-WORLD.half,r:285};
-      mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=false;mesh.receiveShadow=true;
+      mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=true;mesh.receiveShadow=true;
       scene.add(mesh);
     });
     return buckets.size;

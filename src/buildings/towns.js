@@ -16,14 +16,14 @@ function townStreet(x0,z0,x1,z1,w,col){
   for(i=0;i<n;i++){
     var t0=i/n, t1=(i+1)/n, ax=x0+(x1-x0)*t0, az=z0+(z1-z0)*t0, bx=x0+(x1-x0)*t1, bz=z0+(z1-z0)*t1;
     var cx=(ax+bx)/2, cz=(az+bz)/2, y=groundH(cx,cz);
-    kit.box(M2(tintHex(col||0x8a8070,-0.38)), Math.hypot(bx-ax,bz-az)+0.4, 0.12, w, cx, y+0.04, cz, -Math.atan2(bz-az,bx-ax));
+    kit.box(M2(tintHex(col||0x8a8070,-0.2)), Math.hypot(bx-ax,bz-az)+0.4, 0.12, w, cx, y+0.04, cz, -Math.atan2(bz-az,bx-ax));
   }
   for(i=0;i<=L;i+=8){ var t=i/L; window.__roadPts.push([x0+(x1-x0)*t, z0+(z1-z0)*t]); }
 }
 function townPlaza(x,z,r,col){
   var kit=cellKit(x,z), y=groundH(x,z);
   TOWN_PLAZAS.push({x:x,z:z,r:r});
-  kit.cyln(M2(tintHex(col||0x8a8070,-0.38)), r, r, 0.12, 16, x, y+0.05, z);
+  kit.cyln(M2(tintHex(col||0x8a8070,-0.2)), r, r, 0.12, 16, x, y+0.05, z);
   for(var a=0;a<TAU;a+=TAU/8) window.__roadPts.push([x+Math.cos(a)*r*0.6, z+Math.sin(a)*r*0.6]);
 }
 /* a row of houses along a street: axis 'x' → street along x at z=cross; side ±1 = which side of the street */
@@ -45,6 +45,7 @@ function houseRow(axis,u0,u1,cross,side,o){
         roofCol:o.roofCol?o.roofCol[Math.floor(rnd()*o.roofCol.length)]:0x70503a, roof:o.roof?(typeof o.roof==='string'?o.roof:o.roof[Math.floor(rnd()*o.roof.length)]):'gable',
         door:door, interior:interior, fac:o.fac, style:o.style, timberFrame:o.timberFrame, plinth:o.plinth, chimney:o.chimney!==false, windows:o.windows, floors:o.floors, name:o.name, porch:o.porch,
         prispa:o.prispa?rnd()<o.prispa:false, bench:o.bench!==false, gableWin:rnd()<0.6, band:o.band, chimney2:w>8.5&&rnd()<0.4});
+      if(o.onBuilt) o.onBuilt({x:x, z:z, w:w, d:d, door:door, axis:axis, side:side, u:cu, cross:cross, doorW:clamp(Math.min(1.55, w*0.3), 1.15, 2.4)});
       n++;
     }
     u+=w+gap;

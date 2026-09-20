@@ -112,26 +112,27 @@ function kitCreate(){
      and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
   function exportGeo(dy){
     dy=dy||0;
-    var pos=[], nor=[], col=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
     bags.forEach(function(b,m){
-      var i, n=b.p.length;
+      var i, n=b.p.length, sp=surfPatOf(m);
       if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
       c.copy(m.color||new THREE.Color(0xffffff));
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); }
+      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
     });
     bags.clear();
-    function geo(p,nn,cc,uu){
+    function geo(p,nn,cc,uu,pt){
       if(!p.length) return null;
       var g=new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
       g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
       if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
       if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
+      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
       g.computeBoundingSphere(); g.computeBoundingBox();
       return g;
     }
-    return {body:geo(pos,nor,col,null), panes:geo(pp,pn,null,pu), tris:pos.length/9};
+    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
   }
   function flush(parent,shadow){
     var made=0;
@@ -156,19 +157,23 @@ function kitCreate(){
    2. Palette
    ============================================================ */
 var ARCH_TIMBER=0x5d4326, ARCH_STONE=0x8b8579, ARCH_DARK=0x241d16, ARCH_PANE=0xd9c79a;
+/* surface patterns (surface.js) chosen from the shell's style: log courses, lime plaster or stone for the walls;
+   thatch, wooden shingles or clay tiles for the roof */
+function wallPat(o){ var c=o.wall||0xd9c8a2; if(o.style==='log') return SURF.LOG; if(o.style==='plaster'||plasterLike(c)) return SURF.PLASTER; return SURF.STONE; }
+function roofPat(o){ if(o.roof==='thatch'||o.roof==='hipthatch') return SURF.THATCH; if(o.shingle||o.style==='log') return SURF.SHINGLE; var c=o.roofCol||0; var r=(c>>16)&255, g=(c>>8)&255, b=c&255; if(r<110&&g<95&&b<80) return SURF.SHINGLE; return SURF.TILE; }
 function structPal(o){
-  var wall=o.wall, roof=o.roofCol;
+  var wall=o.wall, roof=o.roofCol, wp=wallPat(o), rp=roofPat(o);
   return {
-    wall:   M2(wall),
-    wall2:  M2(tintHex(wall,-0.10)),
-    stone:  M2(o.stone||ARCH_STONE),
-    timber: M2(o.timber||ARCH_TIMBER),
-    roof:   M2(roof),
-    roof2:  M2(tintHex(roof,-0.14)),
-    trim:   M2(o.trim||0x513820),
-    dark:   M2(ARCH_DARK),
+    wall:   MS(wall,wp),
+    wall2:  MS(tintHex(wall,-0.10),wp),
+    stone:  MS(o.stone||ARCH_STONE,SURF.STONE),
+    timber: MS(o.timber||ARCH_TIMBER,SURF.WOOD),
+    roof:   MS(roof,rp),
+    roof2:  MS(tintHex(roof,-0.14),rp),
+    trim:   MS(o.trim||0x513820,SURF.WOOD),
+    dark:   MS(ARCH_DARK,SURF.NONE),
     pane:   o.pane?M2(o.pane):PANE_MAT,
-    floor:  M2(o.floorCol||0x8a7a5c)
+    floor:  MS(o.floorCol||0x8a7a5c,SURF.PLANK)
   };
 }
 
@@ -797,11 +802,11 @@ function structShell(o){
     if(o.chimney!==false && o.chimney2) structChimney(kit,P,cx,cz,R,-ridgeLen*0.29,thatch);
     if(style==='church') structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS);
     if(style==='long'){
+      /* carved finials on both ridge ends (the ridge follows the longer side) */
       for(var s2=-1;s2<=1;s2+=2){
-        var fy=yTop+rh+0.34, fz2=cz+s2*(d/2-rake-0.12);
-        kit.box(P.timber, 0.18, 0.95, 0.18, cx-0.4, fy, fz2);
-        kit.box(P.timber, 0.18, 0.95, 0.18, cx+0.4, fy, fz2);
-        kit.box(P.trim, 0.55, 0.32, 0.55, cx, fy+0.55, fz2, s2>0?0.55:-0.55);
+        var fy=yTop+rh+0.34, fe=ridgeLen/2-rake-0.12;
+        if(alongZ){ kit.box(P.timber, 0.18, 0.95, 0.18, cx-0.4, fy, cz+s2*fe); kit.box(P.timber, 0.18, 0.95, 0.18, cx+0.4, fy, cz+s2*fe); kit.box(P.trim, 0.55, 0.32, 0.55, cx, fy+0.55, cz+s2*fe, s2>0?0.55:-0.55); }
+        else { kit.box(P.timber, 0.18, 0.95, 0.18, cx+s2*fe, fy, cz-0.4); kit.box(P.timber, 0.18, 0.95, 0.18, cx+s2*fe, fy, cz+0.4); kit.box(P.trim, 0.55, 0.32, 0.55, cx+s2*fe, fy+0.55, cz, s2>0?0.55:-0.55); }
       }
     }
   }

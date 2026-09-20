@@ -60,10 +60,10 @@ function terrainMeshH(x,z){
   var C=function(h){ return new THREE.Color(h); };
   var pal={
     limestone:C(0x8a9aa8), snow:C(0xe8f0f8), pine:C(0x2f4a2e), rock:C(0x7a7a82), scree:C(0x6f7378),
-    grass:C(0x7ea04a), wheat:C(0xc9b24a), vine:C(0x6b8f3a), road:C(0x9a8555),
-    wgrass:C(0x6a8a3a), marsh:C(0x5a6a4a), mud:C(0x7a6a4a),
-    mgrass:C(0x6b8f4a), forest:C(0x3a5a2e), mrock:C(0x7a7a6a), river:C(0x4a6a7a),
-    dust:C(0xc2b08a), dry:C(0x9a8a6a), tbase:C(0xa4905f),
+    grass:C(0x648c40), wheat:C(0xb4a15a), vine:C(0x6b8f3a), road:C(0x9a8555),
+    wgrass:C(0x5e843f), marsh:C(0x5a6a4a), mud:C(0x7a6a4a),
+    mgrass:C(0x628846), forest:C(0x3a5a2e), mrock:C(0x7a7a6a), river:C(0x4a6a7a),
+    dust:C(0xb8a684), dry:C(0x9a8a6a), tbase:C(0xa4905f),
     cbase:C(0x8a9a6a), stone:C(0x9a9a8a), boulevard:C(0x8a8070), garden:C(0x6a8a5a),
     bbase:C(0x7a8a5a), scar:C(0x6e5f43), burned:C(0x5a4a3a), ash:C(0x3a3430), lakebed:C(0x3f4a44)
   };
@@ -145,12 +145,12 @@ function terrainMeshH(x,z){
       var rk=1-ss(rd.w/2-1, rd.w/2+6, rd.d);
       tmp.lerp(ROAD_PAINT[rd.cls]||pal.road, rk*0.8);
     }
-    tmp.multiplyScalar(0.8);
+    tmp.multiplyScalar(0.92);   /* noon light sums to ~1.25; the surface shader adds its own ±15% */
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  var ground=new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true}));
+  var ground=new THREE.Mesh(geo, surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
   ground.receiveShadow=true;
   ground.name='always';
   scene.add(ground);

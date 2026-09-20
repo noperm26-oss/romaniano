@@ -60,7 +60,7 @@ function buildRoads(){
   }
   ROADS.forEach(function(R){
     var P=R.pts, C=ROAD_CLASSES[R.cls], hw=R.w/2, lift=C.y, kerbed=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t');
-    var base=new THREE.Color(R.col).multiplyScalar(0.6), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.6: the noon sun + sky light sum to ~1.7 */
+    var base=new THREE.Color(R.col).multiplyScalar(0.78), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.78: the noon sun + sky light sum to ~1.25 */
     if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++;
     roadStats.ribbons++;
     for(i=0;i<P.length;i++){
@@ -81,7 +81,7 @@ function buildRoads(){
       prev=sec;
     }
   });
-  var mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  var mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND);
   cells.forEach(function(c){
     var g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(c.pos),3));

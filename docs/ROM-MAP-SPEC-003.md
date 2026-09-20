@@ -12,6 +12,20 @@ along lanes (see §1 rows §5.3 and §8, deviations D-11..D-14 and the v3.1 budg
 full-length prispă galleries, visible half-timbering, benches, gable windows and foundation skirts; Romaria's blocks are
 filled with alleys and townhouses.
 
+**v3.2 addendum (phase 4 — "proper from the outside")**: every Lambert material now carries a procedural *surface*
+(`src/system/surface.js`, applied through `M()/M2()/MS()/NM()` in `meshes.js` and baked per vertex as `aPat` for merged and
+instanced bodies by `kitCreate().exportGeo()`): clay tile and wooden-shingle courses, thatch straw, log rows with dark seams,
+ashlar blocks and mortar, mottled lime plaster, timber grain, plank floors, cobbles and patchy meadow ground — no textures,
+no UVs, one shader patch for ordinary, merged and instanced geometry alike. Lighting was rebalanced (sun 0.95 + sky 0.55 at
+noon instead of ~1.95, 2048² shadow map, settlement chunks cast shadows; road / street / terrain tones re-tuned for it), roof
+finials follow the ridge, the rim peaks keep their skirts off hamlets and farmsteads, and the terrain palette is a deeper
+green with stronger ground mottling. The 48 kit villages were re-planned as **Romanian street villages with yards**: houses
+stand 5.2 u back from the street centreline (`houseRow` → `o.off`, `o.onBuilt` callback), every house gets a fenced yard with
+a roofed gate on the street, side and back fences (`yardFence` probes every piece before building so runs stay continuous),
+and a working yard behind — vegetable garden, woodpile, haystack, clay oven, beehives, shed, dovecote, cart, fruit trees /
+firs (`villageYards()` in `villages.js`) — with orchards ringing the village (`kitTree`). Farmsteads (`districts.js`) gained a
+twelve-sided yard fence open where the lane enters and leaves, and trees inside the fence; farm fields are a muted wheat.
+
 ## 1. Where each section of the spec lives
 
 | Spec | Code |
@@ -89,6 +103,16 @@ doors and gate passages are the only free faces), `__game.roadProbe(n)` samples 
 `__game.buildingsLive()` reports doors/structures/lights/chimneys/moving parts/roads/flags/beacons/RBL usage.
 
 ## 5. Measured budget (headless boot, `__game.buildingsLive()` / `memStats()` / `bootTimes()`)
+
+v3.2 (phase 4 — proper exteriors): 10,274 registered structures (**10,205 enterable**; the 69 others are the two water gates,
+the ferry, 56 flags and 10 beacons), 10,160 hinged doors, 22,139 light sources (pooled to 8 point lights), 11,056 chimneys,
+147 moving parts, 99 prefab geometries stamped 22,371 times (8,082 houses) in 256 cells / 8,331 instanced meshes, 821 hamlets
+(6,490 buildings, 5,719 yards), 150 farmsteads, 48 villages with fenced yards, **271,070 colliders** (the village and farmstead
+yard fences added ≈60 k), 102 road ribbons / 13,786 quads, 68 lanes, 15 trails, 98 milestones, 85 junctions, 20 bridges +
+6 fords, 12 waystations, 56 flags, 10 beacons. Boot ≈ 9.1 s in the headless test browser (terrain 1.4 s, towns 1.9 s,
+villages 3.2 s — the yard probes —, settlements 1.2 s, kits 0.15 s, prefab flush 0.04 s). Materials: one shader patch per
+Lambert material, no textures; the draw-call and triangle budget per frame is unchanged from v3.1 (the surfaces are
+fragment work, the yards are merged into the per-cell kits).
 
 v3.1 (phase 3 — every building enterable): ~9,900 registered structures (**~9,820 enterable**; the rest are the two water
 gates, the ferry, flags and beacons), ~9,780 hinged doors (≈8,100 of them instanced leaves), ~21,100 light sources (pooled

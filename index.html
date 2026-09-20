@@ -1768,12 +1768,12 @@ var camera = new THREE.PerspectiveCamera(68, window.innerWidth/window.innerHeigh
 scene.add(camera);   /* camera hosts the first-person weapon (v7) */
 camera.position.set(0,10,40);
 
-var hemi = new THREE.HemisphereLight(0xd6e4f2, 0x67743f, 0.95);
+var hemi = new THREE.HemisphereLight(0xd6e4f2, 0x67743f, 0.55);   /* sun + sky sum to ~1.25 at noon: walls keep their shading, roofs keep their colour */
 scene.add(hemi);
-var sun = new THREE.DirectionalLight(0xffe7bd, 1.0);
+var sun = new THREE.DirectionalLight(0xffe7bd, 0.95);
 sun.position.set(70,95,45);
 sun.castShadow = true;
-sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
 sun.shadow.camera.left=-90; sun.shadow.camera.right=90;
 sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90;
 sun.shadow.camera.near=10; sun.shadow.camera.far=320;
@@ -1795,10 +1795,16 @@ var geometryCache=new Map();
 function sharedGeometry(key,build){if(!geometryCache.has(key)){var geo=build();geo.userData.shared=true;geometryCache.set(key,geo);}return geometryCache.get(key);}
 function M(c,opts){
   var key = c + (opts?JSON.stringify(opts):'');
-  if(!matCache[key]) matCache[key] = new THREE.MeshLambertMaterial(Object.assign({color:c}, opts||{}));
+  if(!matCache[key]) matCache[key] = surfApply(new THREE.MeshLambertMaterial(Object.assign({color:c}, opts||{})), SURF.GRAIN);
   return matCache[key];
 }
-function NM(c){ return new THREE.MeshLambertMaterial({color:c}); }
+/* a double-sided Lambert material with a specific surface pattern (SURF.*): roofs, walls, stone, timber */
+function MS(c,pat){
+  var key = c + '|s' + pat;
+  if(!matCache[key]) matCache[key] = surfApply(new THREE.MeshLambertMaterial({color:c, side:THREE.DoubleSide}), pat);
+  return matCache[key];
+}
+function NM(c){ return surfApply(new THREE.MeshLambertMaterial({color:c}), SURF.GRAIN); }
 function shad(m){ m.castShadow=true; return m; }
 function box(w,h,d,m,x,y,z){
   var ms=new THREE.Mesh(sharedGeometry('box:'+w+':'+h+':'+d,function(){return new THREE.BoxGeometry(w,h,d);}), m);
@@ -1820,6 +1826,97 @@ function torus(r,t,m){
   var ms=new THREE.Mesh(sharedGeometry('torus:'+r+':'+t,function(){return new THREE.TorusGeometry(r,t,6,12);}), m);
   return shad(ms);
 }
+
+
+// SOURCE: src/system/surface.js
+/* ============================================================
+   surface.js — procedural surface detail for every Lambert material
+   ------------------------------------------------------------
+   Flat colours read as toy blocks. Every Lambert material built
+   through M()/M2()/NM() gets a small shader patch: in world space,
+   from the fragment position and normal, it draws the material's
+   surface — tile and shingle courses on roofs, thatch straw, log
+   rows, stone blocks with mortar, plaster grain, plank grain,
+   patchy earth and grass, cobbles. No textures, no UVs, works on
+   merged and instanced geometry alike. The pattern is a material
+   uniform (uPat) or, for vertex-coloured merged/instanced bodies
+   (prefabs), a per-vertex attribute aPat baked by exportGeo().
+   ============================================================ */
+var SURF={NONE:0, TILE:1, THATCH:2, PLASTER:3, LOG:4, STONE:5, WOOD:6, GROUND:7, COBBLE:8, GRAIN:9, SHINGLE:10, PLANK:11};
+var SURF_GLSL_COMMON=[
+  'varying vec3 vSurfP; varying vec3 vSurfN; varying float vSurfPat;'
+].join('\n');
+var SURF_GLSL_VERT=[
+  'attribute float aPat;'
+].join('\n');
+var SURF_GLSL_FRAG=[
+  'uniform float uPat;',
+  'float sh21(vec2 p){ vec3 p3=fract(vec3(p.xyx)*0.1031); p3+=dot(p3,p3.yzx+33.33); return fract((p3.x+p3.y)*p3.z); }',
+  'float snz(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(sh21(i),sh21(i+vec2(1.0,0.0)),f.x),mix(sh21(i+vec2(0.0,1.0)),sh21(i+vec2(1.0,1.0)),f.x),f.y); }',
+  'float seam(float t,float w){ return smoothstep(0.0,w,t)*smoothstep(0.0,w,1.0-t); }',
+  'vec3 surfDetail(){',
+  '  float pat=(uPat>0.5)?uPat:vSurfPat;',
+  '  if(pat<0.5) return vec3(1.0);',
+  '  vec3 n=abs(vSurfN); vec3 p=vSurfP;',
+  '  float u=(n.x>n.z)?p.z:p.x; float v=p.y; float f=1.0; vec3 tint=vec3(1.0);',
+  '  if(pat<1.5){',                                                         /* clay tiles: staggered courses, each tile a little lighter at its lip */
+  '    float rw=0.28, cw=0.24; float r=floor(v/rw); float uu=u/cw+((mod(r,2.0)<1.0)?0.0:0.5); float fr=fract(v/rw), fu=fract(uu);',
+  '    float cell=sh21(vec2(floor(uu),r));',
+  '    f=(0.78+0.22*seam(fr,0.14)*seam(fu,0.16))*(0.90+0.20*cell)*(0.90+0.18*fr);',
+  '  } else if(pat<2.5){',                                                  /* thatch: straw streaks down the slope, brows every layer */
+  '    float s=snz(vec2(u*16.0,v*3.0)), s2=snz(vec2(u*44.0,v*7.0));',
+  '    f=(0.78+0.28*s+0.12*s2)*(0.92+0.08*seam(fract(v*1.8),0.25));',
+  '  } else if(pat<3.5){',                                                  /* lime plaster: soft mottling, fine grain */
+  '    f=0.92+0.10*snz(vec2(u,v)*0.9)+0.05*snz(vec2(u,v)*7.0);',
+  '  } else if(pat<4.5){',                                                  /* log courses: dark seams, rounded rows, grain */
+  '    float rw=0.36; float fr=fract(v/rw); float row=floor(v/rw);',
+  '    f=(0.68+0.32*seam(fr,0.22))*(0.90+0.20*sh21(vec2(row,floor(u/7.0))))*(0.95+0.10*snz(vec2(u*6.0,v*30.0)))*(0.90+0.10*(1.0-abs(fr-0.5)*2.0));',
+  '  } else if(pat<5.5){',                                                  /* ashlar / rubble stone: staggered blocks and mortar */
+  '    float rw=0.42, cw=0.78; float r=floor(v/rw); float uu=u/cw+((mod(r,2.0)<1.0)?0.0:0.5); float fr=fract(v/rw), fu=fract(uu);',
+  '    float cell=sh21(vec2(floor(uu),r));',
+  '    f=(0.70+0.30*seam(fr,0.10)*seam(fu,0.08))*(0.86+0.26*cell)*(0.96+0.08*snz(vec2(u,v)*9.0));',
+  '  } else if(pat<6.5){',                                                  /* timber: long grain */
+  '    f=0.90+0.12*snz(vec2(u*1.2,v*22.0))+0.06*snz(vec2(u*24.0,v*1.5));',
+  '  } else if(pat<7.5){',                                                  /* ground: patchy meadow, dry warm patches, fine speckle */
+  '    float g1=snz(p.xz*0.045), g2=snz(p.xz*0.35), g3=snz(p.xz*1.7), g4=snz(p.xz*7.0);',
+  '    f=0.72+0.20*g1+0.18*g2+0.12*g3+0.06*g4;',
+  '    tint=mix(vec3(1.0),vec3(1.06,1.0,0.86),g1*g2*1.3);',
+  '  } else if(pat<8.5){',                                                  /* cobbles */
+  '    vec2 c=p.xz/0.5; vec2 fc=fract(c); float cell=sh21(floor(c));',
+  '    f=(0.72+0.28*seam(fc.x,0.2)*seam(fc.y,0.2))*(0.88+0.24*cell);',
+  '  } else if(pat<9.5){',                                                  /* generic grain */
+  '    f=0.95+0.08*snz(vec2(u,v)*5.0);',
+  '  } else if(pat<10.5){',                                                 /* wooden shingles (șindrilă): narrow staggered courses */
+  '    float rw=0.40, cw=0.15; float r=floor(v/rw); float uu=u/cw+((mod(r,2.0)<1.0)?0.0:0.5); float fr=fract(v/rw), fu=fract(uu);',
+  '    float cell=sh21(vec2(floor(uu),r));',
+  '    f=(0.78+0.22*seam(fr,0.12)*seam(fu,0.3))*(0.86+0.28*cell)*(0.92+0.14*fr);',
+  '  } else {',                                                             /* floor planks along x */
+  '    float pw=0.26; float fp=fract(p.z/pw); float plank=floor(p.z/pw);',
+  '    f=(0.80+0.20*seam(fp,0.12))*(0.92+0.16*sh21(vec2(plank,floor(p.x/3.0))))*(0.94+0.10*snz(vec2(p.x*22.0,p.z*1.5)));',
+  '  }',
+  '  return tint*f;',
+  '}'
+].join('\n');
+function surfCompile(mat){
+  return function(shader){
+    shader.uniforms.uPat={value:mat.userData.pat||0};
+    shader.vertexShader=SURF_GLSL_COMMON+'\n'+SURF_GLSL_VERT+'\n'+shader.vertexShader.replace('#include <fog_vertex>',
+      '#include <fog_vertex>\n'+
+      'vec4 sfp=vec4(transformed,1.0);\n#ifdef USE_INSTANCING\nsfp=instanceMatrix*sfp;\n#endif\nsfp=modelMatrix*sfp; vSurfP=sfp.xyz;\n'+
+      'vSurfN=normalize(inverseTransformDirection(transformedNormal,viewMatrix)); vSurfPat=aPat;');
+    shader.fragmentShader=SURF_GLSL_COMMON+'\n'+SURF_GLSL_FRAG+'\n'+shader.fragmentShader.replace('#include <color_fragment>',
+      '#include <color_fragment>\ndiffuseColor.rgb*=surfDetail();');
+  };
+}
+/* give a Lambert material its surface (pat from SURF) — safe to call once per material */
+function surfApply(mat,pat){
+  mat.userData.pat=pat||0;
+  mat.onBeforeCompile=surfCompile(mat);
+  mat.customProgramCacheKey=function(){ return 'surf1'; };
+  return mat;
+}
+/* the merged/instanced bodies (prefabs) carry the pattern per vertex */
+function surfPatOf(m){ return (m&&m.userData&&m.userData.pat)||SURF.GRAIN; }
 
 
 // SOURCE: src/characters/emblems.js
@@ -1950,10 +2047,10 @@ function terrainMeshH(x,z){
   var C=function(h){ return new THREE.Color(h); };
   var pal={
     limestone:C(0x8a9aa8), snow:C(0xe8f0f8), pine:C(0x2f4a2e), rock:C(0x7a7a82), scree:C(0x6f7378),
-    grass:C(0x7ea04a), wheat:C(0xc9b24a), vine:C(0x6b8f3a), road:C(0x9a8555),
-    wgrass:C(0x6a8a3a), marsh:C(0x5a6a4a), mud:C(0x7a6a4a),
-    mgrass:C(0x6b8f4a), forest:C(0x3a5a2e), mrock:C(0x7a7a6a), river:C(0x4a6a7a),
-    dust:C(0xc2b08a), dry:C(0x9a8a6a), tbase:C(0xa4905f),
+    grass:C(0x648c40), wheat:C(0xb4a15a), vine:C(0x6b8f3a), road:C(0x9a8555),
+    wgrass:C(0x5e843f), marsh:C(0x5a6a4a), mud:C(0x7a6a4a),
+    mgrass:C(0x628846), forest:C(0x3a5a2e), mrock:C(0x7a7a6a), river:C(0x4a6a7a),
+    dust:C(0xb8a684), dry:C(0x9a8a6a), tbase:C(0xa4905f),
     cbase:C(0x8a9a6a), stone:C(0x9a9a8a), boulevard:C(0x8a8070), garden:C(0x6a8a5a),
     bbase:C(0x7a8a5a), scar:C(0x6e5f43), burned:C(0x5a4a3a), ash:C(0x3a3430), lakebed:C(0x3f4a44)
   };
@@ -2035,12 +2132,12 @@ function terrainMeshH(x,z){
       var rk=1-ss(rd.w/2-1, rd.w/2+6, rd.d);
       tmp.lerp(ROAD_PAINT[rd.cls]||pal.road, rk*0.8);
     }
-    tmp.multiplyScalar(0.8);
+    tmp.multiplyScalar(0.92);   /* noon light sums to ~1.25; the surface shader adds its own ±15% */
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  var ground=new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true}));
+  var ground=new THREE.Mesh(geo, surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
   ground.receiveShadow=true;
   ground.name='always';
   scene.add(ground);
@@ -2153,20 +2250,24 @@ function sceneryBlocked(x,z,margin){
     var cap=cone(wrad*0.34, wh*0.34, rimSnow, 7); cap.name='always';
     cap.position.set(x, wh*0.32+wh*0.33, z); cap.castShadow=false; scene.add(cap);
   }
-  for(var wi=0; wi<128; wi++){
-    var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
-    if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
-    var north=wz<-2400?1:0;
-    peak(wx, wz, 190+rnd()*110, 95+rnd()*85+north*90, wi%3===0);
-  }
-  /* inland peaks of the Carpathian ridge, kept clear of every named place */
+  /* a peak may not swallow anything built: named places, villages, towns, roads — and the hamlets and farmsteads
+     of the countryside (a cone over a hamlet hides the hamlet from outside and shows its underside from within) */
   function peakBlocked(x,z,r){
     var i;
     for(i=0;i<SITES_DEF.length;i++){ var S=SITES_DEF[i]; if(Math.hypot(x-S.x,z-S.z)<S.r+r+30) return true; }
     for(i=0;i<VILLAGES.length;i++){ if(Math.hypot(x-VILLAGES[i].x,z-VILLAGES[i].z)<r+90) return true; }
     for(i=0;i<FAC_KEYS_T.length;i++){ var T=TOWNS[FAC_KEYS_T[i]]; if(Math.hypot(x-T.x,z-T.z)<r+320) return true; }
+    for(i=0;i<HAMLETS.length;i++){ if(Math.hypot(x-HAMLETS[i].x,z-HAMLETS[i].z)<r+85) return true; }
+    for(i=0;i<DISTRICT_C.length;i++){ if(Math.hypot(x-DISTRICT_C[i].x,z-DISTRICT_C[i].z)<r+70) return true; }
     if(sceneryRoadDist(x,z)<r*0.6) return true;
     return false;
+  }
+  for(var wi=0; wi<128; wi++){
+    var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
+    if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
+    var north=wz<-2400?1:0, wrad=190+rnd()*110, wh=95+rnd()*85+north*90;
+    if(peakBlocked(wx,wz,wrad)){ wrad=150; if(peakBlocked(wx,wz,wrad)) continue; }   /* the rim keeps its skirt off the border hamlets */
+    peak(wx, wz, wrad, wh, wi%3===0);
   }
   for(var mi=0; mi<60; mi++){
     var mx=rnd()*5400-2700, mz=-3000+rnd()*1050, mrad=110+rnd()*120, mh=(70+rnd()*90)*(1-ss(-2600,-1950,mz))+40;
@@ -2389,7 +2490,7 @@ function mergedColoredBoxes(parts){
   geo.setIndex(idx); geo.computeBoundingSphere();
   return geo;
 }
-var DOOR_MAT=new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true});
+var DOOR_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true}), SURF.WOOD);
 
 
 // SOURCE: src/buildings/primitives.js
@@ -2626,26 +2727,27 @@ function kitCreate(){
      and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
   function exportGeo(dy){
     dy=dy||0;
-    var pos=[], nor=[], col=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
     bags.forEach(function(b,m){
-      var i, n=b.p.length;
+      var i, n=b.p.length, sp=surfPatOf(m);
       if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
       c.copy(m.color||new THREE.Color(0xffffff));
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); }
+      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
     });
     bags.clear();
-    function geo(p,nn,cc,uu){
+    function geo(p,nn,cc,uu,pt){
       if(!p.length) return null;
       var g=new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
       g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
       if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
       if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
+      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
       g.computeBoundingSphere(); g.computeBoundingBox();
       return g;
     }
-    return {body:geo(pos,nor,col,null), panes:geo(pp,pn,null,pu), tris:pos.length/9};
+    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
   }
   function flush(parent,shadow){
     var made=0;
@@ -2670,19 +2772,23 @@ function kitCreate(){
    2. Palette
    ============================================================ */
 var ARCH_TIMBER=0x5d4326, ARCH_STONE=0x8b8579, ARCH_DARK=0x241d16, ARCH_PANE=0xd9c79a;
+/* surface patterns (surface.js) chosen from the shell's style: log courses, lime plaster or stone for the walls;
+   thatch, wooden shingles or clay tiles for the roof */
+function wallPat(o){ var c=o.wall||0xd9c8a2; if(o.style==='log') return SURF.LOG; if(o.style==='plaster'||plasterLike(c)) return SURF.PLASTER; return SURF.STONE; }
+function roofPat(o){ if(o.roof==='thatch'||o.roof==='hipthatch') return SURF.THATCH; if(o.shingle||o.style==='log') return SURF.SHINGLE; var c=o.roofCol||0; var r=(c>>16)&255, g=(c>>8)&255, b=c&255; if(r<110&&g<95&&b<80) return SURF.SHINGLE; return SURF.TILE; }
 function structPal(o){
-  var wall=o.wall, roof=o.roofCol;
+  var wall=o.wall, roof=o.roofCol, wp=wallPat(o), rp=roofPat(o);
   return {
-    wall:   M2(wall),
-    wall2:  M2(tintHex(wall,-0.10)),
-    stone:  M2(o.stone||ARCH_STONE),
-    timber: M2(o.timber||ARCH_TIMBER),
-    roof:   M2(roof),
-    roof2:  M2(tintHex(roof,-0.14)),
-    trim:   M2(o.trim||0x513820),
-    dark:   M2(ARCH_DARK),
+    wall:   MS(wall,wp),
+    wall2:  MS(tintHex(wall,-0.10),wp),
+    stone:  MS(o.stone||ARCH_STONE,SURF.STONE),
+    timber: MS(o.timber||ARCH_TIMBER,SURF.WOOD),
+    roof:   MS(roof,rp),
+    roof2:  MS(tintHex(roof,-0.14),rp),
+    trim:   MS(o.trim||0x513820,SURF.WOOD),
+    dark:   MS(ARCH_DARK,SURF.NONE),
     pane:   o.pane?M2(o.pane):PANE_MAT,
-    floor:  M2(o.floorCol||0x8a7a5c)
+    floor:  MS(o.floorCol||0x8a7a5c,SURF.PLANK)
   };
 }
 
@@ -3311,11 +3417,11 @@ function structShell(o){
     if(o.chimney!==false && o.chimney2) structChimney(kit,P,cx,cz,R,-ridgeLen*0.29,thatch);
     if(style==='church') structChurchCrown(kit,P,o,cx,cz,w,d,yTop,rh,doorS);
     if(style==='long'){
+      /* carved finials on both ridge ends (the ridge follows the longer side) */
       for(var s2=-1;s2<=1;s2+=2){
-        var fy=yTop+rh+0.34, fz2=cz+s2*(d/2-rake-0.12);
-        kit.box(P.timber, 0.18, 0.95, 0.18, cx-0.4, fy, fz2);
-        kit.box(P.timber, 0.18, 0.95, 0.18, cx+0.4, fy, fz2);
-        kit.box(P.trim, 0.55, 0.32, 0.55, cx, fy+0.55, fz2, s2>0?0.55:-0.55);
+        var fy=yTop+rh+0.34, fe=ridgeLen/2-rake-0.12;
+        if(alongZ){ kit.box(P.timber, 0.18, 0.95, 0.18, cx-0.4, fy, cz+s2*fe); kit.box(P.timber, 0.18, 0.95, 0.18, cx+0.4, fy, cz+s2*fe); kit.box(P.trim, 0.55, 0.32, 0.55, cx, fy+0.55, cz+s2*fe, s2>0?0.55:-0.55); }
+        else { kit.box(P.timber, 0.18, 0.95, 0.18, cx+s2*fe, fy, cz-0.4); kit.box(P.timber, 0.18, 0.95, 0.18, cx+s2*fe, fy, cz+0.4); kit.box(P.trim, 0.55, 0.32, 0.55, cx+s2*fe, fy+0.55, cz, s2>0?0.55:-0.55); }
       }
     }
   }
@@ -4682,7 +4788,7 @@ var RBL_KITS={
 var PREFAB_REC=null;
 var PREFAB_DEFS={}, PREFAB_CACHE={};
 var PREFAB_CELLS=new Map();
-var PREFAB_MAT=new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide});
+var PREFAB_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);   /* pattern per vertex (aPat) */
 var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
 var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
 
@@ -4955,7 +5061,7 @@ function buildRoads(){
   }
   ROADS.forEach(function(R){
     var P=R.pts, C=ROAD_CLASSES[R.cls], hw=R.w/2, lift=C.y, kerbed=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t');
-    var base=new THREE.Color(R.col).multiplyScalar(0.6), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.6: the noon sun + sky light sum to ~1.7 */
+    var base=new THREE.Color(R.col).multiplyScalar(0.78), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.78: the noon sun + sky light sum to ~1.25 */
     if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++;
     roadStats.ribbons++;
     for(i=0;i<P.length;i++){
@@ -4976,7 +5082,7 @@ function buildRoads(){
       prev=sec;
     }
   });
-  var mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  var mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND);
   cells.forEach(function(c){
     var g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(c.pos),3));
@@ -5099,14 +5205,14 @@ function townStreet(x0,z0,x1,z1,w,col){
   for(i=0;i<n;i++){
     var t0=i/n, t1=(i+1)/n, ax=x0+(x1-x0)*t0, az=z0+(z1-z0)*t0, bx=x0+(x1-x0)*t1, bz=z0+(z1-z0)*t1;
     var cx=(ax+bx)/2, cz=(az+bz)/2, y=groundH(cx,cz);
-    kit.box(M2(tintHex(col||0x8a8070,-0.38)), Math.hypot(bx-ax,bz-az)+0.4, 0.12, w, cx, y+0.04, cz, -Math.atan2(bz-az,bx-ax));
+    kit.box(M2(tintHex(col||0x8a8070,-0.2)), Math.hypot(bx-ax,bz-az)+0.4, 0.12, w, cx, y+0.04, cz, -Math.atan2(bz-az,bx-ax));
   }
   for(i=0;i<=L;i+=8){ var t=i/L; window.__roadPts.push([x0+(x1-x0)*t, z0+(z1-z0)*t]); }
 }
 function townPlaza(x,z,r,col){
   var kit=cellKit(x,z), y=groundH(x,z);
   TOWN_PLAZAS.push({x:x,z:z,r:r});
-  kit.cyln(M2(tintHex(col||0x8a8070,-0.38)), r, r, 0.12, 16, x, y+0.05, z);
+  kit.cyln(M2(tintHex(col||0x8a8070,-0.2)), r, r, 0.12, 16, x, y+0.05, z);
   for(var a=0;a<TAU;a+=TAU/8) window.__roadPts.push([x+Math.cos(a)*r*0.6, z+Math.sin(a)*r*0.6]);
 }
 /* a row of houses along a street: axis 'x' → street along x at z=cross; side ±1 = which side of the street */
@@ -5128,6 +5234,7 @@ function houseRow(axis,u0,u1,cross,side,o){
         roofCol:o.roofCol?o.roofCol[Math.floor(rnd()*o.roofCol.length)]:0x70503a, roof:o.roof?(typeof o.roof==='string'?o.roof:o.roof[Math.floor(rnd()*o.roof.length)]):'gable',
         door:door, interior:interior, fac:o.fac, style:o.style, timberFrame:o.timberFrame, plinth:o.plinth, chimney:o.chimney!==false, windows:o.windows, floors:o.floors, name:o.name, porch:o.porch,
         prispa:o.prispa?rnd()<o.prispa:false, bench:o.bench!==false, gableWin:rnd()<0.6, band:o.band, chimney2:w>8.5&&rnd()<0.4});
+      if(o.onBuilt) o.onBuilt({x:x, z:z, w:w, d:d, door:door, axis:axis, side:side, u:cu, cross:cross, doorW:clamp(Math.min(1.55, w*0.3), 1.15, 2.4)});
       n++;
     }
     u+=w+gap;
@@ -6505,7 +6612,7 @@ function createBuildingBatch(){
       b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,new THREE.Color(item.color));});
       mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
       mesh.userData.cullBounds={x:(b.x+0.5)*375-WORLD.half,z:(b.z+0.5)*375-WORLD.half,r:285};
-      mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=false;mesh.receiveShadow=true;
+      mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=true;mesh.receiveShadow=true;
       scene.add(mesh);
     });
     return buckets.size;
@@ -6586,7 +6693,7 @@ function buildHamlet(batch,H){
   var faceIn=alongX?{'-1':'S','1':'N'}:{'-1':'E','1':'W'};        /* the door side of a house at v=side·d, looking at the lane */
   var faceEnd=alongX?{'-1':'E','1':'W'}:{'-1':'S','1':'N'};       /* the door side of a building at u=±end, looking down the lane */
   var L={T:T, alongX:alongX, faceIn:faceIn, reg:reg, K:K, rnd:rnd};
-  var roadCol=tintHex(reg==='carpathian'?0x7a7a82:reg==='trade_route'?0xc2b08a:reg==='capital'?0x9a9a8a:0x9b8866,-0.38);
+  var roadCol=tintHex(reg==='carpathian'?0x7a7a82:reg==='trade_route'?0xc2b08a:reg==='capital'?0x9a9a8a:0x9b8866,-0.2);
   /* the lane (tested against real walls so trunk roads keep their clearance) */
   for(var step=-58;step<=58;step+=6){
     var lp=T(step,0);
@@ -6786,7 +6893,7 @@ function buildDistricts(){
     if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
     if(kind==='farm'||kind==='estate'||kind==='vineyard'){
-      for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xc9b24a,kind==='vineyard'?0x5a7a3a:0x928047); }
+      for(i=0;i<3;i++){ var fa=i*2.1+rnd(), fx=D.x+Math.cos(fa)*(ring+40), fz=D.z+Math.sin(fa)*(ring+40); if(insideSolid(fx,fz,16)||sceneryRoadDist(fx,fz)<14) continue; batchField(batch,fx,fz,26,20,fa,kind==='vineyard'?0x6b8f3a:0xb4a15a,kind==='vineyard'?0x5a7a3a:0x928047); }
       for(i=0;i<3;i++){ var ha=rnd()*TAU, hx2=D.x+Math.cos(ha)*(ring+10), hz2=D.z+Math.sin(ha)*(ring+10); if(!insideSolid(hx2,hz2,2.5)) batchHay(batch,hx2,hz2,0.8+rnd()*0.5); }
       siteEcon(D.x,D.z,'farm',0.16+rnd()*0.08); if(kind==='estate') siteEcon(D.x,D.z,'noble',0.2);
     } else if(kind==='fold'){
@@ -6808,9 +6915,19 @@ function buildDistricts(){
       batchFence(batch,D.x+ring+2,D.z-14,D.x+ring+2,D.z+14); propCampfire(D.x+ring+14,D.z+18,true);
       siteEcon(D.x,D.z,'tradepost',0.18);
     }
-    /* fences and a lane to the yard */
-    batchFence(batch,D.x-ring-2,D.z-ring-2,D.x+ring*0.5,D.z-ring-2);
+    /* the lane through the yard, then the yard fence: a ring of fence runs around the farmstead, open where the lane
+       comes in and out (north and south); a few trees inside the fence */
     for(var s=-ring;s<=ring;s+=6){ if(!insideSolid(D.x,D.z+s,2.5)){ batch.add('box',D.x,groundH(D.x,D.z+s)+0.04,D.z+s,4.5,0.08,6.2,0x9b8866); window.__roadPts.push([D.x,D.z+s]); } }
+    var R=ring+9, segs=12, ai;
+    for(ai=0;ai<segs;ai++){
+      var b0=ai/segs*TAU, b1=(ai+1)/segs*TAU, fx0=D.x+Math.cos(b0)*R, fz0=D.z+Math.sin(b0)*R, fx1=D.x+Math.cos(b1)*R, fz1=D.z+Math.sin(b1)*R;
+      if(Math.abs(Math.sin((b0+b1)/2))>0.9) continue;
+      var fmx=(fx0+fx1)/2, fmz=(fz0+fz1)/2;
+      if(insideSolid(fx0,fz0,0.5)||insideSolid(fx1,fz1,0.5)||insideSolid(fmx,fmz,0.7)||nearDoor(fmx,fmz,2.5)||sceneryRoadDist(fmx,fmz)<4||settlementRoadNear(fmx,fmz,3)) continue;
+      propFence(fx0,fz0,fx1,fz1,1.05);
+    }
+    var TK=HAMLET_KINDS[reg]||HAMLET_KINDS.wallachian;
+    for(i=0;i<5;i++){ var ta2=rnd()*TAU, tr=ring*(0.35+rnd()*0.5), tx2=D.x+Math.cos(ta2)*tr, tz2=D.z+Math.sin(ta2)*tr; if(insideSolid(tx2,tz2,2.4)||nearDoor(tx2,tz2,3)||Math.abs(tx2-D.x)<3.5) continue; hamletTree(batch,tx2,tz2,TK,rnd,true); }
     D.buildings=placed;
     window.__contentZi[zoneIdxAt(D.x,D.z)]=1;
   });
@@ -11127,8 +11244,8 @@ function updateAmbient(dt){
   var fx0=player?player.group.position.x:0, fz0=player?player.group.position.z:0;
   sun.position.set(fx0+Math.cos(sunAng)*160, Math.max(20,sunH*220+30), fz0+70);
   sun.target.position.set(fx0,0,fz0);
-  sun.intensity=0.07+1.0*dayF;
-  hemi.intensity=0.15+0.85*dayF;
+  sun.intensity=0.06+0.9*dayF;
+  hemi.intensity=0.13+0.45*dayF;
   sun.color.setHex(0xffe7bd); sun.color.lerp(skyDawn, clamp(1-dayF*1.7,0,1)*0.55);
   skyTmp.copy(skyNight).lerp(skyDay, dayF);
   skyTmp.lerp(skyDawn, clamp(1-Math.abs(dayF-0.3)*3.4,0,1)*0.4);
@@ -11744,13 +11861,20 @@ function placeRelics(){
    the NV villages (orchard, apiary, salt pans, log bridge, sluice…).
    ============================================================ */
 function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
+/* a broadleaf tree: trunk, three tapered tiers that read as a round crown */
+function kitTree(kit,tx,tz,col,s,fir){
+  var ty=groundH(tx,tz), C=MS(col,SURF.GRAIN), C2=MS(tintHex(col,0.12),SURF.GRAIN);
+  kit.cyln(MS(0x5a4632,SURF.WOOD),0.22*s,0.34*s,2.4*s,6,tx,ty+1.2*s,tz);
+  if(fir){ kit.pyr(C,1.9*s,3.4*s,8,tx,ty+3.6*s,tz); kit.pyr(C2,1.4*s,2.6*s,8,tx,ty+5.4*s,tz); kit.pyr(C2,0.8*s,1.8*s,8,tx,ty+6.9*s,tz); }
+  else { kit.cyln(C,1.9*s,1.2*s,1.3*s,8,tx,ty+2.9*s,tz); kit.cyln(C,1.7*s,1.9*s,1.4*s,8,tx,ty+4.2*s,tz); kit.cyln(C2,0.7*s,1.7*s,1.5*s,8,tx,ty+5.6*s,tz); }
+  addCollider(tx-0.4,tz-0.4,tx+0.4,tz+0.4);
+}
 function vTreeRing(x,z,n,r,rnd,col,scale){
-  var kit=cellKit(x,z), i;
-  for(i=0;i<n;i++){ var a=i/n*TAU+rnd()*0.6, tx=x+Math.cos(a)*r*(0.8+rnd()*0.4), tz=z+Math.sin(a)*r*(0.8+rnd()*0.4); if(!vFree(tx,tz,2.2)) continue; var ty=groundH(tx,tz), s=(scale||1)*(0.8+rnd()*0.5);
-    kit.cyln(M2(0x5d4326),0.25*s,0.35*s,2.2*s,6,tx,ty+1.1*s,tz); kit.cyln(M2(col),1.9*s,0.9*s,2.4*s,7,tx,ty+3.2*s,tz); kit.cyln(M2(col),1.2*s,0.3*s,1.6*s,7,tx,ty+4.8*s,tz); addCollider(tx-0.4,tz-0.4,tx+0.4,tz+0.4); }
+  var kit=cellKit(x,z), i, fir=(col===0x2f4a2e||col===0x3a5a2e);
+  for(i=0;i<n;i++){ var a=i/n*TAU+rnd()*0.6, tx=x+Math.cos(a)*r*(0.8+rnd()*0.4), tz=z+Math.sin(a)*r*(0.8+rnd()*0.4); if(!vFree(tx,tz,2.2)) continue; kitTree(kit,tx,tz,col,(scale||1)*(0.8+rnd()*0.5),fir); }
 }
 function vPalm(kit,x,z,s){ var y=groundH(x,z); s=s||1; kit.cyln(M2(0x8a6a3a),0.22*s,0.34*s,6*s,6,x,y+3*s,z,0.08,0,0.06); for(var i=0;i<6;i++){ var a=i/6*TAU; kit.box(M2(0x5a8a3a),2.6*s,0.12,0.7*s, x+Math.cos(a)*1.2*s, y+6*s+0.2, z+Math.sin(a)*1.2*s, -a, 0, -0.5); } addCollider(x-0.35,z-0.35,x+0.35,z+0.35); }
-function vSlot(X,Z,k){ return [[X+26,Z-30],[X-26,Z+30],[X+26,Z+30],[X+42,Z-14],[X-42,Z+14],[X-26,Z-30]][k%6]; }
+function vSlot(X,Z,k){ return [[X+30,Z-34],[X-30,Z+34],[X+30,Z+34],[X+52,Z-30],[X-52,Z+30],[X-30,Z-34]][k%6]; }
 function buildVillageFeature(v,X,Z,rnd,kit){
   var i, y;
   switch(v.feat){
@@ -11778,16 +11902,93 @@ function buildVillageFeature(v,X,Z,rnd,kit){
     case 'ash': for(i=0;i<3;i++) lmSmokeRuin(kit, X-30+i*22, Z-60, 5, 4, rnd()*0.4, rnd); break;
   }
 }
+/* ---- yards (ogrăzi): every village house stands in a fenced yard — gate on the street line, side fences on the
+   shared boundaries, a back fence; behind the house a kitchen garden, woodpile, haystack, fruit trees, an outdoor oven,
+   beehives, a dovecote, a cart or a shed (a real prefab shed with an interior). Fence pieces that would run into a
+   church, an extra or a road are left out. ---- */
+function yardClear(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1.2)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.5) return false; return true; }
+function yardFence(a,b){
+  var L=Math.hypot(b[0]-a[0],b[1]-a[1]); if(L<0.8) return;
+  var n=Math.max(1,Math.ceil(L/5.5)), i, ok=[], ux=(b[0]-a[0])/L, uz=(b[1]-a[1])/L;
+  /* test every piece before building any (a built piece's own collider must not block its neighbour) */
+  for(i=0;i<n;i++){
+    var t0=i/n, t1=(i+1)/n, x0=a[0]+(b[0]-a[0])*t0, z0=a[1]+(b[1]-a[1])*t0, x1=a[0]+(b[0]-a[0])*t1, z1=a[1]+(b[1]-a[1])*t1, mx=(x0+x1)/2, mz=(z0+z1)/2;
+    ok.push(yardClear(x0+ux*0.4,z0+uz*0.4,0.3)&&yardClear(x1-ux*0.4,z1-uz*0.4,0.3)&&yardClear(mx,mz,0.45));
+  }
+  for(i=0;i<n;i++){ if(!ok[i]) continue; var s0=i/n, s1=(i+1)/n; propFence(a[0]+(b[0]-a[0])*s0,a[1]+(b[1]-a[1])*s0,a[0]+(b[0]-a[0])*s1,a[1]+(b[1]-a[1])*s1,1.05); }
+}
+/* is a rectangle (centre, half sizes) clear — corners and centre, small probes */
+function yardRectClear(x,z,hx,hz){ return yardClear(x,z,0.4)&&yardClear(x-hx,z-hz,0.3)&&yardClear(x+hx,z-hz,0.3)&&yardClear(x-hx,z+hz,0.3)&&yardClear(x+hx,z+hz,0.3); }
+/* a village gate (poartă): two carved posts, a lintel and a little shingled roof over the opening */
+function yardGate(a,b,kit,rp){
+  var mx=(a[0]+b[0])/2, mz=(a[1]+b[1])/2, y=groundH(mx,mz), L=Math.hypot(b[0]-a[0],b[1]-a[1]), ry=-Math.atan2(b[1]-a[1],b[0]-a[0]);
+  if(!yardClear(mx,mz,0.3)) return;
+  var T=MS(0x5d4326,SURF.WOOD), R=MS(rp||0x4a3a2a,SURF.SHINGLE), i;
+  for(i=0;i<2;i++){ var px=i?b[0]:a[0], pz=i?b[1]:a[1]; kit.box(T,0.3,2.6,0.3,px,y+1.3,pz,ry); kit.box(MS(0x6b4f2e,SURF.WOOD),0.42,0.16,0.42,px,y+2.62,pz,ry); addCollider(px-0.16,pz-0.16,px+0.16,pz+0.16); }
+  kit.box(T,L+0.3,0.2,0.22,mx,y+2.55,mz,ry);
+  kit.prism(R,1.2,0.55,L+0.9,mx,y+2.95,mz,ry+Math.PI/2);
+}
+function yardTree(kit,x,z,K,rnd,fir){ kitTree(kit,x,z,K.tree,0.6+rnd()*0.4,fir); }
+function yardGarden(kit,x,z,w,d,ry,crop){
+  var y=groundH(x,z), rows=Math.max(3,Math.floor(w/1.2)), i, c=Math.cos(ry), s=Math.sin(ry);
+  kit.box(MS(0x5a4632,SURF.GROUND),w,0.1,d,x,y+0.05,z,ry);
+  for(i=0;i<rows;i++){ var u=-w/2+(i+0.5)*(w/rows); kit.box(MS(i%2?crop:0x4a6a3a,SURF.GRAIN),0.6,0.32,d-0.5,x+u*c,y+0.2,z-u*s,ry); }
+}
+function villageYards(rows,v,K,rnd,kit){
+  var reg=v.region||'wallachian', fir=(reg==='carpathian'||reg==='moldavian'), crop=(reg==='wallachian'||reg==='battlefield')?0x6a8a3a:0xb4a15a, n=0;
+  rows.forEach(function(row){
+    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; }); if(!hs.length) return;
+    var axis=row.axis, side=row.side, cross=row.cross;
+    var P=(axis==='x')?function(u,vv){ return [u, cross+side*vv]; }:function(u,vv){ return [cross+side*vv, u]; };
+    var faceHouse=(axis==='x')?(side>0?'N':'S'):(side>0?'W':'E');          /* looking back toward the street */
+    var edges=[hs[0].u-hs[0].w/2-1.4], i;
+    for(i=0;i<hs.length-1;i++) edges.push((hs[i].u+hs[i].w/2+hs[i+1].u-hs[i+1].w/2)/2);
+    edges.push(hs[hs.length-1].u+hs[hs.length-1].w/2+1.4);
+    hs.forEach(function(h,i){
+      var u0=edges[i], u1=edges[i+1], vF=3.0, vWall=5.2+h.d, vBack=vWall+10+rnd()*3.5;
+      var gw=h.doorW+1.9, g0=h.u-gw/2, g1=h.u+gw/2;
+      yardFence(P(u0,vF),P(g0,vF)); yardFence(P(g1,vF),P(u1,vF));
+      yardFence(P(u0,vF),P(u0,vBack)); if(i===hs.length-1) yardFence(P(u1,vF),P(u1,vBack));
+      yardFence(P(u0,vBack),P(u1,vBack));
+      yardGate(P(g0,vF),P(g1,vF),kit,K.roof[0]);
+      /* the yard behind the house */
+      var taken=[];
+      function spot(r){ for(var t=0;t<8;t++){ var uu=u0+1.6+r+rnd()*Math.max(0.5,(u1-u0)-3.2-2*r), vv=vWall+1.4+r+rnd()*Math.max(0.5,(vBack-vWall)-2.8-2*r), p=P(uu,vv), ok=yardClear(p[0],p[1],r), k;
+          for(k=0;k<taken.length&&ok;k++){ if(Math.hypot(taken[k][0]-p[0],taken[k][1]-p[1])<taken[k][2]+r) ok=false; }
+          if(ok){ taken.push([p[0],p[1],r]); return p; } } return null; }
+      var items=['garden','woodpile','haystack','tree','tree','oven','beehives','shed','dovecote','cart'], used={}, k, p;
+      var cnt=3+Math.floor(rnd()*3);
+      for(k=0;k<cnt;k++){
+        var it=items[Math.floor(rnd()*items.length)]; if(used[it]&&it!=='tree') continue; used[it]=1;
+        if(it==='garden'){ var gwid=Math.min(u1-u0-3.4,7), gdep=Math.min(vBack-vWall-3.2,5); if(gwid<2.6||gdep<2.4) continue; p=P((u0+u1)/2,vWall+1.6+gdep/2); var ghx=(axis==='x'?gwid:gdep)/2, ghz=(axis==='x'?gdep:gwid)/2; if(yardRectClear(p[0],p[1],ghx,ghz)){ taken.push([p[0],p[1],Math.hypot(gwid,gdep)/2]); yardGarden(kit,p[0],p[1],ghx*2,ghz*2,0,crop); n++; } }
+        else if(it==='woodpile'){ if((p=spot(1.5))) prefabPlace('prop.woodpile',p[0],p[1],rnd()<0.5?'S':'E',{force:true}); }
+        else if(it==='haystack'){ if((p=spot(1.8))) prefabPlace('prop.haystack',p[0],p[1],'S',{force:true}); }
+        else if(it==='oven'){ if((p=spot(1.3))) prefabPlace('prop.oven',p[0],p[1],faceHouse,{force:true}); }
+        else if(it==='beehives'){ if((p=spot(1.6))) prefabPlace('prop.beehives',p[0],p[1],'S',{force:true}); }
+        else if(it==='dovecote'){ if((p=spot(1.0))) prefabPlace('prop.dovecote',p[0],p[1],'S',{force:true}); }
+        else if(it==='cart'){ if((p=spot(1.9))) prefabPlace('prop.cart',p[0],p[1],axis==='x'?'E':'S',{force:true}); }
+        else if(it==='shed'){ var sk=reg+'.shed1', sp=prefabGet(sk); if(sp){ var sq=P(u0+2.6+rnd()*Math.max(0.5,(u1-u0)-5.2), vBack-2.4); var sr=Math.hypot(sp.hx,sp.hz)+0.8; if(yardClear(sq[0],sq[1],sr)){ taken.push([sq[0],sq[1],sr]); prefabPlace(sk,sq[0],sq[1],faceHouse); n++; } } }
+        else { if((p=spot(2.0))) yardTree(kit,p[0],p[1],K,rnd,fir); }
+      }
+      n++;
+    });
+  });
+  return n;
+}
 function buildVillages(){
   VILLAGES.forEach(function(v, vi){
     var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
     siteBegin('sat:'+v.name, X, Z, 120);
     var SC=K.street;
     townPlaza(X, Z, 12, SC);
-    townStreet(X-52, Z, X+52, Z, 5, SC); townStreet(X, Z-46, X, Z+46, 4.5, SC);
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
-    houseRow('x', X-50, X-10, Z, 1, HO); houseRow('x', X+10, X+50, Z, 1, HO); houseRow('x', X-50, X-10, Z, -1, HO); houseRow('x', X+10, X+50, Z, -1, HO);
-    houseRow('z', Z+10, Z+44, X, 1, HO); houseRow('z', Z-44, Z-10, X, -1, HO);
+    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
+    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
+    var rows=[], curRow=null;
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
+             onBuilt:function(h){ curRow.houses.push(h); }};
+    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
+    row('x', X-50, X-12, Z, 1); row('x', X+12, X+50, Z, 1); row('x', X-50, X-12, Z, -1); row('x', X+12, X+50, Z, -1);
+    row('z', Z+28, Z+52, X, 1); row('z', Z-52, Z-28, X, -1); row('z', Z+28, Z+52, X, -1); row('z', Z-52, Z-28, X, 1);
     /* the church of the kit */
     var cs=vSlot(X,Z,5);
     if(K.church==='lemn') rblBisericaLemn({x:cs[0], z:cs[1], door:'S', name:'Biserica de lemn din '+v.name});
@@ -11824,7 +12025,8 @@ function buildVillages(){
     propFence(X-48, Z+30, X-30, Z+30, 1.0); propFence(X-48, Z+30, X-48, Z+44, 1.0);
     propTroita(X+8, Z-10, 0.2);
     torchPost(X-6, Z-6, 2.4); torchPost(X+6, Z-6, 2.4);
-    vTreeRing(X, Z, 6, 58, rnd, K.tree, 1);
+    villageYards(rows, v, K, rnd, kit);
+    vTreeRing(X, Z, 10, 62, rnd, K.tree, 1); vTreeRing(X, Z, 8, 74, rnd, K.tree, 1.2);
     siteEnd();
     registerLore({key:'village'+vi, x:X, z:Z, r:34, icon:'V',
       name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,

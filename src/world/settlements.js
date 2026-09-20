@@ -69,7 +69,7 @@ function buildHamlet(batch,H){
   var faceIn=alongX?{'-1':'S','1':'N'}:{'-1':'E','1':'W'};        /* the door side of a house at v=side·d, looking at the lane */
   var faceEnd=alongX?{'-1':'E','1':'W'}:{'-1':'S','1':'N'};       /* the door side of a building at u=±end, looking down the lane */
   var L={T:T, alongX:alongX, faceIn:faceIn, reg:reg, K:K, rnd:rnd};
-  var roadCol=tintHex(reg==='carpathian'?0x7a7a82:reg==='trade_route'?0xc2b08a:reg==='capital'?0x9a9a8a:0x9b8866,-0.38);
+  var roadCol=tintHex(reg==='carpathian'?0x7a7a82:reg==='trade_route'?0xc2b08a:reg==='capital'?0x9a9a8a:0x9b8866,-0.2);
   /* the lane (tested against real walls so trunk roads keep their clearance) */
   for(var step=-58;step<=58;step+=6){
     var lp=T(step,0);

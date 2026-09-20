@@ -26,8 +26,8 @@ function updateAmbient(dt){
   var fx0=player?player.group.position.x:0, fz0=player?player.group.position.z:0;
   sun.position.set(fx0+Math.cos(sunAng)*160, Math.max(20,sunH*220+30), fz0+70);
   sun.target.position.set(fx0,0,fz0);
-  sun.intensity=0.07+1.0*dayF;
-  hemi.intensity=0.15+0.85*dayF;
+  sun.intensity=0.06+0.9*dayF;
+  hemi.intensity=0.13+0.45*dayF;
   sun.color.setHex(0xffe7bd); sun.color.lerp(skyDawn, clamp(1-dayF*1.7,0,1)*0.55);
   skyTmp.copy(skyNight).lerp(skyDay, dayF);
   skyTmp.lerp(skyDawn, clamp(1-Math.abs(dayF-0.3)*3.4,0,1)*0.4);

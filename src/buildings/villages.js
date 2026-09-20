@@ -10,13 +10,20 @@
    the NV villages (orchard, apiary, salt pans, log bridge, sluice…).
    ============================================================ */
 function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
+/* a broadleaf tree: trunk, three tapered tiers that read as a round crown */
+function kitTree(kit,tx,tz,col,s,fir){
+  var ty=groundH(tx,tz), C=MS(col,SURF.GRAIN), C2=MS(tintHex(col,0.12),SURF.GRAIN);
+  kit.cyln(MS(0x5a4632,SURF.WOOD),0.22*s,0.34*s,2.4*s,6,tx,ty+1.2*s,tz);
+  if(fir){ kit.pyr(C,1.9*s,3.4*s,8,tx,ty+3.6*s,tz); kit.pyr(C2,1.4*s,2.6*s,8,tx,ty+5.4*s,tz); kit.pyr(C2,0.8*s,1.8*s,8,tx,ty+6.9*s,tz); }
+  else { kit.cyln(C,1.9*s,1.2*s,1.3*s,8,tx,ty+2.9*s,tz); kit.cyln(C,1.7*s,1.9*s,1.4*s,8,tx,ty+4.2*s,tz); kit.cyln(C2,0.7*s,1.7*s,1.5*s,8,tx,ty+5.6*s,tz); }
+  addCollider(tx-0.4,tz-0.4,tx+0.4,tz+0.4);
+}
 function vTreeRing(x,z,n,r,rnd,col,scale){
-  var kit=cellKit(x,z), i;
-  for(i=0;i<n;i++){ var a=i/n*TAU+rnd()*0.6, tx=x+Math.cos(a)*r*(0.8+rnd()*0.4), tz=z+Math.sin(a)*r*(0.8+rnd()*0.4); if(!vFree(tx,tz,2.2)) continue; var ty=groundH(tx,tz), s=(scale||1)*(0.8+rnd()*0.5);
-    kit.cyln(M2(0x5d4326),0.25*s,0.35*s,2.2*s,6,tx,ty+1.1*s,tz); kit.cyln(M2(col),1.9*s,0.9*s,2.4*s,7,tx,ty+3.2*s,tz); kit.cyln(M2(col),1.2*s,0.3*s,1.6*s,7,tx,ty+4.8*s,tz); addCollider(tx-0.4,tz-0.4,tx+0.4,tz+0.4); }
+  var kit=cellKit(x,z), i, fir=(col===0x2f4a2e||col===0x3a5a2e);
+  for(i=0;i<n;i++){ var a=i/n*TAU+rnd()*0.6, tx=x+Math.cos(a)*r*(0.8+rnd()*0.4), tz=z+Math.sin(a)*r*(0.8+rnd()*0.4); if(!vFree(tx,tz,2.2)) continue; kitTree(kit,tx,tz,col,(scale||1)*(0.8+rnd()*0.5),fir); }
 }
 function vPalm(kit,x,z,s){ var y=groundH(x,z); s=s||1; kit.cyln(M2(0x8a6a3a),0.22*s,0.34*s,6*s,6,x,y+3*s,z,0.08,0,0.06); for(var i=0;i<6;i++){ var a=i/6*TAU; kit.box(M2(0x5a8a3a),2.6*s,0.12,0.7*s, x+Math.cos(a)*1.2*s, y+6*s+0.2, z+Math.sin(a)*1.2*s, -a, 0, -0.5); } addCollider(x-0.35,z-0.35,x+0.35,z+0.35); }
-function vSlot(X,Z,k){ return [[X+26,Z-30],[X-26,Z+30],[X+26,Z+30],[X+42,Z-14],[X-42,Z+14],[X-26,Z-30]][k%6]; }
+function vSlot(X,Z,k){ return [[X+30,Z-34],[X-30,Z+34],[X+30,Z+34],[X+52,Z-30],[X-52,Z+30],[X-30,Z-34]][k%6]; }
 function buildVillageFeature(v,X,Z,rnd,kit){
   var i, y;
   switch(v.feat){
@@ -44,16 +51,93 @@ function buildVillageFeature(v,X,Z,rnd,kit){
     case 'ash': for(i=0;i<3;i++) lmSmokeRuin(kit, X-30+i*22, Z-60, 5, 4, rnd()*0.4, rnd); break;
   }
 }
+/* ---- yards (ogrăzi): every village house stands in a fenced yard — gate on the street line, side fences on the
+   shared boundaries, a back fence; behind the house a kitchen garden, woodpile, haystack, fruit trees, an outdoor oven,
+   beehives, a dovecote, a cart or a shed (a real prefab shed with an interior). Fence pieces that would run into a
+   church, an extra or a road are left out. ---- */
+function yardClear(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1.2)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.5) return false; return true; }
+function yardFence(a,b){
+  var L=Math.hypot(b[0]-a[0],b[1]-a[1]); if(L<0.8) return;
+  var n=Math.max(1,Math.ceil(L/5.5)), i, ok=[], ux=(b[0]-a[0])/L, uz=(b[1]-a[1])/L;
+  /* test every piece before building any (a built piece's own collider must not block its neighbour) */
+  for(i=0;i<n;i++){
+    var t0=i/n, t1=(i+1)/n, x0=a[0]+(b[0]-a[0])*t0, z0=a[1]+(b[1]-a[1])*t0, x1=a[0]+(b[0]-a[0])*t1, z1=a[1]+(b[1]-a[1])*t1, mx=(x0+x1)/2, mz=(z0+z1)/2;
+    ok.push(yardClear(x0+ux*0.4,z0+uz*0.4,0.3)&&yardClear(x1-ux*0.4,z1-uz*0.4,0.3)&&yardClear(mx,mz,0.45));
+  }
+  for(i=0;i<n;i++){ if(!ok[i]) continue; var s0=i/n, s1=(i+1)/n; propFence(a[0]+(b[0]-a[0])*s0,a[1]+(b[1]-a[1])*s0,a[0]+(b[0]-a[0])*s1,a[1]+(b[1]-a[1])*s1,1.05); }
+}
+/* is a rectangle (centre, half sizes) clear — corners and centre, small probes */
+function yardRectClear(x,z,hx,hz){ return yardClear(x,z,0.4)&&yardClear(x-hx,z-hz,0.3)&&yardClear(x+hx,z-hz,0.3)&&yardClear(x-hx,z+hz,0.3)&&yardClear(x+hx,z+hz,0.3); }
+/* a village gate (poartă): two carved posts, a lintel and a little shingled roof over the opening */
+function yardGate(a,b,kit,rp){
+  var mx=(a[0]+b[0])/2, mz=(a[1]+b[1])/2, y=groundH(mx,mz), L=Math.hypot(b[0]-a[0],b[1]-a[1]), ry=-Math.atan2(b[1]-a[1],b[0]-a[0]);
+  if(!yardClear(mx,mz,0.3)) return;
+  var T=MS(0x5d4326,SURF.WOOD), R=MS(rp||0x4a3a2a,SURF.SHINGLE), i;
+  for(i=0;i<2;i++){ var px=i?b[0]:a[0], pz=i?b[1]:a[1]; kit.box(T,0.3,2.6,0.3,px,y+1.3,pz,ry); kit.box(MS(0x6b4f2e,SURF.WOOD),0.42,0.16,0.42,px,y+2.62,pz,ry); addCollider(px-0.16,pz-0.16,px+0.16,pz+0.16); }
+  kit.box(T,L+0.3,0.2,0.22,mx,y+2.55,mz,ry);
+  kit.prism(R,1.2,0.55,L+0.9,mx,y+2.95,mz,ry+Math.PI/2);
+}
+function yardTree(kit,x,z,K,rnd,fir){ kitTree(kit,x,z,K.tree,0.6+rnd()*0.4,fir); }
+function yardGarden(kit,x,z,w,d,ry,crop){
+  var y=groundH(x,z), rows=Math.max(3,Math.floor(w/1.2)), i, c=Math.cos(ry), s=Math.sin(ry);
+  kit.box(MS(0x5a4632,SURF.GROUND),w,0.1,d,x,y+0.05,z,ry);
+  for(i=0;i<rows;i++){ var u=-w/2+(i+0.5)*(w/rows); kit.box(MS(i%2?crop:0x4a6a3a,SURF.GRAIN),0.6,0.32,d-0.5,x+u*c,y+0.2,z-u*s,ry); }
+}
+function villageYards(rows,v,K,rnd,kit){
+  var reg=v.region||'wallachian', fir=(reg==='carpathian'||reg==='moldavian'), crop=(reg==='wallachian'||reg==='battlefield')?0x6a8a3a:0xb4a15a, n=0;
+  rows.forEach(function(row){
+    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; }); if(!hs.length) return;
+    var axis=row.axis, side=row.side, cross=row.cross;
+    var P=(axis==='x')?function(u,vv){ return [u, cross+side*vv]; }:function(u,vv){ return [cross+side*vv, u]; };
+    var faceHouse=(axis==='x')?(side>0?'N':'S'):(side>0?'W':'E');          /* looking back toward the street */
+    var edges=[hs[0].u-hs[0].w/2-1.4], i;
+    for(i=0;i<hs.length-1;i++) edges.push((hs[i].u+hs[i].w/2+hs[i+1].u-hs[i+1].w/2)/2);
+    edges.push(hs[hs.length-1].u+hs[hs.length-1].w/2+1.4);
+    hs.forEach(function(h,i){
+      var u0=edges[i], u1=edges[i+1], vF=3.0, vWall=5.2+h.d, vBack=vWall+10+rnd()*3.5;
+      var gw=h.doorW+1.9, g0=h.u-gw/2, g1=h.u+gw/2;
+      yardFence(P(u0,vF),P(g0,vF)); yardFence(P(g1,vF),P(u1,vF));
+      yardFence(P(u0,vF),P(u0,vBack)); if(i===hs.length-1) yardFence(P(u1,vF),P(u1,vBack));
+      yardFence(P(u0,vBack),P(u1,vBack));
+      yardGate(P(g0,vF),P(g1,vF),kit,K.roof[0]);
+      /* the yard behind the house */
+      var taken=[];
+      function spot(r){ for(var t=0;t<8;t++){ var uu=u0+1.6+r+rnd()*Math.max(0.5,(u1-u0)-3.2-2*r), vv=vWall+1.4+r+rnd()*Math.max(0.5,(vBack-vWall)-2.8-2*r), p=P(uu,vv), ok=yardClear(p[0],p[1],r), k;
+          for(k=0;k<taken.length&&ok;k++){ if(Math.hypot(taken[k][0]-p[0],taken[k][1]-p[1])<taken[k][2]+r) ok=false; }
+          if(ok){ taken.push([p[0],p[1],r]); return p; } } return null; }
+      var items=['garden','woodpile','haystack','tree','tree','oven','beehives','shed','dovecote','cart'], used={}, k, p;
+      var cnt=3+Math.floor(rnd()*3);
+      for(k=0;k<cnt;k++){
+        var it=items[Math.floor(rnd()*items.length)]; if(used[it]&&it!=='tree') continue; used[it]=1;
+        if(it==='garden'){ var gwid=Math.min(u1-u0-3.4,7), gdep=Math.min(vBack-vWall-3.2,5); if(gwid<2.6||gdep<2.4) continue; p=P((u0+u1)/2,vWall+1.6+gdep/2); var ghx=(axis==='x'?gwid:gdep)/2, ghz=(axis==='x'?gdep:gwid)/2; if(yardRectClear(p[0],p[1],ghx,ghz)){ taken.push([p[0],p[1],Math.hypot(gwid,gdep)/2]); yardGarden(kit,p[0],p[1],ghx*2,ghz*2,0,crop); n++; } }
+        else if(it==='woodpile'){ if((p=spot(1.5))) prefabPlace('prop.woodpile',p[0],p[1],rnd()<0.5?'S':'E',{force:true}); }
+        else if(it==='haystack'){ if((p=spot(1.8))) prefabPlace('prop.haystack',p[0],p[1],'S',{force:true}); }
+        else if(it==='oven'){ if((p=spot(1.3))) prefabPlace('prop.oven',p[0],p[1],faceHouse,{force:true}); }
+        else if(it==='beehives'){ if((p=spot(1.6))) prefabPlace('prop.beehives',p[0],p[1],'S',{force:true}); }
+        else if(it==='dovecote'){ if((p=spot(1.0))) prefabPlace('prop.dovecote',p[0],p[1],'S',{force:true}); }
+        else if(it==='cart'){ if((p=spot(1.9))) prefabPlace('prop.cart',p[0],p[1],axis==='x'?'E':'S',{force:true}); }
+        else if(it==='shed'){ var sk=reg+'.shed1', sp=prefabGet(sk); if(sp){ var sq=P(u0+2.6+rnd()*Math.max(0.5,(u1-u0)-5.2), vBack-2.4); var sr=Math.hypot(sp.hx,sp.hz)+0.8; if(yardClear(sq[0],sq[1],sr)){ taken.push([sq[0],sq[1],sr]); prefabPlace(sk,sq[0],sq[1],faceHouse); n++; } } }
+        else { if((p=spot(2.0))) yardTree(kit,p[0],p[1],K,rnd,fir); }
+      }
+      n++;
+    });
+  });
+  return n;
+}
 function buildVillages(){
   VILLAGES.forEach(function(v, vi){
     var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
     siteBegin('sat:'+v.name, X, Z, 120);
     var SC=K.street;
     townPlaza(X, Z, 12, SC);
-    townStreet(X-52, Z, X+52, Z, 5, SC); townStreet(X, Z-46, X, Z+46, 4.5, SC);
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, interior:function(k){ return K.style==='log'?'loghouse':'house'; }};
-    houseRow('x', X-50, X-10, Z, 1, HO); houseRow('x', X+10, X+50, Z, 1, HO); houseRow('x', X-50, X-10, Z, -1, HO); houseRow('x', X+10, X+50, Z, -1, HO);
-    houseRow('z', Z+10, Z+44, X, 1, HO); houseRow('z', Z-44, Z-10, X, -1, HO);
+    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
+    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
+    var rows=[], curRow=null;
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
+             onBuilt:function(h){ curRow.houses.push(h); }};
+    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
+    row('x', X-50, X-12, Z, 1); row('x', X+12, X+50, Z, 1); row('x', X-50, X-12, Z, -1); row('x', X+12, X+50, Z, -1);
+    row('z', Z+28, Z+52, X, 1); row('z', Z-52, Z-28, X, -1); row('z', Z+28, Z+52, X, -1); row('z', Z-52, Z-28, X, 1);
     /* the church of the kit */
     var cs=vSlot(X,Z,5);
     if(K.church==='lemn') rblBisericaLemn({x:cs[0], z:cs[1], door:'S', name:'Biserica de lemn din '+v.name});
@@ -90,7 +174,8 @@ function buildVillages(){
     propFence(X-48, Z+30, X-30, Z+30, 1.0); propFence(X-48, Z+30, X-48, Z+44, 1.0);
     propTroita(X+8, Z-10, 0.2);
     torchPost(X-6, Z-6, 2.4); torchPost(X+6, Z-6, 2.4);
-    vTreeRing(X, Z, 6, 58, rnd, K.tree, 1);
+    villageYards(rows, v, K, rnd, kit);
+    vTreeRing(X, Z, 10, 62, rnd, K.tree, 1); vTreeRing(X, Z, 8, 74, rnd, K.tree, 1.2);
     siteEnd();
     registerLore({key:'village'+vi, x:X, z:Z, r:34, icon:'V',
       name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,

@@ -17,12 +17,12 @@ var camera = new THREE.PerspectiveCamera(68, window.innerWidth/window.innerHeigh
 scene.add(camera);   /* camera hosts the first-person weapon (v7) */
 camera.position.set(0,10,40);
 
-var hemi = new THREE.HemisphereLight(0xd6e4f2, 0x67743f, 0.95);
+var hemi = new THREE.HemisphereLight(0xd6e4f2, 0x67743f, 0.55);   /* sun + sky sum to ~1.25 at noon: walls keep their shading, roofs keep their colour */
 scene.add(hemi);
-var sun = new THREE.DirectionalLight(0xffe7bd, 1.0);
+var sun = new THREE.DirectionalLight(0xffe7bd, 0.95);
 sun.position.set(70,95,45);
 sun.castShadow = true;
-sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
 sun.shadow.camera.left=-90; sun.shadow.camera.right=90;
 sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90;
 sun.shadow.camera.near=10; sun.shadow.camera.far=320;

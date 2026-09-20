@@ -23,7 +23,7 @@
 var PREFAB_REC=null;
 var PREFAB_DEFS={}, PREFAB_CACHE={};
 var PREFAB_CELLS=new Map();
-var PREFAB_MAT=new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide});
+var PREFAB_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);   /* pattern per vertex (aPat) */
 var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
 var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
 
