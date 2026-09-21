@@ -26,6 +26,8 @@ function seedRand(seed){
 /* ============================================================
    1. Merged geometry kit
    ============================================================ */
+/* the one material of every merged kit body: colour and surface pattern live in the vertices */
+var KIT_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);
 function kitCreate(){
   var bags=new Map();
   var quat=new THREE.Quaternion(), eul=new THREE.Euler(0,0,0,'YXZ');
@@ -137,24 +139,23 @@ function kitCreate(){
     g.computeBoundingSphere();
     return g;
   }
-  /* drain the bags into two geometries: one vertex-coloured body (any Lambert material becomes a colour)
-     and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
-  function exportGeo(dy){
-    dy=dy||0;
-    var bodyV=0, bodyI=0, paneV=0, paneI=0, c=new THREE.Color();
-    bags.forEach(function(b,m){ if(m===PANE_MAT){ paneV+=b.vn; paneI+=b.ic; } else { bodyV+=b.vn; bodyI+=b.ic; } });
+  /* world-space planar UVs for the few textured kit surfaces (water) */
+  function withUV(g){ var P=g.attributes.position.array, n=P.length/3, uv=new Float32Array(n*2), k; for(k=0;k<n;k++){ uv[k*2]=(P[k*3]+P[k*3+2])*0.25; uv[k*2+1]=P[k*3+1]*0.25; } g.setAttribute('uv', new THREE.BufferAttribute(uv,2)); return g; }
+  /* a material that cannot be baked into the vertex-coloured body: textured, transparent, non-Lambert or the
+     shared night-glowing pane material (its emissive changes at runtime) */
+  function kitSpecial(m){ return m===PANE_MAT || !m.isMeshLambertMaterial || !!m.map || !!m.transparent || (m.userData&&m.userData.keep); }
+  /* merge every bakeable bag into ONE indexed geometry: the Lambert colour (plus a little of any glow) becomes a
+     vertex colour and the material's surface pattern a per-vertex attribute (surface.js), so a whole town or a
+     375u cell of props is a single draw call instead of one per material */
+  function mergeBody(dy){
+    var bodyV=0, bodyI=0, c=new THREE.Color();
+    bags.forEach(function(b,m){ if(!kitSpecial(m)){ bodyV+=b.vn; bodyI+=b.ic; } });
+    if(!bodyV) return null;
     var pos=new Float32Array(bodyV*3), nor=new Float32Array(bodyV*3), col=new Float32Array(bodyV*3), pat=new Float32Array(bodyV), idx=new Uint32Array(bodyI);
-    var pp=new Float32Array(paneV*3), pn=new Float32Array(paneV*3), pi=new Uint32Array(paneI);
-    var bv=0, bi=0, pv=0, pj=0, tris=0;
+    var bv=0, bi=0;
     bags.forEach(function(b,m){
+      if(kitSpecial(m)) return;
       var i, n=b.vn*3, sp=surfPatOf(m), t=trimmed(b);
-      tris+=b.ic/3;
-      if(m===PANE_MAT){
-        pp.set(t.p,pv*3); pn.set(t.n,pv*3);
-        for(i=1;i<n;i+=3) pp[pv*3+i]-=dy;
-        for(i=0;i<b.ic;i++) pi[pj+i]=t.i[i]+pv;
-        pv+=b.vn; pj+=b.ic; return;
-      }
       c.copy(m.color||new THREE.Color(0xffffff));
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
       pos.set(t.p,bv*3); nor.set(t.n,bv*3);
@@ -162,24 +163,38 @@ function kitCreate(){
       pat.fill(sp,bv,bv+b.vn);
       for(i=0;i<b.ic;i++) idx[bi+i]=t.i[i]+bv;
       bv+=b.vn; bi+=b.ic;
+      bags.delete(m);
+    });
+    var g=makeGeo(pos,nor,idx);
+    g.setAttribute('color', new THREE.BufferAttribute(col,3));
+    g.setAttribute('aPat', new THREE.BufferAttribute(pat,1));
+    g.computeBoundingBox();
+    return g;
+  }
+  /* one geometry per remaining (special) material, shifted down by dy */
+  function drainSpecial(dy, fn){
+    bags.forEach(function(b,m){
+      if(!b.vn) return;
+      var t=trimmed(b), P=t.p.slice(), i;
+      if(dy) for(i=1;i<P.length;i+=3) P[i]-=dy;
+      var g=makeGeo(P,t.n.slice(),t.i.slice());
+      if(m.map) withUV(g);
+      fn(g,m);
     });
     bags.clear();
-    var body=null, panes=null;
-    if(bodyV){ body=makeGeo(pos,nor,idx); body.setAttribute('color', new THREE.BufferAttribute(col,3)); body.setAttribute('aPat', new THREE.BufferAttribute(pat,1)); body.computeBoundingBox(); }   /* surface pattern per vertex (surface.js) */
-    if(paneV){ panes=makeGeo(pp,pn,pi); panes.computeBoundingBox(); }
+  }
+  /* drain the bags into two geometries: one vertex-coloured body and the window panes (kept on PANE_MAT so
+     they glow at night). Used by prefabs.js for instancing. */
+  function exportGeo(dy){
+    dy=dy||0;
+    var body=mergeBody(dy), panes=null, tris=body?body.index.count/3:0;
+    drainSpecial(dy, function(g,m){ if(m===PANE_MAT){ panes=g; panes.computeBoundingBox(); } tris+=g.index.count/3; });   /* prefabs carry no textured surfaces; anything else joins the panes */
     return {body:body, panes:panes, tris:tris};
   }
   function flush(parent,shadow){
-    var made=0;
-    bags.forEach(function(b,m){
-      if(!b.vn) return;
-      var t=trimmed(b), g=makeGeo(t.p.slice(),t.n.slice(),t.i.slice());
-      if(m.map){ var uv=new Float32Array(b.vn*2), P=t.p, k; for(k=0;k<b.vn;k++){ uv[k*2]=(P[k*3]+P[k*3+2])*0.25; uv[k*2+1]=P[k*3+1]*0.25; } g.setAttribute('uv', new THREE.BufferAttribute(uv,2)); }   /* textured (water) surfaces */
-      var mesh=new THREE.Mesh(g,m);
-      mesh.castShadow=shadow!==false; mesh.receiveShadow=true;
-      parent.add(mesh); made++;
-    });
-    bags.clear();
+    var made=0, body=mergeBody(0);
+    if(body){ var bm=new THREE.Mesh(body, KIT_MAT); bm.castShadow=shadow!==false; bm.receiveShadow=true; bm.name='kit'; parent.add(bm); made++; }
+    drainSpecial(0, function(g,m){ var mesh=new THREE.Mesh(g,m); mesh.castShadow=shadow!==false; mesh.receiveShadow=true; parent.add(mesh); made++; });
     return made;
   }
   return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, at:at, exportGeo:exportGeo, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};

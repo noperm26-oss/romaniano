@@ -2,7 +2,7 @@
 var canvas = $('game');
 var renderer;
 try{
-  renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+  renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true, powerPreference:'high-performance'});   /* laptops: ask for the discrete GPU */
 }catch(e){ $('webgl-error').classList.remove('hidden'); return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);

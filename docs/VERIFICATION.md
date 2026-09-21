@@ -16,6 +16,42 @@ npm run test:e2e
 
 The new tests are included as source. Detailed run reports and screenshots are generated under ignored `test-results/`. Historical scripts `test7.js`–`test13.js` mentioned in the uploaded handoff were **not uploaded**; these are newly implemented regression suites, not a claim that those unavailable scripts ran.
 
+## Loading and frame-time pass (2026-09-21)
+
+The page felt frozen while it built the world and then ran heavy. Measured headless (software GL, so absolute numbers are
+pessimistic; a real GPU is faster):
+
+| | before | after |
+|---|---|---|
+| world build (boot) | ≈ 11.0 s, tab frozen, blank page | ≈ 5.5–7.2 s behind a **progress splash** that paints at ~2.5 s and advances per step |
+| simulation + scene update per frame (325 units, capital in view) | 36.7 ms | ≈ 6–13 ms |
+| draw calls, capital in view | 1,730–2,150 | 1,550–2,090 (site kits are one vertex-coloured mesh) |
+| JS heap after boot | ≈ 1,000 MB | ≈ 700 MB |
+
+What changed (all in `src/`, HTML regenerated with `npm run build`):
+
+- `src/buildings/architecture.js` — the building kit writes straight into growable typed arrays and emits **indexed** geometry;
+  every bakeable Lambert surface of a site (town, village, landmark, 375 u countryside cell) merges into **one** vertex-coloured
+  mesh with the surface pattern as a vertex attribute (`KIT_MAT`, shared with the prefab instances). Textured, transparent and
+  glowing (pane) surfaces stay separate so night windows still glow.
+- `src/navigation/collision.js` — spatial hash cells 64 u → 16 u with numeric keys; `insideSolid`, `collideCircle` and the swept-disc
+  `segmentClear` only visit overlapping cells and allocate nothing. Micro-benchmark, 50k queries: 3,666 ms → 165 ms; 50k sweeps
+  2,171 ms → 28 ms. Behaviour verified identical against the previous implementation with a randomised harness
+  (`insideSolid`/`segmentClear`/`findFreeSpot` bit-identical; `collideCircle` resolves the same overlaps, only the order in which
+  several simultaneously touching walls are pushed can differ).
+- `src/system/loop.js` — three.js no longer re-walks all ~40,000 scene objects per frame: only visible top-level groups have their
+  matrices refreshed (`scene.autoUpdate=false`, `updateVisibleMatrices`), 12 ms → 1.6 ms. An **adaptive resolution** step lowers the
+  render pixel ratio (never below 0.6, never the simulation or the army) when the average frame is slower than 28 fps for 2 s and
+  raises it again above 55 fps.
+- `src/animations/environment.js` — only flames within the fog (visible site groups) flicker; the 6,264 hidden ones are skipped.
+- `src/system/boot.js` + `src/ui/shell.html`/`game.css` — the build runs step by step between frames under a splash with a progress
+  bar and step captions, so the browser never shows a frozen white page. `?test` mode still boots synchronously; `__game.bootTimes()`
+  gains `total`. Work order and content are unchanged (6000×6000 map, same towns/villages/hamlets, same army rules).
+- `src/system/renderer.js` — `powerPreference:'high-performance'` so laptops with two GPUs pick the discrete one.
+
+Bug audit alongside: no uncaught errors in the 25 browser checks; the swept-disc test rewrite fixed no gameplay bug but removed a
+per-call allocation storm; no behavioural regressions in NO-CLIP, entrance, door, routing or recruitment checks.
+
 ## Every building enterable — v3.1 countryside rebuild (2026-09-20)
 
 The ~8,300 instanced box-and-prism hamlet/farmstead houses are gone. `src/buildings/prefabs.js` builds ≈90 regional

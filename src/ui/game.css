@@ -241,3 +241,13 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   .lore-card{max-width:calc(100vw - 135px);padding:8px;bottom:70px;}#lore-story{font-size:11px;}#lore-name{font-size:14px;}
   #actionbar{right:8px;top:108px;width:150px;}
 }
+
+/* ---------- boot splash ---------- */
+.loading{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:#0f0a04 radial-gradient(ellipse at center, #2a1d0c 0%, #0f0a04 100%);}
+.loading.hidden{display:none;}
+.loading-box{background:linear-gradient(#f4e8c8,#e6d3a3);color:#3a2a1a;border:3px solid #5a3d1e;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.7);padding:30px 44px;max-width:620px;text-align:center;margin:20px;}
+.loading-box h1{font-size:44px;margin:6px 0 10px;letter-spacing:6px;color:#6e1414;text-shadow:0 1px 0 #c9a227, 0 3px 0 #5a3d1e;}
+.loading-box h1 .of{font-size:22px;letter-spacing:2px;font-style:italic;color:#8a6a2f;}
+.loading-box #loading-step{font-size:15px;font-style:italic;color:#5a3d1e;margin:0 0 10px;}
+.loading-bar{height:12px;border:2px solid #5a3d1e;border-radius:7px;background:#c9b48a;overflow:hidden;}
+.loading-bar i{display:block;height:100%;width:4%;background:linear-gradient(#c9a227,#8a6a1a);transition:width 0.25s;}
