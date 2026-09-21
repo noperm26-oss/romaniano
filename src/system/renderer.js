@@ -5,7 +5,7 @@ try{
   renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true, powerPreference:'high-performance'});   /* laptops: ask for the discrete GPU */
 }catch(e){ $('webgl-error').classList.remove('hidden'); return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -33,5 +33,5 @@ scene.add(sun.target);
 window.addEventListener('resize', function(){
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
 });

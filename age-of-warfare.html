@@ -1786,7 +1786,7 @@ try{
   renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true, powerPreference:'high-performance'});   /* laptops: ask for the discrete GPU */
 }catch(e){ $('webgl-error').classList.remove('hidden'); return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -1814,7 +1814,7 @@ scene.add(sun.target);
 window.addEventListener('resize', function(){
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
 });
 
 
@@ -11494,7 +11494,7 @@ function adaptQuality(dt){
   var want=QUALITY.ratio;
   if(avg>1/28) want=Math.max(QUALITY.ratioMin, QUALITY.ratio-0.2);          /* below ~28 fps: fewer pixels */
   else if(avg<1/55) want=Math.min(Math.min(window.devicePixelRatio||1,2), QUALITY.ratio+0.1);
-  if(Math.abs(want-QUALITY.ratio)>0.01){ QUALITY.ratio=want; renderer.setPixelRatio(want); renderer.setSize(window.innerWidth, window.innerHeight); }
+  if(Math.abs(want-QUALITY.ratio)>0.01){ QUALITY.ratio=want; renderer.setPixelRatio(want); renderer.setSize(window.innerWidth, window.innerHeight, false); }   /* false: the CSS keeps the canvas at 100% of the window; only the drawing buffer changes */
 }
 var last=performance.now();
 function frame(now){
@@ -12690,6 +12690,23 @@ function bootProgress(i,label){
   if(f) f.style.width=Math.round(4+92*i/BOOT_STEPS.length)+'%';
   if(st && label) st.textContent=label;
 }
+/* GPU warm-up: render one throw-away frame from each capital while the splash is still up so the shader
+   programs compile and the geometry uploads happen now, not on the player's first frame after spawning. */
+function bootWarmGPU(){
+  var t0=performance.now();
+  try{
+    var keys=Object.keys(TOWNS), px=camera.position.x, py=camera.position.y, pz=camera.position.z;
+    for(var i=0;i<keys.length;i++){
+      var T=TOWNS[keys[i]];
+      camera.position.set(T.x+30, groundH(T.x+30,T.z+30)+12, T.z+30);
+      camera.lookAt(T.x,groundH(T.x,T.z)+4,T.z);
+      cullTick();
+      renderFrame();
+    }
+    camera.position.set(px,py,pz);
+  }catch(e){}
+  BOOT_TIMES.warm=Math.round(performance.now()-t0);
+}
 function bootFinish(){
   cullTick();
   loadDoctrineCfg();
@@ -12711,7 +12728,7 @@ if(manualSimulation){
   bootFinish();
 } else {
   (function runStep(i){
-    if(i>=BOOT_STEPS.length){ bootProgress(i,'Opening the gates…'); setTimeout(bootFinish,20); return; }
+    if(i>=BOOT_STEPS.length){ bootProgress(i,'Opening the gates…'); setTimeout(function(){ bootWarmGPU(); bootFinish(); },20); return; }
     bootProgress(i,BOOT_STEPS[i][1]);
     setTimeout(function(){ bootStep(BOOT_STEPS[i][0],BOOT_STEPS[i][2]); runStep(i+1); },16);
   })(0);

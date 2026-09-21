@@ -78,7 +78,7 @@ function adaptQuality(dt){
   var want=QUALITY.ratio;
   if(avg>1/28) want=Math.max(QUALITY.ratioMin, QUALITY.ratio-0.2);          /* below ~28 fps: fewer pixels */
   else if(avg<1/55) want=Math.min(Math.min(window.devicePixelRatio||1,2), QUALITY.ratio+0.1);
-  if(Math.abs(want-QUALITY.ratio)>0.01){ QUALITY.ratio=want; renderer.setPixelRatio(want); renderer.setSize(window.innerWidth, window.innerHeight); }
+  if(Math.abs(want-QUALITY.ratio)>0.01){ QUALITY.ratio=want; renderer.setPixelRatio(want); renderer.setSize(window.innerWidth, window.innerHeight, false); }   /* false: the CSS keeps the canvas at 100% of the window; only the drawing buffer changes */
 }
 var last=performance.now();
 function frame(now){

@@ -26,6 +26,23 @@ function bootProgress(i,label){
   if(f) f.style.width=Math.round(4+92*i/BOOT_STEPS.length)+'%';
   if(st && label) st.textContent=label;
 }
+/* GPU warm-up: render one throw-away frame from each capital while the splash is still up so the shader
+   programs compile and the geometry uploads happen now, not on the player's first frame after spawning. */
+function bootWarmGPU(){
+  var t0=performance.now();
+  try{
+    var keys=Object.keys(TOWNS), px=camera.position.x, py=camera.position.y, pz=camera.position.z;
+    for(var i=0;i<keys.length;i++){
+      var T=TOWNS[keys[i]];
+      camera.position.set(T.x+30, groundH(T.x+30,T.z+30)+12, T.z+30);
+      camera.lookAt(T.x,groundH(T.x,T.z)+4,T.z);
+      cullTick();
+      renderFrame();
+    }
+    camera.position.set(px,py,pz);
+  }catch(e){}
+  BOOT_TIMES.warm=Math.round(performance.now()-t0);
+}
 function bootFinish(){
   cullTick();
   loadDoctrineCfg();
@@ -47,7 +64,7 @@ if(manualSimulation){
   bootFinish();
 } else {
   (function runStep(i){
-    if(i>=BOOT_STEPS.length){ bootProgress(i,'Opening the gates…'); setTimeout(bootFinish,20); return; }
+    if(i>=BOOT_STEPS.length){ bootProgress(i,'Opening the gates…'); setTimeout(function(){ bootWarmGPU(); bootFinish(); },20); return; }
     bootProgress(i,BOOT_STEPS[i][1]);
     setTimeout(function(){ bootStep(BOOT_STEPS[i][0],BOOT_STEPS[i][2]); runStep(i+1); },16);
   })(0);

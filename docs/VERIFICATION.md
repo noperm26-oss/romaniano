@@ -47,7 +47,11 @@ What changed (all in `src/`, HTML regenerated with `npm run build`):
 - `src/system/boot.js` + `src/ui/shell.html`/`game.css` — the build runs step by step between frames under a splash with a progress
   bar and step captions, so the browser never shows a frozen white page. `?test` mode still boots synchronously; `__game.bootTimes()`
   gains `total`. Work order and content are unchanged (6000×6000 map, same towns/villages/hamlets, same army rules).
-- `src/system/renderer.js` — `powerPreference:'high-performance'` so laptops with two GPUs pick the discrete one.
+- `src/system/renderer.js` — `powerPreference:'high-performance'` so laptops with two GPUs pick the discrete one; `setSize(...,false)`
+  keeps the canvas CSS size fixed so the adaptive pixel ratio never resizes the element (only the drawing buffer).
+- `src/system/boot.js` `bootWarmGPU` — before the splash drops, one throw-away frame is rendered from each capital so shader
+  programs compile and geometry uploads while the loading bar is still up (`BOOT_TIMES.warm`, ≈1.3 s headless); the player's first
+  frame after spawning fell from ≈2 s to ≈0.3 s in software GL.
 
 Bug audit alongside: no uncaught errors in the 25 browser checks; the swept-disc test rewrite fixed no gameplay bug but removed a
 per-call allocation storm; no behavioural regressions in NO-CLIP, entrance, door, routing or recruitment checks.
