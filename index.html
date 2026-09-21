@@ -249,6 +249,16 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
   #actionbar{right:8px;top:108px;width:150px;}
 }
 
+/* ---------- boot splash ---------- */
+.loading{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:#0f0a04 radial-gradient(ellipse at center, #2a1d0c 0%, #0f0a04 100%);}
+.loading.hidden{display:none;}
+.loading-box{background:linear-gradient(#f4e8c8,#e6d3a3);color:#3a2a1a;border:3px solid #5a3d1e;border-radius:10px;box-shadow:0 18px 60px rgba(0,0,0,0.7);padding:30px 44px;max-width:620px;text-align:center;margin:20px;}
+.loading-box h1{font-size:44px;margin:6px 0 10px;letter-spacing:6px;color:#6e1414;text-shadow:0 1px 0 #c9a227, 0 3px 0 #5a3d1e;}
+.loading-box h1 .of{font-size:22px;letter-spacing:2px;font-style:italic;color:#8a6a2f;}
+.loading-box #loading-step{font-size:15px;font-style:italic;color:#5a3d1e;margin:0 0 10px;}
+.loading-bar{height:12px;border:2px solid #5a3d1e;border-radius:7px;background:#c9b48a;overflow:hidden;}
+.loading-bar i{display:block;height:100%;width:4%;background:linear-gradient(#c9a227,#8a6a1a);transition:width 0.25s;}
+
 </style>
 </head>
 <body>
@@ -518,6 +528,16 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 <div id="afk-chip">🤖 AFK — the AI Brain rules: fights, hires, commands · press K to take control</div>
 <div id="context-help" class="context-help hidden"></div>
 
+<!-- boot splash: painted before the world is built, removed by boot.js -->
+<div id="loading" class="loading">
+  <div class="loading-box">
+    <p class="pretitle">Age of Warfare</p>
+    <h1>BATTLEFIELD<span class="of"> of the </span>AGES</h1>
+    <p id="loading-step">Raising the land…</p>
+    <div class="loading-bar"><i id="loading-fill"></i></div>
+    <p class="footnote">Building 6,000 × 6,000 units of Romania: six towns, 48 villages, 800 hamlets — a few seconds, once.</p>
+  </div>
+</div>
 <script>
 /**
  * @license
@@ -1537,7 +1557,10 @@ function finalizeBattle(zoneIdx, winner){
 /* ---------------- collision (buildings have real walls) ---------------- */
 var colliders=[];
 var collisionVersion=0;
-var colGrid=new Map(); var CCELL=64;
+/* 16u hash cells with numeric keys: a query touches only the cells its disc/segment overlaps (a few dozen
+   colliders inside a town instead of thousands), and large discs simply reach across more cells */
+var colGrid=new Map(); var CCELL=16;
+function colKey(gx,gz){ return (gx+32768)*65536+(gz+32768); }
 function addCollider(x0,z0,x1,z1){
   if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.col.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)]); return; }   /* prefab capture: local footprint, re-added per instance */
   var c={x0:Math.min(x0,x1)-0.05, x1:Math.max(x0,x1)+0.05, z0:Math.min(z0,z1)-0.05, z1:Math.max(z0,z1)+0.05};
@@ -1546,31 +1569,32 @@ function addCollider(x0,z0,x1,z1){
   var gx0=Math.floor(c.x0/CCELL), gx1=Math.floor(c.x1/CCELL);
   var gz0=Math.floor(c.z0/CCELL), gz1=Math.floor(c.z1/CCELL);
   for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
-    var k=gx+':'+gz;
-    if(!colGrid.has(k)) colGrid.set(k,[]);
-    colGrid.get(k).push(c);
+    var k=colKey(gx,gz), arr=colGrid.get(k);
+    if(!arr){ arr=[]; colGrid.set(k,arr); }
+    arr.push(c);
   }
 }
 function insideSolid(x, z, r){
   /* v10: true if the disc at (x,z) overlaps any collider — no pushing, pure query */
-  var gx=Math.floor(x/CCELL), gz=Math.floor(z/CCELL);
-  for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+  var gx0=Math.floor((x-r)/CCELL), gx1=Math.floor((x+r)/CCELL), gz0=Math.floor((z-r)/CCELL), gz1=Math.floor((z+r)/CCELL), r2=r*r;
+  for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
+    var arr=colGrid.get(colKey(gx,gz));
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
-      var cx=clamp(x,c.x0,c.x1), cz=clamp(z,c.z0,c.z1);
+      var cx=x<c.x0?c.x0:(x>c.x1?c.x1:x), cz=z<c.z0?c.z0:(z>c.z1?c.z1:z);
       var dx=x-cx, dz=z-cz;
-      if(dx*dx+dz*dz<r*r) return true;
+      if(dx*dx+dz*dz<r2) return true;
     }
   }
   return false;
 }
 function collideCircle(pos, r){
   var __sx=pos.x, __sz=pos.z;   /* v10: cap the escape push so nobody phases through a wall */
+  /* successive pushes can walk the disc a few units, so the whole 3×3 block of 16u cells around it is scanned */
   var gx=Math.floor(pos.x/CCELL), gz=Math.floor(pos.z/CCELL);
   for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+    var arr=colGrid.get(colKey(gx+ix,gz+iz));
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
@@ -1607,27 +1631,33 @@ function findFreeSpot(x,z,rad){
 }
 
 
-/* Exact swept-disc vs expanded AABBs; broad phase walks hash cells, not the map. */
+/* Exact swept-disc vs expanded AABBs; broad phase walks only the hash cells the swept segment
+   actually touches, rejects every collider by bounding box first, and allocates nothing per call. */
 function segmentClear(ax,az,bx,bz,r){
   if(![ax,az,bx,bz,r].every(Number.isFinite))return false;
-  var dx=bx-ax,dz=bz-az,steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dz))/CCELL)),seen=new Set();
-  for(var step=0;step<=steps;step++){
-    var gx=Math.floor((ax+dx*step/steps)/CCELL),gz=Math.floor((az+dz*step/steps)/CCELL);
-    var reach=Math.ceil(r/CCELL);
-    for(var ix=-reach;ix<=reach;ix++)for(var iz=-reach;iz<=reach;iz++){
-      var list=colGrid.get((gx+ix)+':'+(gz+iz));if(!list)continue;
-      for(var i=0;i<list.length;i++){
-        var c=list[i];if(seen.has(c))continue;seen.add(c);
-        var low=0,high=1;
-        if(Math.abs(dx)<1e-10){if(ax<c.x0-r||ax>c.x1+r)continue;}
-        else {var tx0=(c.x0-r-ax)/dx,tx1=(c.x1+r-ax)/dx;low=Math.max(low,Math.min(tx0,tx1));high=Math.min(high,Math.max(tx0,tx1));}
-        if(Math.abs(dz)<1e-10){if(az<c.z0-r||az>c.z1+r)continue;}
-        else {var tz0=(c.z0-r-az)/dz,tz1=(c.z1+r-az)/dz;low=Math.max(low,Math.min(tz0,tz1));high=Math.min(high,Math.max(tz0,tz1));}
-        if(low<=high)return false;
-      }
+  var dx=bx-ax,dz=bz-az;
+  var minX=(ax<bx?ax:bx)-r, maxX=(ax<bx?bx:ax)+r, minZ=(az<bz?az:bz)-r, maxZ=(az<bz?bz:az)+r;
+  var gx0=Math.floor(minX/CCELL), gx1=Math.floor(maxX/CCELL), gz0=Math.floor(minZ/CCELL), gz1=Math.floor(maxZ/CCELL);
+  var idx=Math.abs(dx)>1e-10?1/dx:0, idz=Math.abs(dz)>1e-10?1/dz:0, many=(gx1-gx0)*(gz1-gz0)>3;
+  for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
+    var list=colGrid.get(colKey(gx,gz));if(!list)continue;
+    if(many&&!slabHit(ax,az,dx,dz,idx,idz,gx*CCELL-r,gz*CCELL-r,(gx+1)*CCELL+r,(gz+1)*CCELL+r))continue;   /* the swept disc misses this whole cell */
+    for(var i=0;i<list.length;i++){
+      var c=list[i];
+      if(c.x1+r<minX||c.x0-r>maxX||c.z1+r<minZ||c.z0-r>maxZ)continue;
+      if(slabHit(ax,az,dx,dz,idx,idz,c.x0-r,c.z0-r,c.x1+r,c.z1+r))return false;
     }
   }
   return true;
+}
+/* does the segment a + t*d (t in 0..1) enter the box? (idx/idz = 1/d or 0 for a degenerate axis) */
+function slabHit(ax,az,dx,dz,idx,idz,x0,z0,x1,z1){
+  var low=0,high=1,t0,t1;
+  if(idx===0){ if(ax<x0||ax>x1)return false; }
+  else { t0=(x0-ax)*idx; t1=(x1-ax)*idx; if(t0>t1){var t=t0;t0=t1;t1=t;} if(t0>low)low=t0; if(t1<high)high=t1; if(low>high)return false; }
+  if(idz===0){ if(az<z0||az>z1)return false; }
+  else { t0=(z0-az)*idz; t1=(z1-az)*idz; if(t0>t1){var s=t0;t0=t1;t1=s;} if(t0>low)low=t0; if(t1<high)high=t1; }
+  return low<=high;
 }
 function moveWithCollision(pos,dx,dz,r){
   var steps=Math.max(1,Math.ceil(Math.hypot(dx,dz)/Math.max(0.2,r*0.75))),sx=dx/steps,sz=dz/steps;
@@ -1753,10 +1783,10 @@ var Snd = {
 var canvas = $('game');
 var renderer;
 try{
-  renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
+  renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true, powerPreference:'high-performance'});   /* laptops: ask for the discrete GPU */
 }catch(e){ $('webgl-error').classList.remove('hidden'); return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -1784,7 +1814,7 @@ scene.add(sun.target);
 window.addEventListener('resize', function(){
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
 });
 
 
@@ -2641,17 +2671,25 @@ function seedRand(seed){
 /* ============================================================
    1. Merged geometry kit
    ============================================================ */
+/* the one material of every merged kit body: colour and surface pattern live in the vertices */
+var KIT_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);
 function kitCreate(){
   var bags=new Map();
   var quat=new THREE.Quaternion(), eul=new THREE.Euler(0,0,0,'YXZ');
-  var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3();
+  var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3(), vd=new THREE.Vector3();
   var e1=new THREE.Vector3(), e2=new THREE.Vector3(), nv=new THREE.Vector3();
   var tx=0, ty=0, tz=0;
   /* local frame: everything placed after frame(cx,cz,a) is rotated by a about (cx,cz) */
   var fx=0, fz=0, fa=0, fc=1, fs=0;
   function frame(cx,cz,a){ fx=cx||0; fz=cz||0; fa=a||0; fc=Math.cos(fa); fs=Math.sin(fa); }
   function toWorld(x,z){ if(!fa) return {x:x,z:z}; var dx=x-fx, dz=z-fz; return {x:fx+dx*fc+dz*fs, z:fz-dx*fs+dz*fc}; }
-  function bag(m){ var b=bags.get(m); if(!b){ b={p:[],n:[],u:[]}; bags.set(m,b); } return b; }
+  /* one bag per material: growable typed buffers (positions, normals, triangle indices) — no per-vertex JS
+     numbers, no duplicated corner vertices, nothing for the garbage collector to chase at boot */
+  function bag(m){ var b=bags.get(m); if(!b){ b={p:new Float32Array(1536), n:new Float32Array(1536), i:new Uint32Array(768), vn:0, ic:0}; bags.set(m,b); } return b; }
+  function grow(b,verts,idx){
+    if((b.vn+verts)*3>b.p.length){ var cap=Math.max(b.p.length*2,(b.vn+verts)*3), np=new Float32Array(cap), nn=new Float32Array(cap); np.set(b.p); nn.set(b.n); b.p=np; b.n=nn; }
+    if(b.ic+idx>b.i.length){ var ni=new Uint32Array(Math.max(b.i.length*2,b.ic+idx)); ni.set(b.i); b.i=ni; }
+  }
   function place(x,y,z,rx,ry,rz){
     if(fa){ var w=toWorld(x||0,z||0); x=w.x; z=w.z; ry=(ry||0)+fa; }
     tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul);
@@ -2662,21 +2700,35 @@ function kitCreate(){
     addCollider(Math.min(a.x,b.x,c.x,d.x), Math.min(a.z,b.z,c.z,d.z), Math.max(a.x,b.x,c.x,d.x), Math.max(a.z,b.z,c.z,d.z));
   }
   function angle(){ return fa; }
-  function push(b,v,n){
-    b.p.push(v.x+tx, v.y+ty, v.z+tz);
-    b.n.push(n.x, n.y, n.z);
-    b.u.push((v.x+v.z)*0.25, v.y*0.25);
+  function vert(b,v,n){
+    var o=b.vn*3;
+    b.p[o]=v.x+tx; b.p[o+1]=v.y+ty; b.p[o+2]=v.z+tz;
+    b.n[o]=n.x; b.n[o+1]=n.y; b.n[o+2]=n.z;
+    return b.vn++;
+  }
+  function faceNormal(){
+    e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
+    if(nv.lengthSq()<1e-10) return false;
+    nv.normalize(); nv.applyQuaternion(quat);
+    return true;
   }
   function tri(m,p0,p1,p2){
-    var b=bag(m);
     va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]);
-    e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
-    if(nv.lengthSq()<1e-10) return;
-    nv.normalize();
-    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat);
-    push(b,va,nv); push(b,vb,nv); push(b,vc,nv);
+    if(!faceNormal()) return;
+    var b=bag(m); grow(b,3,3);
+    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat);
+    var i0=vert(b,va,nv), i1=vert(b,vb,nv), i2=vert(b,vc,nv);
+    b.i[b.ic++]=i0; b.i[b.ic++]=i1; b.i[b.ic++]=i2;
   }
-  function quad(m,p0,p1,p2,p3){ tri(m,p0,p1,p2); tri(m,p0,p2,p3); }
+  /* a flat quad: four vertices, two indexed triangles */
+  function quad(m,p0,p1,p2,p3){
+    va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]); vd.set(p3[0],p3[1],p3[2]);
+    if(!faceNormal()){ tri(m,p0,p2,p3); return; }
+    var b=bag(m); grow(b,4,6);
+    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); vd.applyQuaternion(quat);
+    var i0=vert(b,va,nv), i1=vert(b,vb,nv), i2=vert(b,vc,nv), i3=vert(b,vd,nv);
+    b.i[b.ic++]=i0; b.i[b.ic++]=i1; b.i[b.ic++]=i2; b.i[b.ic++]=i0; b.i[b.ic++]=i2; b.i[b.ic++]=i3;
+  }
   /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz */
   function box(m,w,h,d,x,y,z,ry,rx,rz){
     place(x,y,z,rx,ry,rz);
@@ -2723,46 +2775,71 @@ function kitCreate(){
   }
   /* explicit placement for hand-built polygons: kit.at(x,y,z) then kit.quad/tri with offsets from that point */
   function at(x,y,z){ place(x,y,z,0,0,0); }
-  /* drain the bags into two geometries: one vertex-coloured body (any Lambert material becomes a colour)
-     and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
-  function exportGeo(dy){
-    dy=dy||0;
-    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+  function trimmed(b){ return {p:b.p.subarray(0,b.vn*3), n:b.n.subarray(0,b.vn*3), i:b.i.subarray(0,b.ic)}; }
+  function makeGeo(p,n,idx){
+    var g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p,3));
+    g.setAttribute('normal', new THREE.BufferAttribute(n,3));
+    g.setIndex(new THREE.BufferAttribute(idx,1));
+    g.computeBoundingSphere();
+    return g;
+  }
+  /* world-space planar UVs for the few textured kit surfaces (water) */
+  function withUV(g){ var P=g.attributes.position.array, n=P.length/3, uv=new Float32Array(n*2), k; for(k=0;k<n;k++){ uv[k*2]=(P[k*3]+P[k*3+2])*0.25; uv[k*2+1]=P[k*3+1]*0.25; } g.setAttribute('uv', new THREE.BufferAttribute(uv,2)); return g; }
+  /* a material that cannot be baked into the vertex-coloured body: textured, transparent, non-Lambert or the
+     shared night-glowing pane material (its emissive changes at runtime) */
+  function kitSpecial(m){ return m===PANE_MAT || !m.isMeshLambertMaterial || !!m.map || !!m.transparent || (m.userData&&m.userData.keep); }
+  /* merge every bakeable bag into ONE indexed geometry: the Lambert colour (plus a little of any glow) becomes a
+     vertex colour and the material's surface pattern a per-vertex attribute (surface.js), so a whole town or a
+     375u cell of props is a single draw call instead of one per material */
+  function mergeBody(dy){
+    var bodyV=0, bodyI=0, c=new THREE.Color();
+    bags.forEach(function(b,m){ if(!kitSpecial(m)){ bodyV+=b.vn; bodyI+=b.ic; } });
+    if(!bodyV) return null;
+    var pos=new Float32Array(bodyV*3), nor=new Float32Array(bodyV*3), col=new Float32Array(bodyV*3), pat=new Float32Array(bodyV), idx=new Uint32Array(bodyI);
+    var bv=0, bi=0;
     bags.forEach(function(b,m){
-      var i, n=b.p.length, sp=surfPatOf(m);
-      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
+      if(kitSpecial(m)) return;
+      var i, n=b.vn*3, sp=surfPatOf(m), t=trimmed(b);
       c.copy(m.color||new THREE.Color(0xffffff));
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
+      pos.set(t.p,bv*3); nor.set(t.n,bv*3);
+      for(i=0;i<n;i+=3){ pos[bv*3+i+1]-=dy; col[bv*3+i]=c.r; col[bv*3+i+1]=c.g; col[bv*3+i+2]=c.b; }
+      pat.fill(sp,bv,bv+b.vn);
+      for(i=0;i<b.ic;i++) idx[bi+i]=t.i[i]+bv;
+      bv+=b.vn; bi+=b.ic;
+      bags.delete(m);
+    });
+    var g=makeGeo(pos,nor,idx);
+    g.setAttribute('color', new THREE.BufferAttribute(col,3));
+    g.setAttribute('aPat', new THREE.BufferAttribute(pat,1));
+    g.computeBoundingBox();
+    return g;
+  }
+  /* one geometry per remaining (special) material, shifted down by dy */
+  function drainSpecial(dy, fn){
+    bags.forEach(function(b,m){
+      if(!b.vn) return;
+      var t=trimmed(b), P=t.p.slice(), i;
+      if(dy) for(i=1;i<P.length;i+=3) P[i]-=dy;
+      var g=makeGeo(P,t.n.slice(),t.i.slice());
+      if(m.map) withUV(g);
+      fn(g,m);
     });
     bags.clear();
-    function geo(p,nn,cc,uu,pt){
-      if(!p.length) return null;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
-      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
-      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
-      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
-      g.computeBoundingSphere(); g.computeBoundingBox();
-      return g;
-    }
-    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
+  }
+  /* drain the bags into two geometries: one vertex-coloured body and the window panes (kept on PANE_MAT so
+     they glow at night). Used by prefabs.js for instancing. */
+  function exportGeo(dy){
+    dy=dy||0;
+    var body=mergeBody(dy), panes=null, tris=body?body.index.count/3:0;
+    drainSpecial(dy, function(g,m){ if(m===PANE_MAT){ panes=g; panes.computeBoundingBox(); } tris+=g.index.count/3; });   /* prefabs carry no textured surfaces; anything else joins the panes */
+    return {body:body, panes:panes, tris:tris};
   }
   function flush(parent,shadow){
-    var made=0;
-    bags.forEach(function(b,m){
-      if(!b.p.length) return;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.n),3));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.u),2));
-      g.computeBoundingSphere();
-      var mesh=new THREE.Mesh(g,m);
-      mesh.castShadow=shadow!==false; mesh.receiveShadow=true;
-      parent.add(mesh); made++;
-    });
-    bags.clear();
+    var made=0, body=mergeBody(0);
+    if(body){ var bm=new THREE.Mesh(body, KIT_MAT); bm.castShadow=shadow!==false; bm.receiveShadow=true; bm.name='kit'; parent.add(bm); made++; }
+    drainSpecial(0, function(g,m){ var mesh=new THREE.Mesh(g,m); mesh.castShadow=shadow!==false; mesh.receiveShadow=true; parent.add(mesh); made++; });
     return made;
   }
   return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, at:at, exportGeo:exportGeo, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};
@@ -4788,7 +4865,7 @@ var RBL_KITS={
 var PREFAB_REC=null;
 var PREFAB_DEFS={}, PREFAB_CACHE={};
 var PREFAB_CELLS=new Map();
-var PREFAB_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);   /* pattern per vertex (aPat) */
+var PREFAB_MAT=KIT_MAT;   /* pattern per vertex (aPat) — the same merged-body material every site and cell uses */
 var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
 var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
 
@@ -11226,8 +11303,10 @@ function updateAmbient(dt){
     f.flame.scale.set(0.9+fl*0.15, fl, 0.9+fl*0.15);
     f.flame2.scale.set(1, 0.8+fl*0.3, 1);
   }
+  /* only the flames of a site/cell that is within the fog (cullTick) flicker; hidden ones cost nothing */
   for(var i=0;i<flames.length;i++){
-    var fm=flames[i];
+    var fm=flames[i], fp=fm.parent;
+    if(fp && fp!==scene && !fp.visible) continue;
     var fs=0.85+Math.sin(fireT*9+i*1.7)*0.18+Math.sin(fireT*19+i)*0.1;
     fm.scale.set(0.9+fs*0.12, fs, 0.9+fs*0.12);
   }
@@ -11396,12 +11475,35 @@ function update(dt){
 }
 
 /* ---------------- render loop ---------------- */
+/* Matrices: three.js would re-walk every one of the ~40,000 scene objects each frame. Only the top-level
+   groups that are actually visible (fog-culled statics are hidden by cullTick) are refreshed; a group that
+   comes back into range is refreshed on the frame it reappears, exactly as before. */
+scene.autoUpdate=false;
+function updateVisibleMatrices(){
+  var ch=scene.children;
+  for(var i=0;i<ch.length;i++){ if(ch[i].visible) ch[i].updateMatrixWorld(); }
+}
+function renderFrame(){ updateVisibleMatrices(); renderer.render(scene,camera); }
+/* Adaptive quality: when a frame budget is missed for a while, the render resolution steps down (never the
+   simulation, the world or the army); when frames are fast again it steps back up. */
+var QUALITY={ratio:Math.min(window.devicePixelRatio||1,2), ratioMin:0.6, acc:0, n:0, t:0};
+function adaptQuality(dt){
+  QUALITY.acc+=dt; QUALITY.n++; QUALITY.t+=dt;
+  if(QUALITY.t<2) return;
+  var avg=QUALITY.acc/QUALITY.n; QUALITY.acc=0; QUALITY.n=0; QUALITY.t=0;
+  var want=QUALITY.ratio;
+  if(avg>1/28) want=Math.max(QUALITY.ratioMin, QUALITY.ratio-0.2);          /* below ~28 fps: fewer pixels */
+  else if(avg<1/55) want=Math.min(Math.min(window.devicePixelRatio||1,2), QUALITY.ratio+0.1);
+  if(Math.abs(want-QUALITY.ratio)>0.01){ QUALITY.ratio=want; renderer.setPixelRatio(want); renderer.setSize(window.innerWidth, window.innerHeight, false); }   /* false: the CSS keeps the canvas at 100% of the window; only the drawing buffer changes */
+}
 var last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   var dt=Math.min((now-last)/1000, 0.05);
+  var real=(now-last)/1000;
   last=now;
   if(manualSimulation)return;
+  if(state===ST.PLAY && document.visibilityState!=='hidden') adaptQuality(real);
   if(hitStop>0){ hitStop-=dt; dt=0; }
   if(state===ST.PLAY || state===ST.REDEPLOY){
     update(dt);
@@ -11418,7 +11520,7 @@ function frame(now){
     camera.position.set(Math.sin(ang2)*40, 18, Math.cos(ang2)*40);
     camera.lookAt(0,2,0);
   }
-  renderer.render(scene,camera);
+  renderFrame();
 }
 
 
@@ -12530,7 +12632,7 @@ var manualSimulation=new URLSearchParams(window.location.search).has('test');
 if(manualSimulation){
   window.__game.test={
     step:function(n,dt){for(var i=0;i<n;i++)if(state===ST.PLAY||state===ST.REDEPLOY)update(dt||1/60);},
-    render:function(){cullTick();renderer.render(scene,camera);},
+    render:function(){cullTick();renderFrame();},
     automatic:function(on){manualSimulation=!on;},
     navigation:function(sx,sz,tx,tz){return navFind(sx,sz,tx,tz);},
     clear:navLos,free:freeGoal,
@@ -12566,29 +12668,71 @@ validateCharacters();
 resetEconomy();
 resetZones();
 if(typeof resetBattleTracking!=='undefined') resetBattleTracking();
+/* The world is built in steps between frames, so the splash screen can paint its progress and the tab never
+   looks frozen. Every step runs exactly the same code in the same order as before; nothing is skipped. */
+var BOOT_STEPS=[
+  ['towns',      'Raising the six towns…',                function(){ FAC_KEYS.forEach(buildTown); }],
+  ['landmarks',  'Placing castles, monasteries and ruins…', buildLandmarks],
+  ['villages',   'Building the 48 villages…',            buildVillages],
+  ['flags',      'Planting the capture flags…',          buildFlags],
+  ['beacons',    'Lighting the signal beacons…',         buildBeacons],
+  ['roads',      'Laying the roads and bridges…',        buildRoads],
+  ['districts',  'Fencing the farm districts…',          buildDistricts],
+  ['settlements','Settling the hamlets and farmsteads…', buildSettlements],
+  ['prefabs',    'Stamping the countryside houses…',     prefabFlush],        /* countryside prefabs → one InstancedMesh per prefab per cell */
+  ['relics',     'Hiding the relics…',                   placeRelics],
+  ['kits',       'Merging the stonework…',               flushCellKits],
+  ['statics',    'Preparing the horizon…',               snapshotStatics]
+];
 function bootStep(name,fn){ var t0=performance.now(); fn(); BOOT_TIMES[name]=Math.round(performance.now()-t0); }
-bootStep('towns', function(){ FAC_KEYS.forEach(buildTown); });
-bootStep('landmarks', buildLandmarks);
-bootStep('villages', buildVillages);
-bootStep('flags', buildFlags);
-bootStep('beacons', buildBeacons);
-bootStep('roads', buildRoads);
-bootStep('districts', buildDistricts);
-bootStep('settlements', buildSettlements);
-bootStep('prefabs', prefabFlush);        /* countryside prefabs → one InstancedMesh per prefab per cell */
-bootStep('relics', placeRelics);
-bootStep('kits', flushCellKits);
-bootStep('statics', snapshotStatics);
-cullTick();
-loadDoctrineCfg();
-// try restore save (optional persistence)
-if(typeof tryRestoreSave!=='undefined'){
-  try{ tryRestoreSave(); }catch(e){}
+function bootProgress(i,label){
+  var f=$('loading-fill'), st=$('loading-step');
+  if(f) f.style.width=Math.round(4+92*i/BOOT_STEPS.length)+'%';
+  if(st && label) st.textContent=label;
 }
-spawnWildlife();
-spawnChests();
-toMenu();
-requestAnimationFrame(frame);
+/* GPU warm-up: render one throw-away frame from each capital while the splash is still up so the shader
+   programs compile and the geometry uploads happen now, not on the player's first frame after spawning. */
+function bootWarmGPU(){
+  var t0=performance.now();
+  try{
+    var keys=Object.keys(TOWNS), px=camera.position.x, py=camera.position.y, pz=camera.position.z;
+    for(var i=0;i<keys.length;i++){
+      var T=TOWNS[keys[i]];
+      camera.position.set(T.x+30, groundH(T.x+30,T.z+30)+12, T.z+30);
+      camera.lookAt(T.x,groundH(T.x,T.z)+4,T.z);
+      cullTick();
+      renderFrame();
+    }
+    camera.position.set(px,py,pz);
+  }catch(e){}
+  BOOT_TIMES.warm=Math.round(performance.now()-t0);
+}
+function bootFinish(){
+  cullTick();
+  loadDoctrineCfg();
+  // try restore save (optional persistence)
+  if(typeof tryRestoreSave!=='undefined'){
+    try{ tryRestoreSave(); }catch(e){}
+  }
+  spawnWildlife();
+  spawnChests();
+  toMenu();
+  var ld=$('loading'); if(ld) ld.classList.add('hidden');
+  BOOT_TIMES.total=Math.round(performance.now()-BOOT_T0);
+  requestAnimationFrame(frame);
+}
+var BOOT_T0=performance.now();
+/* deterministic test mode boots synchronously so the harness sees a finished world on page load */
+if(manualSimulation){
+  BOOT_STEPS.forEach(function(s){ bootStep(s[0],s[2]); });
+  bootFinish();
+} else {
+  (function runStep(i){
+    if(i>=BOOT_STEPS.length){ bootProgress(i,'Opening the gates…'); setTimeout(function(){ bootWarmGPU(); bootFinish(); },20); return; }
+    bootProgress(i,BOOT_STEPS[i][1]);
+    setTimeout(function(){ bootStep(BOOT_STEPS[i][0],BOOT_STEPS[i][2]); runStep(i+1); },16);
+  })(0);
+}
 
 })();
 </script>

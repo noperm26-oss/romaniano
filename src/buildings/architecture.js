@@ -26,17 +26,25 @@ function seedRand(seed){
 /* ============================================================
    1. Merged geometry kit
    ============================================================ */
+/* the one material of every merged kit body: colour and surface pattern live in the vertices */
+var KIT_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);
 function kitCreate(){
   var bags=new Map();
   var quat=new THREE.Quaternion(), eul=new THREE.Euler(0,0,0,'YXZ');
-  var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3();
+  var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3(), vd=new THREE.Vector3();
   var e1=new THREE.Vector3(), e2=new THREE.Vector3(), nv=new THREE.Vector3();
   var tx=0, ty=0, tz=0;
   /* local frame: everything placed after frame(cx,cz,a) is rotated by a about (cx,cz) */
   var fx=0, fz=0, fa=0, fc=1, fs=0;
   function frame(cx,cz,a){ fx=cx||0; fz=cz||0; fa=a||0; fc=Math.cos(fa); fs=Math.sin(fa); }
   function toWorld(x,z){ if(!fa) return {x:x,z:z}; var dx=x-fx, dz=z-fz; return {x:fx+dx*fc+dz*fs, z:fz-dx*fs+dz*fc}; }
-  function bag(m){ var b=bags.get(m); if(!b){ b={p:[],n:[],u:[]}; bags.set(m,b); } return b; }
+  /* one bag per material: growable typed buffers (positions, normals, triangle indices) — no per-vertex JS
+     numbers, no duplicated corner vertices, nothing for the garbage collector to chase at boot */
+  function bag(m){ var b=bags.get(m); if(!b){ b={p:new Float32Array(1536), n:new Float32Array(1536), i:new Uint32Array(768), vn:0, ic:0}; bags.set(m,b); } return b; }
+  function grow(b,verts,idx){
+    if((b.vn+verts)*3>b.p.length){ var cap=Math.max(b.p.length*2,(b.vn+verts)*3), np=new Float32Array(cap), nn=new Float32Array(cap); np.set(b.p); nn.set(b.n); b.p=np; b.n=nn; }
+    if(b.ic+idx>b.i.length){ var ni=new Uint32Array(Math.max(b.i.length*2,b.ic+idx)); ni.set(b.i); b.i=ni; }
+  }
   function place(x,y,z,rx,ry,rz){
     if(fa){ var w=toWorld(x||0,z||0); x=w.x; z=w.z; ry=(ry||0)+fa; }
     tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul);
@@ -47,21 +55,35 @@ function kitCreate(){
     addCollider(Math.min(a.x,b.x,c.x,d.x), Math.min(a.z,b.z,c.z,d.z), Math.max(a.x,b.x,c.x,d.x), Math.max(a.z,b.z,c.z,d.z));
   }
   function angle(){ return fa; }
-  function push(b,v,n){
-    b.p.push(v.x+tx, v.y+ty, v.z+tz);
-    b.n.push(n.x, n.y, n.z);
-    b.u.push((v.x+v.z)*0.25, v.y*0.25);
+  function vert(b,v,n){
+    var o=b.vn*3;
+    b.p[o]=v.x+tx; b.p[o+1]=v.y+ty; b.p[o+2]=v.z+tz;
+    b.n[o]=n.x; b.n[o+1]=n.y; b.n[o+2]=n.z;
+    return b.vn++;
+  }
+  function faceNormal(){
+    e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
+    if(nv.lengthSq()<1e-10) return false;
+    nv.normalize(); nv.applyQuaternion(quat);
+    return true;
   }
   function tri(m,p0,p1,p2){
-    var b=bag(m);
     va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]);
-    e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
-    if(nv.lengthSq()<1e-10) return;
-    nv.normalize();
-    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat);
-    push(b,va,nv); push(b,vb,nv); push(b,vc,nv);
+    if(!faceNormal()) return;
+    var b=bag(m); grow(b,3,3);
+    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat);
+    var i0=vert(b,va,nv), i1=vert(b,vb,nv), i2=vert(b,vc,nv);
+    b.i[b.ic++]=i0; b.i[b.ic++]=i1; b.i[b.ic++]=i2;
   }
-  function quad(m,p0,p1,p2,p3){ tri(m,p0,p1,p2); tri(m,p0,p2,p3); }
+  /* a flat quad: four vertices, two indexed triangles */
+  function quad(m,p0,p1,p2,p3){
+    va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]); vd.set(p3[0],p3[1],p3[2]);
+    if(!faceNormal()){ tri(m,p0,p2,p3); return; }
+    var b=bag(m); grow(b,4,6);
+    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); vd.applyQuaternion(quat);
+    var i0=vert(b,va,nv), i1=vert(b,vb,nv), i2=vert(b,vc,nv), i3=vert(b,vd,nv);
+    b.i[b.ic++]=i0; b.i[b.ic++]=i1; b.i[b.ic++]=i2; b.i[b.ic++]=i0; b.i[b.ic++]=i2; b.i[b.ic++]=i3;
+  }
   /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz */
   function box(m,w,h,d,x,y,z,ry,rx,rz){
     place(x,y,z,rx,ry,rz);
@@ -108,46 +130,71 @@ function kitCreate(){
   }
   /* explicit placement for hand-built polygons: kit.at(x,y,z) then kit.quad/tri with offsets from that point */
   function at(x,y,z){ place(x,y,z,0,0,0); }
-  /* drain the bags into two geometries: one vertex-coloured body (any Lambert material becomes a colour)
-     and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
-  function exportGeo(dy){
-    dy=dy||0;
-    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+  function trimmed(b){ return {p:b.p.subarray(0,b.vn*3), n:b.n.subarray(0,b.vn*3), i:b.i.subarray(0,b.ic)}; }
+  function makeGeo(p,n,idx){
+    var g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(p,3));
+    g.setAttribute('normal', new THREE.BufferAttribute(n,3));
+    g.setIndex(new THREE.BufferAttribute(idx,1));
+    g.computeBoundingSphere();
+    return g;
+  }
+  /* world-space planar UVs for the few textured kit surfaces (water) */
+  function withUV(g){ var P=g.attributes.position.array, n=P.length/3, uv=new Float32Array(n*2), k; for(k=0;k<n;k++){ uv[k*2]=(P[k*3]+P[k*3+2])*0.25; uv[k*2+1]=P[k*3+1]*0.25; } g.setAttribute('uv', new THREE.BufferAttribute(uv,2)); return g; }
+  /* a material that cannot be baked into the vertex-coloured body: textured, transparent, non-Lambert or the
+     shared night-glowing pane material (its emissive changes at runtime) */
+  function kitSpecial(m){ return m===PANE_MAT || !m.isMeshLambertMaterial || !!m.map || !!m.transparent || (m.userData&&m.userData.keep); }
+  /* merge every bakeable bag into ONE indexed geometry: the Lambert colour (plus a little of any glow) becomes a
+     vertex colour and the material's surface pattern a per-vertex attribute (surface.js), so a whole town or a
+     375u cell of props is a single draw call instead of one per material */
+  function mergeBody(dy){
+    var bodyV=0, bodyI=0, c=new THREE.Color();
+    bags.forEach(function(b,m){ if(!kitSpecial(m)){ bodyV+=b.vn; bodyI+=b.ic; } });
+    if(!bodyV) return null;
+    var pos=new Float32Array(bodyV*3), nor=new Float32Array(bodyV*3), col=new Float32Array(bodyV*3), pat=new Float32Array(bodyV), idx=new Uint32Array(bodyI);
+    var bv=0, bi=0;
     bags.forEach(function(b,m){
-      var i, n=b.p.length, sp=surfPatOf(m);
-      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
+      if(kitSpecial(m)) return;
+      var i, n=b.vn*3, sp=surfPatOf(m), t=trimmed(b);
       c.copy(m.color||new THREE.Color(0xffffff));
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
+      pos.set(t.p,bv*3); nor.set(t.n,bv*3);
+      for(i=0;i<n;i+=3){ pos[bv*3+i+1]-=dy; col[bv*3+i]=c.r; col[bv*3+i+1]=c.g; col[bv*3+i+2]=c.b; }
+      pat.fill(sp,bv,bv+b.vn);
+      for(i=0;i<b.ic;i++) idx[bi+i]=t.i[i]+bv;
+      bv+=b.vn; bi+=b.ic;
+      bags.delete(m);
+    });
+    var g=makeGeo(pos,nor,idx);
+    g.setAttribute('color', new THREE.BufferAttribute(col,3));
+    g.setAttribute('aPat', new THREE.BufferAttribute(pat,1));
+    g.computeBoundingBox();
+    return g;
+  }
+  /* one geometry per remaining (special) material, shifted down by dy */
+  function drainSpecial(dy, fn){
+    bags.forEach(function(b,m){
+      if(!b.vn) return;
+      var t=trimmed(b), P=t.p.slice(), i;
+      if(dy) for(i=1;i<P.length;i+=3) P[i]-=dy;
+      var g=makeGeo(P,t.n.slice(),t.i.slice());
+      if(m.map) withUV(g);
+      fn(g,m);
     });
     bags.clear();
-    function geo(p,nn,cc,uu,pt){
-      if(!p.length) return null;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
-      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
-      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
-      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
-      g.computeBoundingSphere(); g.computeBoundingBox();
-      return g;
-    }
-    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
+  }
+  /* drain the bags into two geometries: one vertex-coloured body and the window panes (kept on PANE_MAT so
+     they glow at night). Used by prefabs.js for instancing. */
+  function exportGeo(dy){
+    dy=dy||0;
+    var body=mergeBody(dy), panes=null, tris=body?body.index.count/3:0;
+    drainSpecial(dy, function(g,m){ if(m===PANE_MAT){ panes=g; panes.computeBoundingBox(); } tris+=g.index.count/3; });   /* prefabs carry no textured surfaces; anything else joins the panes */
+    return {body:body, panes:panes, tris:tris};
   }
   function flush(parent,shadow){
-    var made=0;
-    bags.forEach(function(b,m){
-      if(!b.p.length) return;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.n),3));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.u),2));
-      g.computeBoundingSphere();
-      var mesh=new THREE.Mesh(g,m);
-      mesh.castShadow=shadow!==false; mesh.receiveShadow=true;
-      parent.add(mesh); made++;
-    });
-    bags.clear();
+    var made=0, body=mergeBody(0);
+    if(body){ var bm=new THREE.Mesh(body, KIT_MAT); bm.castShadow=shadow!==false; bm.receiveShadow=true; bm.name='kit'; parent.add(bm); made++; }
+    drainSpecial(0, function(g,m){ var mesh=new THREE.Mesh(g,m); mesh.castShadow=shadow!==false; mesh.receiveShadow=true; parent.add(mesh); made++; });
     return made;
   }
   return {box:box, prism:prism, cyln:cyln, pyr:pyr, tri:tri, quad:quad, at:at, exportGeo:exportGeo, flush:flush, frame:frame, toWorld:toWorld, collider:collider, angle:angle};

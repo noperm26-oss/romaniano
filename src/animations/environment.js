@@ -8,8 +8,10 @@ function updateAmbient(dt){
     f.flame.scale.set(0.9+fl*0.15, fl, 0.9+fl*0.15);
     f.flame2.scale.set(1, 0.8+fl*0.3, 1);
   }
+  /* only the flames of a site/cell that is within the fog (cullTick) flicker; hidden ones cost nothing */
   for(var i=0;i<flames.length;i++){
-    var fm=flames[i];
+    var fm=flames[i], fp=fm.parent;
+    if(fp && fp!==scene && !fp.visible) continue;
     var fs=0.85+Math.sin(fireT*9+i*1.7)*0.18+Math.sin(fireT*19+i)*0.1;
     fm.scale.set(0.9+fs*0.12, fs, 0.9+fs*0.12);
   }

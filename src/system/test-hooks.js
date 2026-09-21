@@ -3,7 +3,7 @@ var manualSimulation=new URLSearchParams(window.location.search).has('test');
 if(manualSimulation){
   window.__game.test={
     step:function(n,dt){for(var i=0;i<n;i++)if(state===ST.PLAY||state===ST.REDEPLOY)update(dt||1/60);},
-    render:function(){cullTick();renderer.render(scene,camera);},
+    render:function(){cullTick();renderFrame();},
     automatic:function(on){manualSimulation=!on;},
     navigation:function(sx,sz,tx,tz){return navFind(sx,sz,tx,tz);},
     clear:navLos,free:freeGoal,

@@ -1,7 +1,10 @@
 /* ---------------- collision (buildings have real walls) ---------------- */
 var colliders=[];
 var collisionVersion=0;
-var colGrid=new Map(); var CCELL=64;
+/* 16u hash cells with numeric keys: a query touches only the cells its disc/segment overlaps (a few dozen
+   colliders inside a town instead of thousands), and large discs simply reach across more cells */
+var colGrid=new Map(); var CCELL=16;
+function colKey(gx,gz){ return (gx+32768)*65536+(gz+32768); }
 function addCollider(x0,z0,x1,z1){
   if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.col.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)]); return; }   /* prefab capture: local footprint, re-added per instance */
   var c={x0:Math.min(x0,x1)-0.05, x1:Math.max(x0,x1)+0.05, z0:Math.min(z0,z1)-0.05, z1:Math.max(z0,z1)+0.05};
@@ -10,31 +13,32 @@ function addCollider(x0,z0,x1,z1){
   var gx0=Math.floor(c.x0/CCELL), gx1=Math.floor(c.x1/CCELL);
   var gz0=Math.floor(c.z0/CCELL), gz1=Math.floor(c.z1/CCELL);
   for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
-    var k=gx+':'+gz;
-    if(!colGrid.has(k)) colGrid.set(k,[]);
-    colGrid.get(k).push(c);
+    var k=colKey(gx,gz), arr=colGrid.get(k);
+    if(!arr){ arr=[]; colGrid.set(k,arr); }
+    arr.push(c);
   }
 }
 function insideSolid(x, z, r){
   /* v10: true if the disc at (x,z) overlaps any collider — no pushing, pure query */
-  var gx=Math.floor(x/CCELL), gz=Math.floor(z/CCELL);
-  for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+  var gx0=Math.floor((x-r)/CCELL), gx1=Math.floor((x+r)/CCELL), gz0=Math.floor((z-r)/CCELL), gz1=Math.floor((z+r)/CCELL), r2=r*r;
+  for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
+    var arr=colGrid.get(colKey(gx,gz));
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
-      var cx=clamp(x,c.x0,c.x1), cz=clamp(z,c.z0,c.z1);
+      var cx=x<c.x0?c.x0:(x>c.x1?c.x1:x), cz=z<c.z0?c.z0:(z>c.z1?c.z1:z);
       var dx=x-cx, dz=z-cz;
-      if(dx*dx+dz*dz<r*r) return true;
+      if(dx*dx+dz*dz<r2) return true;
     }
   }
   return false;
 }
 function collideCircle(pos, r){
   var __sx=pos.x, __sz=pos.z;   /* v10: cap the escape push so nobody phases through a wall */
+  /* successive pushes can walk the disc a few units, so the whole 3×3 block of 16u cells around it is scanned */
   var gx=Math.floor(pos.x/CCELL), gz=Math.floor(pos.z/CCELL);
   for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+    var arr=colGrid.get(colKey(gx+ix,gz+iz));
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
@@ -71,27 +75,33 @@ function findFreeSpot(x,z,rad){
 }
 
 
-/* Exact swept-disc vs expanded AABBs; broad phase walks hash cells, not the map. */
+/* Exact swept-disc vs expanded AABBs; broad phase walks only the hash cells the swept segment
+   actually touches, rejects every collider by bounding box first, and allocates nothing per call. */
 function segmentClear(ax,az,bx,bz,r){
   if(![ax,az,bx,bz,r].every(Number.isFinite))return false;
-  var dx=bx-ax,dz=bz-az,steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dz))/CCELL)),seen=new Set();
-  for(var step=0;step<=steps;step++){
-    var gx=Math.floor((ax+dx*step/steps)/CCELL),gz=Math.floor((az+dz*step/steps)/CCELL);
-    var reach=Math.ceil(r/CCELL);
-    for(var ix=-reach;ix<=reach;ix++)for(var iz=-reach;iz<=reach;iz++){
-      var list=colGrid.get((gx+ix)+':'+(gz+iz));if(!list)continue;
-      for(var i=0;i<list.length;i++){
-        var c=list[i];if(seen.has(c))continue;seen.add(c);
-        var low=0,high=1;
-        if(Math.abs(dx)<1e-10){if(ax<c.x0-r||ax>c.x1+r)continue;}
-        else {var tx0=(c.x0-r-ax)/dx,tx1=(c.x1+r-ax)/dx;low=Math.max(low,Math.min(tx0,tx1));high=Math.min(high,Math.max(tx0,tx1));}
-        if(Math.abs(dz)<1e-10){if(az<c.z0-r||az>c.z1+r)continue;}
-        else {var tz0=(c.z0-r-az)/dz,tz1=(c.z1+r-az)/dz;low=Math.max(low,Math.min(tz0,tz1));high=Math.min(high,Math.max(tz0,tz1));}
-        if(low<=high)return false;
-      }
+  var dx=bx-ax,dz=bz-az;
+  var minX=(ax<bx?ax:bx)-r, maxX=(ax<bx?bx:ax)+r, minZ=(az<bz?az:bz)-r, maxZ=(az<bz?bz:az)+r;
+  var gx0=Math.floor(minX/CCELL), gx1=Math.floor(maxX/CCELL), gz0=Math.floor(minZ/CCELL), gz1=Math.floor(maxZ/CCELL);
+  var idx=Math.abs(dx)>1e-10?1/dx:0, idz=Math.abs(dz)>1e-10?1/dz:0, many=(gx1-gx0)*(gz1-gz0)>3;
+  for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
+    var list=colGrid.get(colKey(gx,gz));if(!list)continue;
+    if(many&&!slabHit(ax,az,dx,dz,idx,idz,gx*CCELL-r,gz*CCELL-r,(gx+1)*CCELL+r,(gz+1)*CCELL+r))continue;   /* the swept disc misses this whole cell */
+    for(var i=0;i<list.length;i++){
+      var c=list[i];
+      if(c.x1+r<minX||c.x0-r>maxX||c.z1+r<minZ||c.z0-r>maxZ)continue;
+      if(slabHit(ax,az,dx,dz,idx,idz,c.x0-r,c.z0-r,c.x1+r,c.z1+r))return false;
     }
   }
   return true;
+}
+/* does the segment a + t*d (t in 0..1) enter the box? (idx/idz = 1/d or 0 for a degenerate axis) */
+function slabHit(ax,az,dx,dz,idx,idz,x0,z0,x1,z1){
+  var low=0,high=1,t0,t1;
+  if(idx===0){ if(ax<x0||ax>x1)return false; }
+  else { t0=(x0-ax)*idx; t1=(x1-ax)*idx; if(t0>t1){var t=t0;t0=t1;t1=t;} if(t0>low)low=t0; if(t1<high)high=t1; if(low>high)return false; }
+  if(idz===0){ if(az<z0||az>z1)return false; }
+  else { t0=(z0-az)*idz; t1=(z1-az)*idz; if(t0>t1){var s=t0;t0=t1;t1=s;} if(t0>low)low=t0; if(t1<high)high=t1; }
+  return low<=high;
 }
 function moveWithCollision(pos,dx,dz,r){
   var steps=Math.max(1,Math.ceil(Math.hypot(dx,dz)/Math.max(0.2,r*0.75))),sx=dx/steps,sz=dz/steps;
