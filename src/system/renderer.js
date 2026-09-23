@@ -3,7 +3,7 @@ var canvas = $('game');
 var renderer;
 try{
   renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
-}catch(e){ $('webgl-error').classList.remove('hidden'); return; }
+}catch(e){ $('webgl-error').classList.remove('hidden'); var b=$('btn-begin'); if(b){ b.disabled=false; b.textContent='Take the Throne'; } var m=$('load-meter'); if(m) m.style.display='none'; var s=$('load-status'); if(s) s.textContent=''; return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;

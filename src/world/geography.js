@@ -14,7 +14,12 @@ var WORLD = {half:3000};            /* 6,000 × 6,000 units — preserved for te
 var ZN = 16, ZS = 375;             /* 16×16 ownership zones of 375u = 256 */
 
 function ss(e0,e1,x){ var t=clamp((x-e0)/(e1-e0),0,1); return t*t*(3-2*t); }
-function gauss(x,z,cx,cz,sig){ var dx=x-cx, dz=z-cz; return Math.exp(-(dx*dx+dz*dz)/(2*sig*sig)); }
+function gauss(x,z,cx,cz,sig){
+  var dx=x-cx, dz=z-cz, q=(dx*dx+dz*dz)/(2*sig*sig);
+  /* Math.exp underflows to exact 0 past this; the cutoff does not change any height */
+  if(q>=745.5) return 0;
+  return Math.exp(-q);
+}
 
 /* ---------- THE SEVEN REGIONS (R-01..R-07) + the secret places ---------- */
 var WORLD_REGIONS = {
@@ -213,6 +218,84 @@ function densifyPolyline(P,step,keepEnds){
   return out;
 }
 RIVERS.forEach(function(R){ R.wp=R.pts; R.pts=densifyPolyline(R.pts,45); });
+/* 64u grid of river segments so a height or paint query tests the nearby pieces, not every bend.
+   RIVER_RING[cell] is the chebyshev distance to the nearest segment cell (255 = none within RIV_MARK).
+   A query farther than that cannot see a river, so it returns the empty result without scanning. */
+var RIVER_CELL=64, RIVER_GRID=new Map(), RIVER_STAMP=1, _rivTouch=[];
+var RIV_OFF=80, RIV_N=160, RIV_MARK=8, RIVER_RING=new Uint8Array(RIV_N*RIV_N), RIV_LIST=new Array(RIV_N*RIV_N);
+function riverKey(gx,gz){ return (gx+4096)*8192+(gz+4096); }
+function riverRingMark(gx,gz){
+  var dx, dz, d, ad, ix, iz, p;
+  for(dx=-RIV_MARK;dx<=RIV_MARK;dx++) for(dz=-RIV_MARK;dz<=RIV_MARK;dz++){
+    d=dx<0?-dx:dx; ad=dz<0?-dz:dz; if(ad>d) d=ad;
+    ix=gx+dx+RIV_OFF; iz=gz+dz+RIV_OFF;
+    if(ix<0||iz<0||ix>=RIV_N||iz>=RIV_N) continue;
+    p=iz*RIV_N+ix;
+    if(d<RIVER_RING[p]) RIVER_RING[p]=d;
+  }
+}
+function riverIndexBuild(){
+  RIVER_GRID=new Map();
+  RIVER_RING.fill(255);
+  RIV_LIST=new Array(RIV_N*RIV_N);
+  for(var ri=0;ri<RIVERS.length;ri++){
+    var R=RIVERS[ri], pts=R.pts, bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9}, j;
+    R.ri=ri; R.segs=[];
+    for(j=0;j<pts.length;j++){ var p=pts[j]; if(p[0]<bb.x0)bb.x0=p[0]; if(p[0]>bb.x1)bb.x1=p[0]; if(p[1]<bb.z0)bb.z0=p[1]; if(p[1]>bb.z1)bb.z1=p[1]; }
+    R.bb=bb;
+    for(j=0;j<pts.length-1;j++){
+      var a=pts[j], b=pts[j+1], dx=b[0]-a[0], dz=b[1]-a[1];
+      var seg={ax:a[0],az:a[1],bx:b[0],bz:b[1],dx:dx,dz:dz,L2:dx*dx+dz*dz,j:j,ri:ri,river:R,stamp:0};
+      R.segs.push(seg);
+      var gx0=Math.floor(Math.min(a[0],b[0])/RIVER_CELL), gx1=Math.floor(Math.max(a[0],b[0])/RIVER_CELL);
+      var gz0=Math.floor(Math.min(a[1],b[1])/RIVER_CELL), gz1=Math.floor(Math.max(a[1],b[1])/RIVER_CELL), gx, gz;
+      for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+        var k=riverKey(gx,gz), arr=RIVER_GRID.get(k); if(!arr){ arr=[]; RIVER_GRID.set(k,arr); } arr.push(seg);
+        var lix=gx+RIV_OFF, liz=gz+RIV_OFF;
+        if(lix>=0&&liz>=0&&lix<RIV_N&&liz<RIV_N){
+          var lp=liz*RIV_N+lix, lst=RIV_LIST[lp];
+          if(!lst){ lst=[]; RIV_LIST[lp]=lst; riverRingMark(gx,gz); }
+          lst.push(seg);
+        }
+      }
+    }
+  }
+}
+riverIndexBuild();
+var _rivQ={d2:1e18, river:null, seg:0, t:0};
+function riverQuery(x,z,maxRing){
+  var gx=Math.floor(x/RIVER_CELL), gz=Math.floor(z/RIVER_CELL), cell=RIVER_CELL;
+  var best=1e18, br=null, bi=0, bt=0, stamp=++RIVER_STAMP, ring, ix, iz, i;
+  var ix0=gx+RIV_OFF, iz0=gz+RIV_OFF;
+  var inArr=ix0-maxRing>=0 && iz0-maxRing>=0 && ix0+maxRing<RIV_N && iz0+maxRing<RIV_N;
+  for(ring=0; ring<=maxRing; ring++){
+    if(ring>0 && best<(ring-1)*(ring-1)*cell*cell) break;
+    for(ix=-ring; ix<=ring; ix++) for(iz=-ring; iz<=ring; iz++){
+      if(ring && Math.max(Math.abs(ix),Math.abs(iz))!==ring) continue;
+      var arr=inArr?RIV_LIST[(iz0+iz)*RIV_N+(ix0+ix)]:RIVER_GRID.get(riverKey(gx+ix,gz+iz)); if(!arr) continue;
+      for(i=0;i<arr.length;i++){
+        var s=arr[i]; if(s.stamp===stamp) continue; s.stamp=stamp;
+        var L2=s.L2, t=L2>0?clamp(((x-s.ax)*s.dx+(z-s.az)*s.dz)/L2,0,1):0;
+        var cx=s.ax+s.dx*t, cz=s.az+s.dz*t, ex=x-cx, ez=z-cz, d2=ex*ex+ez*ez;
+        if(d2<best || (d2===best && br && (s.ri<br.ri || (s.ri===br.ri && s.j<bi)))){ best=d2; br=s.river; bi=s.j; bt=t; }
+      }
+    }
+  }
+  _rivQ.d2=best; _rivQ.river=br; _rivQ.seg=bi; _rivQ.t=bt;
+  return _rivQ;
+}
+/* segments whose cells the segment a→b touches, in river-then-index order (bridge detection depends on that order) */
+function riverSegsTouching(x0,z0,x1,z1){
+  var gx0=Math.floor(Math.min(x0,x1)/RIVER_CELL), gx1=Math.floor(Math.max(x0,x1)/RIVER_CELL);
+  var gz0=Math.floor(Math.min(z0,z1)/RIVER_CELL), gz1=Math.floor(Math.max(z0,z1)/RIVER_CELL);
+  var stamp=++RIVER_STAMP, out=_rivTouch, gx, gz, i; out.length=0;
+  for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+    var arr=RIVER_GRID.get(riverKey(gx,gz)); if(!arr) continue;
+    for(i=0;i<arr.length;i++){ var s=arr[i]; if(s.stamp===stamp) continue; s.stamp=stamp; out.push(s); }
+  }
+  if(out.length>1) out.sort(function(a,b){ return a.ri-b.ri || a.j-b.j; });
+  return out;
+}
 /* ponds, marshes, tarns, springs (WTR-01..07 + the mill ponds) */
 var LAKES=[
   {id:'WTR-01', name:'Mlaștina Valahă',    x:1300,  z:620,   r:38, depth:0.7, marsh:true},
@@ -246,33 +329,28 @@ var BRIDGES=[
   {id:'BR-M2', x:TOWNS.moldavia.x, z:TOWNS.moldavia.z+196, ang:Math.PI/2, len:20, w:5, name:'Podul Hotarului de Sud', moat:true, timber:true},
   {id:'BR-M3', x:TOWNS.moldavia.x, z:TOWNS.moldavia.z-196, ang:Math.PI/2, len:20, w:5, name:'Podul Hotarului de Nord', moat:true, timber:true}
 ];
-function riverSegDist(px,pz,pts){
-  var best=1e9, bi=0, bt=0, i;
-  for(i=0;i<pts.length-1;i++){
-    var ax=pts[i][0], az=pts[i][1], bx=pts[i+1][0], bz=pts[i+1][1];
-    var dx=bx-ax, dz=bz-az, L2=dx*dx+dz*dz;
-    var t=L2>0?clamp(((px-ax)*dx+(pz-az)*dz)/L2,0,1):0;
-    var cx=ax+dx*t, cz=az+dz*t, ex=px-cx, ez=pz-cz, d2=ex*ex+ez*ez;
-    if(d2<best){ best=d2; bi=i; bt=t; }
+/* nearest river: {d, river, seg, t}. The object is reused — copy fields before the next call.
+   maxD (default 260, the old bbox pad) ignores rivers farther than that. */
+var _rivOut={d:1e9, river:null, seg:0, t:0};
+function riverField(x,z,maxD){
+  if(maxD===undefined) maxD=260;
+  _rivOut.d=1e9; _rivOut.river=null; _rivOut.seg=0; _rivOut.t=0;
+  var maxRing=Math.ceil(maxD/RIVER_CELL)+1;
+  if(maxRing<=RIV_MARK){
+    var rix=(Math.floor(x/RIVER_CELL)+RIV_OFF)|0, riz=(Math.floor(z/RIVER_CELL)+RIV_OFF)|0;
+    if(rix>=0&&riz>=0&&rix<RIV_N&&riz<RIV_N&&RIVER_RING[riz*RIV_N+rix]>maxRing) return _rivOut;
   }
-  return {d:Math.sqrt(best), seg:bi, t:bt};
-}
-/* nearest river: {d, river, seg, t} — used by terrain paint, reeds, docks */
-function riverField(x,z){
-  var out={d:1e9, river:null, seg:0, t:0}, i;
+  var i, any=false;
   for(i=0;i<RIVERS.length;i++){
-    var R=RIVERS[i];
-    var bb=R.bb;
-    if(!bb){
-      bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9};
-      R.pts.forEach(function(p){ bb.x0=Math.min(bb.x0,p[0]); bb.x1=Math.max(bb.x1,p[0]); bb.z0=Math.min(bb.z0,p[1]); bb.z1=Math.max(bb.z1,p[1]); });
-      R.bb=bb;
-    }
-    if(x<bb.x0-260||x>bb.x1+260||z<bb.z0-260||z>bb.z1+260) continue;
-    var r=riverSegDist(x,z,R.pts);
-    if(r.d<out.d){ out.d=r.d; out.river=R; out.seg=r.seg; out.t=r.t; }
+    var bb=RIVERS[i].bb;
+    if(x<bb.x0-maxD||x>bb.x1+maxD||z<bb.z0-maxD||z>bb.z1+maxD) continue;
+    any=true; break;
   }
-  return out;
+  if(!any) return _rivOut;
+  var q=riverQuery(x,z,Math.ceil(maxD/RIVER_CELL)+1);
+  if(!q.river || q.d2>maxD*maxD) return _rivOut;
+  _rivOut.d=Math.sqrt(q.d2); _rivOut.river=q.river; _rivOut.seg=q.seg; _rivOut.t=q.t;
+  return _rivOut;
 }
 function riverHalfWidth(R,z){ return R.hw*(1+0.3*(1-ss(-2050,-1700,z))); }
 function distToSeg(px,pz, ax,az, bx,bz){
@@ -372,29 +450,50 @@ function segCrossesWideRiver(ax,az,bx,bz){
 })();
 /* every road: keep the waypoints (wp) and a dense spline (pts, ~10u) for ribbons, paint and navigation */
 ROADS.forEach(function(R){ R.wp=R.pts; R.pts=densifyPolyline(R.pts, R.switchbacks?6:10); });
-/* a 64u grid of road samples: O(1) "how far is the nearest road" for terrain, scenery and movement */
-var ROAD_GRID=new Map(), ROAD_CELL=64;
+/* a 64u grid of road segments: O(1) "how far is the nearest road" for terrain, scenery and movement */
+var ROAD_GRID=new Map(), ROAD_CELL=64, ROAD_SEGS=[], ROAD_STAMP=1;
+function roadKey(gx,gz){ return (gx+4096)*8192+(gz+4096); }
 ROADS.forEach(function(R,ri){
-  R.pts.forEach(function(p,pi){
-    if(pi===R.pts.length-1) return;
-    var q=R.pts[pi+1], x0=Math.min(p[0],q[0]), x1=Math.max(p[0],q[0]), z0=Math.min(p[1],q[1]), z1=Math.max(p[1],q[1]);
+  for(var pi=0;pi<R.pts.length-1;pi++){
+    var p=R.pts[pi], q=R.pts[pi+1], dx=q[0]-p[0], dz=q[1]-p[1];
+    var seg={ax:p[0],az:p[1],bx:q[0],bz:q[1],dx:dx,dz:dz,L2:dx*dx+dz*dz,road:R,stamp:0};
+    var si=ROAD_SEGS.length; ROAD_SEGS.push(seg);
+    var x0=Math.min(p[0],q[0]), x1=Math.max(p[0],q[0]), z0=Math.min(p[1],q[1]), z1=Math.max(p[1],q[1]);
     for(var gx=Math.floor(x0/ROAD_CELL);gx<=Math.floor(x1/ROAD_CELL);gx++) for(var gz=Math.floor(z0/ROAD_CELL);gz<=Math.floor(z1/ROAD_CELL);gz++){
-      var k=gx+':'+gz; if(!ROAD_GRID.has(k)) ROAD_GRID.set(k,[]); ROAD_GRID.get(k).push(ri*100000+pi);
-    }
-  });
-});
-/* nearest road: {d, road, w, cls} — cells within 64u only (roads never matter further than that) */
-function roadField(x,z){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null, ix, iz, i;
-  for(ix=-1;ix<=1;ix++) for(iz=-1;iz<=1;iz++){
-    var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(i=0;i<arr.length;i++){
-      var R=ROADS[Math.floor(arr[i]/100000)], pi=arr[i]%100000, a=R.pts[pi], b=R.pts[pi+1];
-      var d=distToSeg(x,z,a[0],a[1],b[0],b[1]);
-      if(d<best){ best=d; br=R; }
+      var k=roadKey(gx,gz); if(!ROAD_GRID.has(k)) ROAD_GRID.set(k,[]); ROAD_GRID.get(k).push(si);
     }
   }
-  return {d:best, road:br, w:br?br.w:0, cls:br?br.cls:null};
+});
+/* rings=1 is the old 3×3 roadField; rings=2 is roadNearest. skip drops one road (junction test).
+   Cell order matches the old scan, so an exact tie keeps the same road. */
+function roadQuery(x,z,rings,skip){
+  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL);
+  var best2=1e18, seg=null, bt=0, stamp=++ROAD_STAMP, ix, iz, i;
+  for(ix=-rings;ix<=rings;ix++) for(iz=-rings;iz<=rings;iz++){
+    var arr=ROAD_GRID.get(roadKey(gx+ix,gz+iz)); if(!arr) continue;
+    for(i=0;i<arr.length;i++){
+      var s=ROAD_SEGS[arr[i]];
+      if(s.stamp===stamp) continue; s.stamp=stamp;
+      if(skip && s.road===skip) continue;
+      var L2=s.L2, t=L2>0?clamp(((x-s.ax)*s.dx+(z-s.az)*s.dz)/L2,0,1):0;
+      var cx=s.ax+s.dx*t, cz=s.az+s.dz*t, ex=x-cx, ez=z-cz, d2=ex*ex+ez*ez;
+      if(d2<best2){ best2=d2; seg=s; bt=t; }
+    }
+  }
+  return {d2:best2, seg:seg, t:bt};
+}
+/* nearest road: {d, road, w, cls} — object reused, cells within 64u only */
+var _roadOut={d:1e9, road:null, w:0, cls:null};
+function roadField(x,z){
+  var q=roadQuery(x,z,1,null), br=q.seg?q.seg.road:null;
+  _roadOut.d=q.seg?Math.sqrt(q.d2):1e9; _roadOut.road=br; _roadOut.w=br?br.w:0; _roadOut.cls=br?br.cls:null;
+  return _roadOut;
+}
+function roadNearest(x,z){
+  var q=roadQuery(x,z,2,null);
+  if(!q.seg) return {d:1e9, road:null, px:x, pz:z};
+  var s=q.seg;
+  return {d:Math.sqrt(q.d2), road:s.road, px:s.ax+s.dx*q.t, pz:s.az+s.dz*q.t};
 }
 /* roads are the fastest surface: +35 % on the imperial via, +10 % on a trail */
 function roadSpeedAt(x,z){ var f=roadField(x,z); return (f.road && f.d<f.w/2+0.8) ? f.road.speed : 1; }
@@ -413,9 +512,12 @@ var BRIDGE_NAMES={'HW-01|RV-03':[['BR-01','Podul Pustnicului','stone']],'CR-05|R
   }
   var used={};
   ROADS.forEach(function(road){
-    for(var i=0;i<road.pts.length-1;i++) RIVERS.forEach(function(R){
-      for(var j=0;j<R.pts.length-1;j++){
-        var hit=segX(road.pts[i][0],road.pts[i][1],road.pts[i+1][0],road.pts[i+1][1],R.pts[j][0],R.pts[j][1],R.pts[j+1][0],R.pts[j+1][1]);
+    for(var i=0;i<road.pts.length-1;i++){
+      var ax=road.pts[i][0], az=road.pts[i][1], bx=road.pts[i+1][0], bz=road.pts[i+1][1];
+      var segs=riverSegsTouching(ax,az,bx,bz), s;
+      for(s=0;s<segs.length;s++){
+        var seg=segs[s], R=seg.river;
+        var hit=segX(ax,az,bx,bz,seg.ax,seg.az,seg.bx,seg.bz);
         if(!hit) continue;
         var hw=riverHalfWidth(R,hit.z), dup=false;
         for(var k=0;k<BRIDGES.length;k++) if(Math.hypot(BRIDGES[k].x-hit.x,BRIDGES[k].z-hit.z)<hw*2+12) dup=true;
@@ -427,7 +529,7 @@ var BRIDGE_NAMES={'HW-01|RV-03':[['BR-01','Podul Pustnicului','stone']],'CR-05|R
         BRIDGES.push({id:id, x:hit.x, z:hit.z, ang:hit.ang, len:hw*2+10, w:ford?Math.max(4,road.w*0.8):Math.min(Math.max(road.w*0.8,4.5),9), river:R.id, road:road.id, name:name,
           ford:ford, timber:type==='timber', stone:type==='stone'});
       }
-    });
+    }
   });
 })();
 
@@ -489,7 +591,7 @@ function baseH(x,z){
 /* rivers carve troughs (ravines in the mountains); lakes are bowls; fords lift the bed to wading depth */
 function waterCut(x,z){
   var cut=0, mC=1-ss(-2050,-1700,z);
-  var rf=riverField(x,z);
+  var rf=riverField(x,z,64);
   if(rf.river){
     var R=rf.river, hw=riverHalfWidth(R,z), depth=R.depth+3.2*mC;
     if(rf.d<hw*1.5){
@@ -513,7 +615,8 @@ function waterCut(x,z){
 
 /* ---------- FLATS (section 1.5): every site stands on level ground ---------- */
 var FLATS=[], FLAT_GRID=null, FLAT_CELL=256;
-function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; }
+var _ghx=NaN, _ghz=NaN, _ghh=0;
+function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; _ghx=NaN; }
 /* spatial index: flatsH only visits the flats whose blend zone covers the query cell */
 function flatGridBuild(){
   FLAT_GRID=new Map();
@@ -541,7 +644,7 @@ var HAMLETS=[];
   function nearSiteG(x,z,extra){ for(var i=0;i<SITES_DEF.length;i++){ var s=SITES_DEF[i], r=s.r+extra; if((x-s.x)*(x-s.x)+(z-s.z)*(z-s.z)<r*r) return true; } return false; }
   function nearVillageG(x,z,r){ for(var i=0;i<VILLAGES.length;i++){ var v=VILLAGES[i]; if((x-v.x)*(x-v.x)+(z-v.z)*(z-v.z)<r*r) return true; } return false; }
   function waterG(x,z){
-    var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
+    var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
     for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+55,2)) return true; }
     for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+60) return true; }
     return false;
@@ -579,7 +682,7 @@ var DISTRICT_C=[];
     for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
     for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
     for(k=0;k<HAMLETS.length && !bad;k++){ var Hm=HAMLETS[k]; if(Math.abs(x-Hm.x)<80 && Math.abs(z-Hm.z)<112) bad=true; }   /* outside the hamlet's lane, yards and fields */
-    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
+    if(!bad){ var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
     if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
     if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
     if(!bad){ DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)}); addFlat(x,z,52); }   /* level ground for a real farmstead */
@@ -611,10 +714,30 @@ BRIDGES.forEach(function(b){
 });
 /* ground without bridges: flats + river troughs + lake bowls + moats */
 function groundHBase(x,z){ return flatsH(x,z)-waterCut(x,z); }
+/* non-ford decks only affect a disc of len/2+14. The cell list is rebuilt if a later feature pushes a bridge
+   (the log bridge at Vadul Lupului). Visit order inside a cell is bridge index order, same as the old scan. */
+var _brN=-1, _brGrid=null, BR_CELL=64;
+function bridgeIndexBuild(){
+  _brN=BRIDGES.length; _brGrid=new Map();
+  var i, b, rad, gx, gz, k, a;
+  for(i=0;i<_brN;i++){
+    b=BRIDGES[i]; if(b.ford) continue;
+    rad=b.len/2+14;
+    var gx0=Math.floor((b.x-rad)/BR_CELL), gx1=Math.floor((b.x+rad)/BR_CELL);
+    var gz0=Math.floor((b.z-rad)/BR_CELL), gz1=Math.floor((b.z+rad)/BR_CELL);
+    for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+      k=(gx+1024)*4096+(gz+1024);
+      a=_brGrid.get(k); if(!a){ a=[]; _brGrid.set(k,a); } a.push(i);
+    }
+  }
+}
 function groundH(x,z){
+  if(x===_ghx && z===_ghz) return _ghh;
   var h=groundHBase(x,z), i;
-  for(i=0;i<BRIDGES.length;i++){
-    var b=BRIDGES[i]; if(b.ford) continue;
+  if(_brN!==BRIDGES.length) bridgeIndexBuild();
+  var arr=_brGrid.get((Math.floor(x/BR_CELL)+1024)*4096+(Math.floor(z/BR_CELL)+1024));
+  if(arr) for(i=0;i<arr.length;i++){
+    var b=BRIDGES[arr[i]];
     var bx=x-b.x, bz=z-b.z;
     if(bx*bx+bz*bz>(b.len/2+14)*(b.len/2+14)) continue;
     var c=Math.cos(b.ang), s=Math.sin(b.ang);
@@ -624,6 +747,7 @@ function groundH(x,z){
       if(k2>0) h=Math.max(h, h*(1-k2)+b.y*k2);
     }
   }
+  _ghx=x; _ghz=z; _ghh=h;
   return h;
 }
 /* water surface height on a river centreline point: 1.1 above the bed */
@@ -681,3 +805,4 @@ var BEACON_DEF=[
 /* ---------- LORE SUMMARY USED BY MAP / HUD ---------- */
 var EXTENDED_LANDMARKS = SITES_DEF.map(function(s){ return {x:s.x, z:s.z, name:s.name, type:s.kind, region:s.region, id:s.id}; });
 FAC_KEYS_T.forEach(function(f){ var T=TOWNS[f]; EXTENDED_LANDMARKS.push({x:T.x, z:T.z, name:T.name, type:T.kind, region:T.region, id:T.id}); });
+if(typeof performance!=='undefined' && typeof BOOT_T0!=='undefined') BOOT_TIMES.geography=Math.round(performance.now()-BOOT_T0);

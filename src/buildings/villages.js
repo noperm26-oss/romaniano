@@ -9,7 +9,7 @@
    a wayside cross, lanterns, and the special feature of §7.1 for
    the NV villages (orchard, apiary, salt pans, log bridge, sluice…).
    ============================================================ */
-function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
+function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z,64); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
 /* a broadleaf tree: trunk, three tapered tiers that read as a round crown */
 function kitTree(kit,tx,tz,col,s,fir){
   var ty=groundH(tx,tz), C=MS(col,SURF.GRAIN), C2=MS(tintHex(col,0.12),SURF.GRAIN);
@@ -124,8 +124,15 @@ function villageYards(rows,v,K,rnd,kit){
   });
   return n;
 }
-function buildVillages(){
-  VILLAGES.forEach(function(v, vi){
+var _villageI=0;
+function buildVillages(budget){
+  var tEnd=budget?performance.now()+budget:1e15, start=_villageI;
+  for(; _villageI<VILLAGES.length; _villageI++){
+    if(budget && _villageI>start && performance.now()>=tEnd) return true;
+    var v=VILLAGES[_villageI], vi=_villageI;
+    if(v._area) continue;
+    if(typeof inLoadArea==='function' && !inLoadArea(v.x, v.z)) continue;
+    v._area=1;
     var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
     siteBegin('sat:'+v.name, X, Z, 120);
     var SC=K.street;
@@ -180,5 +187,7 @@ function buildVillages(){
     registerLore({key:'village'+vi, x:X, z:Z, r:34, icon:'V',
       name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,
       story:'Craftsmen, fields and quiet days. A village pays tribute to whoever holds the land it stands on — take the zone and its workers earn gold for your crown. Guard them: wolves and soldiers ask no permission.'});
-  });
+  }
+  _villageI=0;
+  return false;
 }

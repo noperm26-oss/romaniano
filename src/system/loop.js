@@ -65,6 +65,7 @@ function frame(now){
   var dt=Math.min((now-last)/1000, 0.05);
   last=now;
   if(manualSimulation)return;
+  if(typeof loadAreaTick==='function') loadAreaTick();
   if(hitStop>0){ hitStop-=dt; dt=0; }
   if(state===ST.PLAY || state===ST.REDEPLOY){
     update(dt);

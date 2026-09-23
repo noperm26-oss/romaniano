@@ -76,7 +76,8 @@ function buildTown(f){
   siteBegin(T.name, T.x, T.z, TOWN_RADIUS[f]+80);
   window.__roadPts=window.__roadPts||[];
   var td={name:T.name, x:T.x, z:T.z, r:TOWN_RADIUS[f]}, s0=TOWN_STREETS.length;
-  ({sparta:townArdealburg, rome:townCetatea, moldavia:townHotarul, vikings:townStanca, egypt:townDrumulLung, nippon:townRomaria})[f](T.x,T.z,f,rnd,td);
+  var more=({sparta:townArdealburg, rome:townCetatea, moldavia:townHotarul, vikings:townStanca, egypt:townDrumulLung, nippon:townRomaria})[f](T.x,T.z,f,rnd,td);
+  if(more){ _townHold={f:f, td:td}; return; }
   if(f!=='nippon') td.infill=townInfill(T, td, rnd, TOWN_STREETS.slice(s0));
   townData[f]=td;
   siteEnd();
@@ -364,24 +365,69 @@ function arcFree(x,z,rr){ /* keep-out shared by every capital row: ring road, ri
   if(x>230-rr && z>150-rr && z<400+rr && x<330) return true;        /* docks */
   return false;
 }
+/* The capital is one town, built in the same order as before. A player load
+   may return between phases (and between house-rows and courtyard blocks) so
+   the tab can paint. A zero deadline — the test path — runs every phase now. */
+var _roma=null;
 function townRomaria(X,Z,f,rnd,td){
-  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k;
-  var R=520, N=32, kit=cellKit(X,Z);
+  var deadline=(typeof TOWN_BUDGET!=='undefined' && TOWN_BUDGET)?TOWN_TEND:0;
+  if(_roma){ X=_roma.X; Z=_roma.Z; f=_roma.f; rnd=_roma.rnd; td=_roma.td; }
+  else _roma={phase:'walls', X:X, Z:Z, f:f, rnd:rnd, td:td};
+  if(_roma.phase==='walls'){
+    if(townRomariaWalls(X,Z,f,rnd,td,deadline)) return true;
+    _roma.phase='core';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roma.phase==='core'){
+    if(townRomariaCore(X,Z,f,rnd,td,deadline)) return true;
+    _roma.phase='fill';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roma.phase==='fill'){
+    if(townRomariaFill(X,Z,f,rnd,td,deadline)) return true;
+    _roma=null;
+    return false;
+  }
+  _roma=null;
+  return false;
+}
+
+function townRomariaWalls(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, RV;
+  var R=j.R||520, N=j.N||32, kit=cellKit(X,Z);
+  var pts=j.pts, gates=j.gates, seGate=j.seGate, water=j.water;
+  if(!j.wphase) j.wphase='run';
+  if(j.wphase==='run'){
   td.frontZ=1;
   /* ---- the circular curtain: 32 sides, rotated half a step so gates sit on segment midpoints ---- */
-  var pts=[]; for(i=0;i<N;i++){ var a=(i+0.5)*TAU/N; pts.push([X+Math.cos(a)*R, Z+Math.sin(a)*R]); }
-  var gates=[{x:X+R,z:Z,dir:'E',name:'Poarta Hotarului'},{x:X,z:Z+R,dir:'S',name:'Poarta Regelui'},{x:X-R,z:Z,dir:'W',name:'Poarta Ardealului'},{x:X,z:Z-R,dir:'N',name:'Poarta de Nord (Poarta Leului)'}];
-  var seGate={x:X+Math.cos(Math.PI/4)*R, z:Z+Math.sin(Math.PI/4)*R, ang:Math.PI/4, name:'Poarta Târgului'};
+  pts=[]; for(i=0;i<N;i++){ var a=(i+0.5)*TAU/N; pts.push([X+Math.cos(a)*R, Z+Math.sin(a)*R]); }
+  gates=[{x:X+R,z:Z,dir:'E',name:'Poarta Hotarului'},{x:X,z:Z+R,dir:'S',name:'Poarta Regelui'},{x:X-R,z:Z,dir:'W',name:'Poarta Ardealului'},{x:X,z:Z-R,dir:'N',name:'Poarta de Nord (Poarta Leului)'}];
+  seGate={x:X+Math.cos(Math.PI/4)*R, z:Z+Math.sin(Math.PI/4)*R, ang:Math.PI/4, name:'Poarta Târgului'};
   var gaps=gates.map(function(g){ return {x:g.x,z:g.z,w:10+12+1}; });
   gaps.push({x:seGate.x, z:seGate.z, w:8+10+1});
   /* water gates: where the Royal River crosses the wall polygon */
-  var water=[], RV=RIVERS[1];
+  water=[], RV=RIVERS[1];
   for(i=0;i<N;i++){ var a0=pts[i], b0=pts[(i+1)%N];
     for(k=0;k<RV.pts.length-1;k++){ var h=segXw(a0[0],a0[1],b0[0],b0[1],RV.pts[k][0],RV.pts[k][1],RV.pts[k+1][0],RV.pts[k+1][1]); if(h){ water.push({x:h[0],z:h[1],w:2*(riverHalfWidth(RV,h[1])+13),seg:i}); } } }
   water.forEach(function(w){ gaps.push(w); });
   fortWallRun(pts, {h:12, t:2.6, wall:ST, slits:true}, gaps, true);
-  for(i=0;i<N;i+=2){ var ta=(i+0.5)*TAU/N, tx=X+Math.cos(ta)*R, tz=Z+Math.sin(ta)*R;
-    fortTower({x:tx, z:tz, r:7, h:17, sides:10, wall:ST2, roofCol:BL, roof:'cone', door:ta+Math.PI, banner:(i%6===0)?'nippon':null, name:'Turnul Cetății '+(i/2+1)}); }
+    j.pts=pts; j.gates=gates; j.seGate=seGate; j.water=water; j.R=R; j.N=N; j.tw=0;
+    j.wphase='towers';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  pts=j.pts; gates=j.gates; seGate=j.seGate; water=j.water; R=j.R; N=j.N;
+  if(j.wphase==='towers'){
+    var tw=j.tw||0;
+    for(i=tw;i<N;i+=2){
+      if(i!==tw && deadline && performance.now()>=deadline){ j.tw=i; return true; }
+      var ta=(i+0.5)*TAU/N, tx=X+Math.cos(ta)*R, tz=Z+Math.sin(ta)*R;
+    fortTower({x:tx, z:tz, r:7, h:17, sides:10, wall:ST2, roofCol:BL, roof:'cone', door:ta+Math.PI, banner:(i%6===0)?'nippon':null, name:'Turnul Cetății '+(i/2+1)});
+    }
+    j.wphase='gates';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.wphase==='gates'){
   gates.forEach(function(g){ fortGate({x:g.x, z:g.z, dir:g.dir, w:10, h:12, tw:6, ph:6.2, wall:ST, roofCol:BL, banner:'nippon', name:g.name}); });
   fortGate({x:seGate.x, z:seGate.z, ang:seGate.ang, w:8, h:10, tw:5, ph:5.4, wall:ST, roofCol:BL, banner:'nippon', name:seGate.name});
   /* water gates: piers, a lintel arch and an iron grille down to the water — impassable (C-6) */
@@ -396,6 +442,17 @@ function townRomaria(X,Z,f,rnd,td){
     regStructure({name:wi===0?'Poarta Apei de Nord':'Poarta Apei de Sud', kind:'watergate', x:w.x, z:w.z, hx:w.w/2, hz:2, enterable:false});
     wallTorch(w.x-uz*2.4, gy+9.0, w.z+ux*2.4); wallTorch(w.x+uz*2.4, gy+9.0, w.z-ux*2.4);
   });
+    j.wphase='done';
+  }
+  return false;
+}
+
+function townRomariaCore(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, kit=cellKit(X,Z);
+  var B=function(o){ o.fac=f; return buildBuilding(o); };
+  if(!j.cphase) j.cphase='palace';
+  if(j.cphase==='palace'){
   /* ---- streets: the boulevards/ring are road ribbons (roads.js); secondary grid at ±120/±240/±360 ---- */
   [-360,-240,-120,120,240,360].forEach(function(o){
     var lim=Math.sqrt(440*440-o*o);
@@ -425,6 +482,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<8;i++){ var hx2=X-28+i*8; if(Math.abs(hx2-X)<6) continue; kit.box(M2(0x4a6a3a),3,0.9,2,hx2,groundH(hx2,GZ-14)+0.45,GZ-14); addCollider(hx2-1.5,GZ-15,hx2+1.5,GZ-13); }
   townTrees(X, GZ, 6, 30, rnd, 0x4a7a37);
   fortWallRun([[X-46,Z-176],[X-46,GZ-22],[X+46,GZ-22],[X+46,Z-176]], {h:3.0, t:0.7, wall:ST, merlons:false, walk:false}, [{x:X,z:GZ-22,w:5}], false);
+    j.cphase='garden';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.cphase==='garden'){
   /* ---- garden belt r<300: lindens, hedges, the Alley of the Voivodes along the market street ---- */
   for(i=0;i<40;i++){ var ga=rnd()*TAU, gr=130+rnd()*150, gx=X+Math.cos(ga)*gr, gz=Z+Math.sin(ga)*gr; if(arcFreeCore(gx,gz)) continue; townTrees(gx,gz,1,0,rnd,0x4a7a37); }
   for(i=1;i<=5;i++){ var sx=X+i*30, sz=Z+i*30*(i<4?1:1.3), off=6; [-1,1].forEach(function(sd){ var px=sx-sd*off*0.707, pz=sz+sd*off*0.707; kit.box(M2(ST),1.2,1.4,1.2,px,groundH(px,pz)+0.7,pz,0.785); kit.box(M2(0x6a6560),0.6,2.2,0.6,px,groundH(px,pz)+2.5,pz,0.785); addCollider(px-0.7,pz-0.7,px+0.7,pz+0.7); }); }
@@ -462,6 +523,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<5;i++){ var px=X-320+i*8, pz=Z+285; kit.cyln(M2(0x5d4326),0.2,0.25,2.2,7,px,groundH(px,pz)+1.1,pz); kit.box(M2(0xb5a487),0.9,0.5,0.5,px,groundH(px,pz)+1.6,pz); addCollider(px-0.3,pz-0.3,px+0.3,pz+0.3); }
   for(i=0;i<4;i++){ var bx=X-320+i*8, bz=Z+325; kit.cyln(M2(0xc9b24a),0.9,0.9,0.5,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.cyln(M2(0x7a3434),0.3,0.3,0.52,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.box(M2(0x5d4326),0.2,1.2,0.2,bx,groundH(bx,bz)+0.6,bz+0.3); addCollider(bx-0.9,bz-0.4,bx+0.9,bz+0.4); }
   propCampfire(X-290, Z+305, true);
+    j.cphase='docks';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.cphase==='docks'){
   /* ---- the river docks (west bank of the Royal River, z 200..370) ---- */
   var qy=flatsH(X+280,Z+290)-0.15, T=M2(0x5d4326);
   kit.box(T, 24, 0.5, 160, X+287, qy+0.25, Z+290); addCollider(X+275,Z+210,X+299,Z+370);
@@ -474,20 +539,45 @@ function townRomaria(X,Z,f,rnd,td){
   B({x:X+291, z:Z+180, w:10, d:8, h:4.5, wall:ST, roofCol:0x5d4a38, roof:'gable', door:'N', interior:'watermill', name:'Moara Regală', chimney:false});
   townStalls(X+262, Z+296, 5, 9, rnd);
   townStreet(X+240, Z+290, X+274, Z+290, 5, 0x8a8070);
-  /* ---- residential rows on the secondary grid (axis-aligned, clipped to the ring by arcFree) ---- */
-  var HO={rnd:rnd, wall:[WH,0xd9c8a2,0xe8dcc0,0xc9c2b0], roofCol:[RD,0x70503a,BL], roof:'gable', fac:f, timberFrame:true, floors:2, h:3.6, avoid:arcFree};
-  var HS={rnd:rnd, wall:[ST,ST2,0xa8a698], roofCol:[0x4a4238,RD], roof:'gable', fac:f, h:3.4, avoid:arcFree};
-  [-360,-240,120,240,360].forEach(function(o,idx){
-    var lim=Math.sqrt(440*440-o*o), P=(o<0)?HO:HS;
-    houseRow('x', X-lim, X-20, Z+o, -1, P); houseRow('x', X+20, X+lim, Z+o, -1, P);
-    houseRow('x', X-lim, X-20, Z+o, 1, P); houseRow('x', X+20, X+lim, Z+o, 1, P);
-    houseRow('z', Z-lim, Z-20, X+o, -1, P); houseRow('z', Z+20, Z+lim, X+o, -1, P);
-    houseRow('z', Z-lim, Z-20, X+o, 1, P); houseRow('z', Z+20, Z+lim, X+o, 1, P);
-  });
-  /* ---- block interiors: an alley cross through every block, townhouses along the alleys, a well and gardens
-          in the courtyards (instanced prefabs of the capital kit — solid, enterable, furnished like every house) ---- */
-  var blocks=0, bi, bj;
-  for(bi=-4;bi<4;bi++) for(bj=-4;bj<4;bj++){
+    j.cphase='done';
+  }
+  return false;
+}
+
+function townRomariaFill(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, kit=cellKit(X,Z);
+  if(!j.fillPhase) j.fillPhase='rows';
+  if(j.fillPhase==='rows'){
+    var HO={rnd:rnd, wall:[WH,0xd9c8a2,0xe8dcc0,0xc9c2b0], roofCol:[RD,0x70503a,BL], roof:'gable', fac:f, timberFrame:true, floors:2, h:3.6, avoid:arcFree};
+    var HS={rnd:rnd, wall:[ST,ST2,0xa8a698], roofCol:[0x4a4238,RD], roof:'gable', fac:f, h:3.4, avoid:arcFree};
+    var offs=[-360,-240,120,240,360];
+    if(j.oi===undefined){ j.oi=0; j.ri=0; }
+    for(; j.oi<offs.length; j.oi++){
+      var o=offs[j.oi], lim=Math.sqrt(440*440-o*o), P=(o<0)?HO:HS;
+      var rows=[
+        ['x', X-lim, X-20, Z+o, -1], ['x', X+20, X+lim, Z+o, -1],
+        ['x', X-lim, X-20, Z+o, 1], ['x', X+20, X+lim, Z+o, 1],
+        ['z', Z-lim, Z-20, X+o, -1], ['z', Z+20, Z+lim, X+o, -1],
+        ['z', Z-lim, Z-20, X+o, 1], ['z', Z+20, Z+lim, X+o, 1]
+      ];
+      for(; j.ri<rows.length; j.ri++){
+        if(deadline && (j.oi||j.ri) && performance.now()>=deadline) return true;
+        var rw=rows[j.ri];
+        houseRow(rw[0], rw[1], rw[2], rw[3], rw[4], P);
+      }
+      j.ri=0;
+    }
+    j.fillPhase='blocks'; j.bi=undefined;
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.fillPhase==='blocks'){
+    if(j.bi===undefined){ j.bi=-4; j.bj=-4; j.blocks=0; }
+    var blocks=j.blocks, bi, bj;
+    for(bi=j.bi;bi<4;bi++){
+      for(bj=(bi===j.bi?j.bj:-4);bj<4;bj++){
+        if(deadline && (bi>-4||bj>-4) && performance.now()>=deadline){ j.bi=bi; j.bj=bj; j.blocks=blocks; return true; }
+
     var bx=X+bi*120+60, bz=Z+bj*120+60;
     if(Math.hypot(bx-X,bz-Z)>375) continue;
     if(Math.abs(bx-X)<=60 && Math.abs(bz-Z)<=60) continue;                  /* plaza and esplanade */
@@ -512,8 +602,14 @@ function townRomaria(X,Z,f,rnd,td){
     if(!insideSolid(bx+7,bz+7,1.8)) prefabPlace('prop.well',bx+7,bz+7,'S',{force:true});
     [[-1,-1],[1,1],[-1,1]].forEach(function(q){ var gx=bx+q[0]*30, gz=bz+q[1]*30; if(!insideSolid(gx,gz,4)&&!arcFree(gx-X,gz-Z,4)) townTrees(gx,gz,2,4,rnd,0x4a7a37); });
     if(n) blocks++;
+        }
+      j.bj=-4;
+    }
+    td.blocks=blocks;
+    j.fillPhase='rest';
+    if(deadline && performance.now()>=deadline) return true;
   }
-  td.blocks=blocks;
+  if(j.fillPhase==='rest'){
   /* ---- street furniture: lanterns on the boulevards and ring, banners on the plaza ---- */
   for(i=-500;i<=500;i+=40){ if(Math.abs(i)<60) continue; var r0=Math.abs(i); if(r0<440||r0>470){ torchPost(X+i, Z-7, 2.8); torchPost(X+i, Z+7, 2.8); torchPost(X-7, Z+i, 2.8); torchPost(X+7, Z+i, 2.8); } }
   for(i=0;i<24;i++){ var ra=i/24*TAU+0.13, rx=X+Math.cos(ra)*(460+5.5), rz=Z+Math.sin(ra)*(460+5.5); if(!insideSolid(rx,rz,0.5)) torchPost(rx,rz,2.6); }
@@ -539,7 +635,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<12;i++){ var sa=i*TAU/12+TAU/24, sx2=X+Math.cos(sa)*580, sz2=Z+Math.sin(sa)*580, tries=0;
     while(tries++<6){ var fr=roadField(sx2,sz2); var rf=riverField(sx2,sz2); if((fr.road&&fr.d<fr.road.w/2+3)||(rf.river&&rf.d<riverHalfWidth(rf.river,sz2)+4)||insideSolid(sx2,sz2,1.5)){ sa+=0.09; sx2=X+Math.cos(sa)*580; sz2=Z+Math.sin(sa)*580; } else break; }
     propTroita(sx2, sz2, -sa+Math.PI/2); }
+  }
+  return false;
 }
+
 function arcFreeCore(x,z){ var r=Math.hypot(x,z); if(r<52) return true; if(Math.abs(x)<60&&z>-250&&z<-30) return true; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+3) return true; if(insideSolid(x,z,3)) return true; return false; }
 function segXw(ax,az,bx,bz,cx,cz,dx,dz){
   var r1x=bx-ax, r1z=bz-az, r2x=dx-cx, r2z=dz-cz, den=r1x*r2z-r1z*r2x; if(Math.abs(den)<1e-9) return null;

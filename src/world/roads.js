@@ -25,6 +25,7 @@ function nearSite(x,z,extra){
 function roadSurfY(x,z){ return Math.max(terrainMeshH(x,z), groundH(x,z)); }
 
 var roadStats={ribbons:0, quads:0, lanes:0, trails:0, milestones:0, crosses:0, signs:0, wells:0, lanterns:0, tolls:0, junctions:0};
+var _roadPhase=0;
 var ROAD_JUNCTIONS=[];
 function onBridgeDeck(x,z,margin){
   for(var i=0;i<BRIDGES.length;i++){
@@ -41,7 +42,11 @@ function inFordWater(x,z){
   for(var i=0;i<BRIDGES.length;i++){ var b=BRIDGES[i]; if(b.ford && Math.hypot(x-b.x,z-b.z)<hw*2+14) return true; }
   return false;
 }
-function buildRoads(){
+function buildRoads(budget){
+  var deadline=budget?performance.now()+budget:0;
+  if(_roadPhase>=1){
+    /* ribbons are already in the scene; finish junctions and furniture */
+  } else {
   window.__roadPts=window.__roadPts||[];
   var rnd=srand(4471), cells=new Map(), CELL=375, i;
   var EG=TOWNS.egypt;
@@ -91,6 +96,9 @@ function buildRoads(){
     m.userData.cullBounds={x:c.x, z:c.z, r:CELL*0.8};
     scene.add(m);
   });
+    _roadPhase=1;
+    if(deadline && performance.now()>=deadline) return true;
+  }
   /* ---- junctions: road ends meeting another road, and R0/R1 crossings ---- */
   function segX(ax,az,bx,bz,cx,cz,dx,dz){
     var r1x=bx-ax, r1z=bz-az, r2x=dx-cx, r2z=dz-cz, den=r1x*r2z-r1z*r2x; if(Math.abs(den)<1e-9) return null;
@@ -150,13 +158,13 @@ function buildRoads(){
     var a=R.pts[Math.max(0,bi-1)], b=R.pts[Math.min(R.pts.length-1,bi+1)];
     propTollArch(best[0],best[1],Math.atan2(b[1]-a[1],b[0]-a[0]),R.w); roadStats.tolls++;
   });
+  _roadPhase=0;
+  return false;
 }
 /* nearest road that is not R (for junction detection) */
 function roadFieldExcept(x,z,R){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null;
-  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){ var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(var i=0;i<arr.length;i++){ var Q=ROADS[Math.floor(arr[i]/100000)]; if(Q===R) continue; var pi=arr[i]%100000, a=Q.pts[pi], b=Q.pts[pi+1], d=distToSeg(x,z,a[0],a[1],b[0],b[1]); if(d<best){ best=d; br=Q; } } }
-  return {d:best, road:br};
+  var q=roadQuery(x,z,1,R), br=q.seg?q.seg.road:null;
+  return {d:q.seg?Math.sqrt(q.d2):1e9, road:br};
 }
 /* ---- road furniture ---- */
 function propMilestone(cx,cz,ry,R){

@@ -36,9 +36,12 @@ function batchField(batch,x,z,w,d,ry,c1,c2){ var y=groundH(x,z); for(var i=0;i<6
 function batchCairn(batch,x,z){ var y=groundH(x,z); batch.add('box',x,y+0.4,z,1.6,0.8,1.4,0x8a8a86,0.3); batch.add('box',x,y+1.0,z,1.1,0.6,1.0,0x8a8a86,0.7); batch.add('box',x,y+1.45,z,0.6,0.5,0.6,0x9a9a96,0.2); addCollider(x-0.8,z-0.7,x+0.8,z+0.7); }
 function siteEcon(x,z,type,rate){ SITES.push({zi:zoneIdxAt(x,z), rate:rate, type:type, region:getRegion(x,z), x:x, z:z}); }
 
-function buildDistricts(){
-  var batch=createBuildingBatch(), rnd=srand(1337);
-  window.__contentZi=window.__contentZi||{};
+var _distJob=null;
+function buildDistricts(budget){
+  var deadline=budget?performance.now()+budget:0;
+  if(!_distJob){
+    _distJob={batch:createBuildingBatch(), rnd:srand(1337), di:0, phase:'econ', gz:0, gx:0, wildsN:0};
+    window.__contentZi=window.__contentZi||{};
   /* economy of the named places */
   FAC_KEYS_T.forEach(function(f){ var T=TOWNS[f]; siteEcon(T.x,T.z,'market',0.5); siteEcon(T.x,T.z,'fort',0.4); siteEcon(T.x,T.z,'forge',0.3); window.__contentZi[zoneIdxAt(T.x,T.z)]=1; });
   SITES_DEF.forEach(function(s){
@@ -50,8 +53,15 @@ function buildDistricts(){
     window.__contentZi[zoneIdxAt(s.x,s.z)]=1;
   });
   VILLAGES.forEach(function(v){ siteEcon(v.x,v.z,'farm',0.18); window.__contentZi[zoneIdxAt(v.x,v.z)]=1; });
-  /* farmsteads and camps */
-  DISTRICT_C.forEach(function(D,di){
+    _distJob.phase='farms';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  var batch=_distJob.batch, rnd=_distJob.rnd;
+  if(_distJob.phase==='farms'){
+  /* farmsteads and camps — same order, same random stream; a player load may yield between farmsteads */
+  for(; _distJob.di<DISTRICT_C.length; _distJob.di++){
+    if(deadline && _distJob.di && performance.now()>=deadline) return true;
+    var D=DISTRICT_C[_distJob.di], di=_distJob.di;
     var reg=D.region, kind;
     var roll=rnd();
     if(reg==='carpathian') kind=roll<0.45?'fold':roll<0.8?'quarry':'hunt';
@@ -76,7 +86,7 @@ function buildDistricts(){
       var px=D.x+Math.cos(a+0.35)*(r+2), pz=D.z+Math.sin(a+0.35)*(r+2), pk=['prop.woodpile','prop.oven','prop.beehives','prop.woodpile','prop.dovecote'][Math.floor(rnd()*5)];
       if(!insideSolid(px,pz,1.6)&&!nearDoor(px,pz,2.5)) prefabPlace(pk,px,pz,faceToward(px,pz,D.x,D.z),{force:true});
     }
-    if(!placed) return;
+    if(!placed) continue;
     if(!insideSolid(D.x,D.z,2)) prefabPlace('prop.well',D.x,D.z,'S',{force:true});
     if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
@@ -118,10 +128,16 @@ function buildDistricts(){
     for(i=0;i<5;i++){ var ta2=rnd()*TAU, tr=ring*(0.35+rnd()*0.5), tx2=D.x+Math.cos(ta2)*tr, tz2=D.z+Math.sin(ta2)*tr; if(insideSolid(tx2,tz2,2.4)||nearDoor(tx2,tz2,3)||Math.abs(tx2-D.x)<3.5) continue; hamletTree(batch,tx2,tz2,TK,rnd,true); }
     D.buildings=placed;
     window.__contentZi[zoneIdxAt(D.x,D.z)]=1;
-  });
+  }
+    _distJob.phase='wilds';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_distJob.phase==='wilds'){
   /* ---- WILDS: every remaining zone gets a feature ---- */
-  var wildsN=0, gx, gz;
-  for(gz=0;gz<ZN;gz++) for(gx=0;gx<ZN;gx++){
+  var wildsN=_distJob.wildsN, gx, gz;
+  for(gz=_distJob.gz;gz<ZN;gz++){
+    for(gx=(gz===_distJob.gz?_distJob.gx:0);gx<ZN;gx++){
+      if(deadline && (gz||gx) && performance.now()>=deadline){ _distJob.gz=gz; _distJob.gx=gx; _distJob.wildsN=wildsN; return true; }
     var zi=gz*ZN+gx;
     if(window.__contentZi[zi]) continue;
     var cx=(gx+0.5)*ZS-WORLD.half, cz=(gz+0.5)*ZS-WORLD.half, found=false;
@@ -138,9 +154,14 @@ function buildDistricts(){
       found=true; wildsN++;
     }
     window.__contentZi[zi]=1;
+    }
+    _distJob.gx=0;
   }
   window.__wildsN=wildsN;
   batch.finish();
   zoneSiteRate=new Float32Array(ZN*ZN);
   for(var s2=0;s2<SITES.length;s2++) zoneSiteRate[SITES[s2].zi]+=SITES[s2].rate;
+  _distJob=null;
+  return false;
+  }
 }

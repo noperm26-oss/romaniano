@@ -50,8 +50,11 @@ function terrainMeshH(x,z){
   if(u+v<=1) return ha+(hd-ha)*u+(hb-ha)*v;
   return hc+(hb-hc)*(1-u)+(hd-hc)*(1-v);
 }
-(function buildGround(){
-  var _t0=performance.now();
+var _groundJob=null;
+function buildGround(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  var j=_groundJob;
+  if(!j){
   var size=TM_SIZE, segs=TM_SEGS;
   var geo=new THREE.PlaneGeometry(size,size,segs,segs);
   geo.rotateX(-Math.PI/2);
@@ -69,42 +72,61 @@ function terrainMeshH(x,z){
   };
   var w={}, tmp=new THREE.Color(), acc=new THREE.Color(), burnedSites=SITES_DEF.filter(function(s){ return s.kind==='burned'||s.kind==='graves'||s.kind==='siege'||s.kind==='memorial'; });
   var ROAD_PAINT={R0:C(0x9a9a8a), R1:C(0x9a8555), R1t:C(0xc2b08a), R2:C(0x9b8866), R3:C(0x8a7a5a)};
-  for(var i=0;i<pos.count;i++){
-    var x=pos.getX(i), z=pos.getZ(i);
+  var arr=pos.array;
+  j=_groundJob={geo:geo,pos:pos,colors:colors,segs:segs,arr:arr,w:w,tmp:tmp,acc:acc,burnedSites:burnedSites,ROAD_PAINT:ROAD_PAINT,pal:pal,i:0,phase:0};
+  }
+  if(j.phase===0){
+  var arr=j.arr, pos=j.pos, segs=j.segs, colors=j.colors, w=j.w, tmp=j.tmp, acc=j.acc, pal=j.pal, burnedSites=j.burnedSites, ROAD_PAINT=j.ROAD_PAINT;
+  for(; j.i<pos.count; j.i++){
+    if(budget && performance.now()>=tEnd) return true;
+    var i=j.i;
+    var i3=i*3, x=arr[i3], z=arr[i3+2];
     var h=terrainNodeH(i%(segs+1), Math.floor(i/(segs+1)));
-    pos.setY(i,h);
+    arr[i3+1]=h;
     regionWeights(x,z,w);
     var n=Math.sin(x*0.13+z*0.17)*0.5+Math.sin(x*0.031-z*0.043)*0.5;
     var n2=Math.sin(x*0.011+1.7)*Math.cos(z*0.009-0.4);
     var n3=Math.sin(x*0.0021)*Math.cos(z*0.0027);
     acc.setRGB(0,0,0);
+    /* a zero region weight adds nothing — skip that blend so the colour stays identical */
+    if(w.carpathian){
     /* Carpathians: forest floor low, scree, snow high */
     tmp.copy(pal.pine).lerp(pal.limestone, clamp((h-6)/22,0,1));
     if(n>0.25) tmp.lerp(pal.rock,0.3);
     if(n2>0.55) tmp.lerp(pal.scree,0.35);
     if(h>24) tmp.lerp(pal.snow, clamp((h-24)/9,0,1)*(0.7+0.3*n2));
     acc.r+=tmp.r*w.carpathian; acc.g+=tmp.g*w.carpathian; acc.b+=tmp.b*w.carpathian;
+    }
+    if(w.transylvanian){
     /* Transylvania: wheat and vineyards in patches, oak woods on hilltops */
     tmp.copy(pal.grass);
     if(n2>0.35) tmp.lerp(pal.wheat, 0.55+0.3*n);
     else if(n2<-0.45) tmp.lerp(pal.vine, 0.6);
     if(h>7.5) tmp.lerp(pal.forest, clamp((h-7.5)/3,0,1)*0.55);
     acc.r+=tmp.r*w.transylvanian; acc.g+=tmp.g*w.transylvanian; acc.b+=tmp.b*w.transylvanian;
+    }
+    if(w.wallachian){
     /* Wallachia: grass, marsh in the hollows, mud along the water */
     tmp.copy(pal.wgrass);
     if(h<-1.2) tmp.lerp(pal.marsh, clamp((-1.2-h)/1.4,0,1));
     if(n<-0.35) tmp.lerp(pal.marsh,0.3);
     if(n2>0.6) tmp.lerp(pal.mud,0.3);
     acc.r+=tmp.r*w.wallachian; acc.g+=tmp.g*w.wallachian; acc.b+=tmp.b*w.wallachian;
+    }
+    if(w.moldavian){
     /* Moldavia: black forest with rock breaking through */
     tmp.copy(pal.mgrass).lerp(pal.forest, clamp(0.35+n*0.5,0,1));
     if(h>8) tmp.lerp(pal.mrock, clamp((h-8)/4,0,1)*0.6);
     if(n3>0.5) tmp.lerp(pal.mrock,0.2);
     acc.r+=tmp.r*w.moldavian; acc.g+=tmp.g*w.moldavian; acc.b+=tmp.b*w.moldavian;
+    }
+    if(w.trade_route){
     /* Trade route: dust and dry earth */
     tmp.copy(pal.tbase).lerp(pal.dust, 0.45+0.35*Math.sin(x*0.01));
     if(n<-0.5) tmp.lerp(pal.dry,0.4);
     acc.r+=tmp.r*w.trade_route; acc.g+=tmp.g*w.trade_route; acc.b+=tmp.b*w.trade_route;
+    }
+    if(w.capital){
     /* Capital: garden belt inside r300, paved districts to the wall at r520, boulevards fading outside */
     tmp.copy(pal.cbase);
     var dc=Math.sqrt(x*x+z*z);
@@ -113,10 +135,13 @@ function terrainMeshH(x,z){
     else if(dc<620) tmp.lerp(pal.boulevard, 0.35*(1-(dc-524)/96));
     if(Math.abs(x-600)<130 && Math.abs(z-600)<130) tmp.lerp(pal.stone, 0.55*(1-ss(80,130,Math.max(Math.abs(x-600),Math.abs(z-600)))));
     acc.r+=tmp.r*w.capital; acc.g+=tmp.g*w.capital; acc.b+=tmp.b*w.capital;
+    }
+    if(w.battlefield){
     /* Battlefields: scarred plains */
     tmp.copy(pal.bbase).lerp(pal.scar, 0.15+0.25*Math.max(0,n));
     if(n2>0.7) tmp.lerp(pal.burned,0.3);
     acc.r+=tmp.r*w.battlefield; acc.g+=tmp.g*w.battlefield; acc.b+=tmp.b*w.battlefield;
+    }
     tmp.copy(acc);
     /* scarred / burned ground around war sites */
     for(var bi=0;bi<burnedSites.length;bi++){
@@ -129,7 +154,7 @@ function terrainMeshH(x,z){
     /* the rock-hall floor of the cave village is earth, not snow */
     if(Math.abs(x-MASSIF.cave.x)<74 && z>MASSIF.cave.z-48 && z<MASSIF.cave.z+46) tmp.lerp(pal.mud, 0.7);
     /* river banks: mud, then reeds/marsh */
-    var rf=riverField(x,z);
+    var rf=riverField(x,z,64);
     if(rf.river){
       var hw=rf.river.hw*(1+0.3*(1-ss(-2050,-1700,z)));
       if(rf.d<hw*0.75) tmp.lerp(pal.lakebed, 0.7*(1-rf.d/(hw*0.75)));
@@ -148,12 +173,20 @@ function terrainMeshH(x,z){
     tmp.multiplyScalar(0.92);   /* noon light sums to ~1.25; the surface shader adds its own ±15% */
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
   }
+  j.phase=1;
+  if(budget && performance.now()>=tEnd) return true;
+  }
+  if(j.phase===1){
+  var geo=j.geo; colors=j.colors;
   geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
   geo.computeVertexNormals();
   var ground=new THREE.Mesh(geo, surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
   ground.receiveShadow=true;
   ground.name='always';
   scene.add(ground);
+  j.phase=2;
+  if(budget && performance.now()>=tEnd) return true;
+  }
 
   /* ---- water: rivers as ribbons over the troughs, lakes as discs ---- */
   WATER_MAT=new THREE.MeshLambertMaterial({color:0x6f8f9c, map:makeWaterTexture(), transparent:true, opacity:0.84, side:THREE.DoubleSide});
@@ -187,5 +220,6 @@ function terrainMeshH(x,z){
     m.rotation.x=-Math.PI/2; m.position.set(L.x,y,L.z); m.name='always'; m.receiveShadow=true;
     scene.add(m); waterSurfaces.push(m);
   });
-  BOOT_TIMES.terrain=Math.round(performance.now()-_t0);
-})();
+  _groundJob=null;
+  return false;
+}

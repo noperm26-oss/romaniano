@@ -1,5 +1,6 @@
 /* ---------------- debug / test hook ---------------- */
 window.__game={
+  ready:false,
   begin:function(fac, role){
     selectedFaction=fac; selectedRole=role; curFaction=fac; beginCampaign();
   },
@@ -150,6 +151,7 @@ window.__game={
   /* direct eval inside the game closure — diagnostics only (tests, harnesses) */
   ev:function(src){ return eval(src); },
   bootTimes:function(){ return BOOT_TIMES; },
+  loadArea:function(){ return {index:loadAreaIndex, name:LOAD_AREA_STEPS[loadAreaIndex].name, r:loadAreaRadius(), full:!!loadAreaFull(), centers:LOAD_CENTERS.length, sceneryLater:(typeof SCENERY_LATER!=='undefined'?SCENERY_LATER.length/11:0)}; },
   memStats:function(){ var tri=0, triInst=0, meshes=0, inst=0, verts=0; scene.traverse(function(o){ if(o.isMesh&&o.geometry&&o.geometry.attributes.position){ var g=o.geometry, n=g.index?g.index.count/3:g.attributes.position.count/3; meshes++; if(o.isInstancedMesh){ inst++; triInst+=n*o.count; } else { tri+=n; verts+=g.attributes.position.count; } } }); return {meshes:meshes, instanced:inst, tris:Math.round(tri), trisInstanced:Math.round(triInst), verts:verts}; },
   fpInfo:function(){ var wd=null;
     if(fpWeapon){ var wp=new THREE.Vector3(); fpWeapon.getWorldPosition(wp); var pj=wp.clone().project(camera);

@@ -405,15 +405,33 @@ SITE_BUILDERS.witch=function(s,rnd){
 };
 
 /* ============================================================ build them all ============================================================ */
-function buildLandmarks(){
-  SITES_DEF.forEach(function(s){
-    var fn=SITE_BUILDERS[s.kind];
-    if(!fn) return;
-    var rnd=srand(s.x*31+s.z*17+s.key.length);
-    siteBegin(s.name, s.x, s.z, s.r+60);
-    fn(s,rnd);
-    siteEnd();
-  });
-  /* bridges over rivers and moats */
-  BRIDGES.forEach(function(b){ buildBridge(b); });
+var _lmI=0, _lmBr=0, _lmPhase=0;
+function buildLandmarks(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  if(_lmPhase===0){
+    for(; _lmI<SITES_DEF.length; _lmI++){
+      if(budget && performance.now()>=tEnd && _lmI>0) return true;
+      var s=SITES_DEF[_lmI], fn=SITE_BUILDERS[s.kind];
+      if(!fn || s._area) continue;
+      if(typeof inLoadArea==='function' && !inLoadArea(s.x, s.z)) continue;
+      s._area=1;
+      var rnd=srand(s.x*31+s.z*17+s.key.length);
+      siteBegin(s.name, s.x, s.z, s.r+60);
+      fn(s,rnd);
+      siteEnd();
+    }
+    _lmPhase=1;
+    if(budget && performance.now()>=tEnd) return true;
+  }
+  /* bridges over rivers and moats — once; a later reach must not lay them again */
+  if(!_lmBridges){
+  for(; _lmBr<BRIDGES.length; _lmBr++){
+    if(budget && performance.now()>=tEnd && _lmBr>0) return true;
+    buildBridge(BRIDGES[_lmBr]);
+  }
+  _lmBridges=1;
+  }
+  _lmI=0; _lmBr=0; _lmPhase=0;
+  return false;
 }
+var _lmBridges=0;

@@ -8,6 +8,8 @@ A modular continuation of the uploaded **v11 game**, not a replacement. Romanian
 
 Open **`index.html`** or **`age-of-warfare.html`** in a WebGL-capable browser. They are identical, self-contained files, including the local Three.js library. They also work under a GitHub Pages repository subdirectory. No API, CDN, login, database, or runtime package manager is required.
 
+On the main menu, **Loaded area** starts at Homeland so a weak machine only raises each kingdom and the ground past the fog. The highest step is the entire 6,000 × 6,000 map. What is loaded does not change its graphics. Choosing the entire map, or a smaller area, reloads.
+
 Choose a kingdom, then a character, then spawn. The optional button panel runs the same commands as the keyboard. **F2** hides/shows it for keyboard/mouse-only play.
 
 | Input | Action |

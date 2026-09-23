@@ -66,6 +66,13 @@ function toggleSettings(open){
     else if(state===ST.PAUSE) show(overlayPause);
   }
 }
+function bindLoadSlider(id){
+  var el=$(id); if(!el) return;
+  el.addEventListener('input', function(){ previewLoadArea(+el.value); });
+  el.addEventListener('change', function(){ setLoadArea(+el.value); });
+}
+bindLoadSlider('menu-load');
+bindLoadSlider('set-load');
 $('set-bg').addEventListener('input', updSettingsLabels);
 $('set-def').addEventListener('input', updSettingsLabels);
 $('btn-set-apply').addEventListener('click', function(){

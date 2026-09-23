@@ -104,6 +104,7 @@
   "src/ui/actions.js",
   "src/system/autobuy.js",
   "src/system/autopilot.js",
+  "src/system/load-area.js",
   "src/ui/settings.js",
   "src/system/arrow-update.js",
   "src/system/culling.js",

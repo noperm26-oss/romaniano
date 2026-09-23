@@ -25,7 +25,7 @@ var PREFAB_DEFS={}, PREFAB_CACHE={};
 var PREFAB_CELLS=new Map();
 var PREFAB_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);   /* pattern per vertex (aPat) */
 var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
-var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
+var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1), PREFAB_IDQ=new THREE.Quaternion(), PREFAB_TMP_V=new THREE.Vector3(), PREFAB_TMP_Q=new THREE.Quaternion(), PREFAB_TMP_S=new THREE.Vector3();
 
 /* ---- capture: build once at the origin, keep what it produced ---- */
 function prefabCapture(key, fn){
@@ -81,8 +81,10 @@ function prefabPlace(key, x, z, face, opts){
     addCollider(x+Math.min(p[0],q[0]), z+Math.min(p[1],q[1]), x+Math.max(p[0],q[0]), z+Math.max(p[1],q[1]));
   }
   var cell=prefabCellOf(x,z);
+  if(!cell.items) cell.items=new Map();
+  if(!cell.flames) cell.flames=[];
   var list=cell.items.get(key); if(!list){ list=[]; cell.items.set(key,list); }
-  var m=new THREE.Matrix4(); m.compose(new THREE.Vector3(x,gy,z), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,a), PREFAB_ONE);
+  var m=new THREE.Matrix4(); PREFAB_TMP_V.set(x,gy,z); PREFAB_TMP_Q.setFromAxisAngle(PREFAB_Y,a); m.compose(PREFAB_TMP_V, PREFAB_TMP_Q, PREFAB_ONE);
   list.push(m);
   /* the door leaf becomes an instance of the shared leaf; DOORS drives it like any hinged door */
   for(i=0;i<pf.doors.length;i++){
@@ -105,38 +107,48 @@ function prefabPlace(key, x, z, face, opts){
 }
 /* the matrix of an instanced door leaf: hinge, swing angle, leaf size */
 function prefabDoorMatrix(E, out){
-  out.compose(new THREE.Vector3(E.hx,E.hy,E.hz), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,E.rot), new THREE.Vector3(E.w-0.12,E.hh-0.06,1));
+  PREFAB_TMP_V.set(E.hx,E.hy,E.hz); PREFAB_TMP_Q.setFromAxisAngle(PREFAB_Y,E.rot); PREFAB_TMP_S.set(E.w-0.12,E.hh-0.06,1);
+  out.compose(PREFAB_TMP_V, PREFAB_TMP_Q, PREFAB_TMP_S);
   return out;
 }
 /* turn every cell's instance lists into InstancedMeshes (called once, after the countryside is placed) */
 function prefabFlush(){
   var tmp=new THREE.Matrix4(), made=0;
   PREFAB_CELLS.forEach(function(cell){
+    var d0=cell.doorFrom||0;
+    var hasItems=!!(cell.items && cell.items.size);
+    var hasFlames=!!(cell.flames && cell.flames.length);
+    var hasDoors=cell.doors.length>d0;
+    if(!hasItems && !hasFlames && !hasDoors) return;
     var g=propCell(cell.x,cell.z);
-    cell.items.forEach(function(list,key){
+    if(hasItems) cell.items.forEach(function(list,key){
       var pf=PREFAB_CACHE[key], i;
+      if(!list.length) return;
       if(pf.body){ var im=new THREE.InstancedMesh(pf.body, PREFAB_MAT, list.length); for(i=0;i<list.length;i++) im.setMatrixAt(i,list[i]); im.instanceMatrix.needsUpdate=true; im.frustumCulled=false; im.castShadow=true; im.receiveShadow=true; im.name='prefab:'+key; g.add(im); made++; }
       if(pf.panes){ var ip=new THREE.InstancedMesh(pf.panes, PANE_MAT, list.length); for(i=0;i<list.length;i++) ip.setMatrixAt(i,list[i]); ip.instanceMatrix.needsUpdate=true; ip.frustumCulled=false; ip.name='prefab-panes:'+key; g.add(ip); made++; }
     });
-    if(cell.flames.length){
+    if(cell.items) cell.items=new Map();
+    if(hasFlames){
       var fg=sharedGeometry('flame',function(){ return new THREE.ConeGeometry(0.22,0.55,6); });
       var fi=new THREE.InstancedMesh(fg, FLAME_MAT, cell.flames.length);
-      cell.flames.forEach(function(f,i){ tmp.compose(new THREE.Vector3(f.x,f.y,f.z), new THREE.Quaternion(), new THREE.Vector3(f.s,f.s,f.s)); fi.setMatrixAt(i,tmp); });
+      cell.flames.forEach(function(f,i){ PREFAB_TMP_V.set(f.x,f.y,f.z); PREFAB_TMP_S.set(f.s,f.s,f.s); tmp.compose(PREFAB_TMP_V, PREFAB_IDQ, PREFAB_TMP_S); fi.setMatrixAt(i,tmp); });
       fi.instanceMatrix.needsUpdate=true; fi.frustumCulled=false; fi.name='prefab-flames'; g.add(fi); made++;
+      cell.flames=[];
     }
-    if(cell.doors.length){
+    if(hasDoors){
+      var fresh=cell.doors.slice(d0);
       var dg=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
         {w:1,h:1,d:0.11,x:0.5,y:0.5,z:0,c:0x513820},
         {w:0.96,h:0.05,d:0.15,x:0.5,y:0.24,z:0,c:0x241d16},{w:0.96,h:0.05,d:0.15,x:0.5,y:0.76,z:0,c:0x241d16},
         {w:0.02,h:1,d:0.13,x:0.34,y:0.5,z:0,c:0x3a2a18},{w:0.02,h:1,d:0.13,x:0.66,y:0.5,z:0,c:0x3a2a18},
         {w:0.08,h:0.08,d:0.2,x:0.86,y:0.48,z:0,c:0x50565e}]); });
-      var di=new THREE.InstancedMesh(dg, DOOR_MAT, cell.doors.length);
-      cell.doors.forEach(function(E,i){ E.im=di; E.idx=i; di.setMatrixAt(i, prefabDoorMatrix(E,tmp)); });
+      var di=new THREE.InstancedMesh(dg, DOOR_MAT, fresh.length);
+      fresh.forEach(function(E,i){ E.im=di; E.idx=i; di.setMatrixAt(i, prefabDoorMatrix(E,tmp)); });
       di.instanceMatrix.needsUpdate=true; di.frustumCulled=false; di.castShadow=true; di.name='prefab-doors'; g.add(di); made++;
+      cell.doorFrom=cell.doors.length;
     }
-    cell.items=null; cell.flames=null;
   });
-  PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes=made;
+  PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes+=made;
   return made;
 }
 
