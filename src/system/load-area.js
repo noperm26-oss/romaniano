@@ -107,7 +107,7 @@ function loadAreaWork(budget){
   if(!more && _areaPhase===1){ if(buildVillages(budget)) more=true; else _areaPhase=2; }
   if(!more && _areaPhase===2){ if(buildSettlements(budget)) more=true; else _areaPhase=3; }
   if(!more && _areaPhase===3){ if(typeof loadAreaScenery==='function' && loadAreaScenery(budget)) more=true; else _areaPhase=4; }
-  prefabFlush();
+  if(prefabFlush(budget)) more=true;
   if(!more){
     if(typeof snapshotStatics==='function') snapshotStatics();
     _areaPhase=0;

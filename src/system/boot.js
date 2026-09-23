@@ -31,19 +31,15 @@ function bootTowns(budget){
   TOWN_TEND=budget?performance.now()+budget:0;
   var start=_townI;
   for(;;){
-    if(typeof _roma!=='undefined' && _roma){
-      var tR=performance.now(), moreR=townRomaria();
-      if(performance.now()-tR>=80) BOOT_SLICES.push('town-nippon:'+Math.round(performance.now()-tR));
-      if(moreR) return true;
-      closeHeldTown();
-    }
     if(_townI>=FAC_KEYS.length){ _townI=0; return false; }
-    if(budget && _townI>start && performance.now()>=TOWN_TEND) return true;
+    /* a town already in progress must resume before the clock can skip it */
+    if(budget && _townI>start && !_townHold && performance.now()>=TOWN_TEND) return true;
     var _tf=FAC_KEYS[_townI], _tt=performance.now();
-    buildTown(_tf);
-    _townI++;
+    var more=buildTown(_tf);
     if(performance.now()-_tt>=80) BOOT_SLICES.push('town-'+_tf+':'+Math.round(performance.now()-_tt));
-    if(typeof _roma!=='undefined' && _roma && budget && performance.now()>=TOWN_TEND) return true;
+    if(more) return true;
+    _townI++;
+    if(budget && performance.now()>=TOWN_TEND) return true;
   }
 }
 function setBootStatus(label, done, total){
@@ -86,7 +82,7 @@ function bootQueue(budget){
     ['roads', function(){ return buildRoads(budget); }, 'Paving the roads'],
     ['districts', function(){ return buildDistricts(budget); }, 'Marking the farmsteads'],
     ['settlements', function(){ return buildSettlements(budget); }, 'Raising the hamlets'],
-    ['prefabs', function(){ prefabFlush(); }, 'Furnishing the houses'],
+    ['prefabs', function(){ return prefabFlush(budget); }, 'Furnishing the houses'],
     ['relics', function(){ placeRelics(); }, 'Hiding the relics'],
     ['kits', function(){ flushCellKits(); }, 'Finishing the roofs'],
     ['statics', function(){ snapshotStatics(); }, 'Opening the gates']

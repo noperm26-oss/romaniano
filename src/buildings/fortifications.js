@@ -120,10 +120,12 @@ function fortWall(o){
   return {len:L};
 }
 /* wall along a polyline with gaps: gaps=[{x,z,w}] */
-function fortWallRun(pts,opts,gaps,closed){
-  var i, out=[];
+function fortWallRun(pts,opts,gaps,closed,job){
+  var i, out=(job&&job.out)||[];
   var n=closed?pts.length:pts.length-1;
-  for(i=0;i<n;i++){
+  var start=job?(job.i||0):0;
+  for(i=start;i<n;i++){
+    if(job && job.deadline && i>start && performance.now()>=job.deadline){ job.i=i; job.out=out; job.more=true; return out; }
     var a=pts[i], b=pts[(i+1)%pts.length];
     var segs=[[a[0],a[1],b[0],b[1]]];
     (gaps||[]).forEach(function(g){

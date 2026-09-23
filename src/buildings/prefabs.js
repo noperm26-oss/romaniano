@@ -112,14 +112,22 @@ function prefabDoorMatrix(E, out){
   return out;
 }
 /* turn every cell's instance lists into InstancedMeshes (called once, after the countryside is placed) */
-function prefabFlush(){
-  var tmp=new THREE.Matrix4(), made=0;
-  PREFAB_CELLS.forEach(function(cell){
+var _prefabJob=null;
+function prefabFlush(budget){
+  var deadline=budget?performance.now()+budget:0;
+  if(!_prefabJob) _prefabJob={i:0, keys:Array.from(PREFAB_CELLS.keys()), made:0};
+  else { var seen={}; for(var ki=0;ki<_prefabJob.keys.length;ki++) seen[_prefabJob.keys[ki]]=1; PREFAB_CELLS.forEach(function(c,k){ if(!seen[k]) _prefabJob.keys.push(k); }); }
+  var job=_prefabJob, tmp=new THREE.Matrix4(), start=job.i, made=job.made, cell;
+  for(; job.i<job.keys.length; job.i++){
+    if(deadline && job.i>start && performance.now()>=deadline){ job.made=made; return true; }
+    cell=PREFAB_CELLS.get(job.keys[job.i]);
+    if(!cell) continue;
+    {
     var d0=cell.doorFrom||0;
     var hasItems=!!(cell.items && cell.items.size);
     var hasFlames=!!(cell.flames && cell.flames.length);
     var hasDoors=cell.doors.length>d0;
-    if(!hasItems && !hasFlames && !hasDoors) return;
+    if(!hasItems && !hasFlames && !hasDoors) continue;
     var g=propCell(cell.x,cell.z);
     if(hasItems) cell.items.forEach(function(list,key){
       var pf=PREFAB_CACHE[key], i;
@@ -147,9 +155,11 @@ function prefabFlush(){
       di.instanceMatrix.needsUpdate=true; di.frustumCulled=false; di.castShadow=true; di.name='prefab-doors'; g.add(di); made++;
       cell.doorFrom=cell.doors.length;
     }
-  });
+    }
+  }
   PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes+=made;
-  return made;
+  _prefabJob=null;
+  return false;
 }
 
 /* ============================================================
