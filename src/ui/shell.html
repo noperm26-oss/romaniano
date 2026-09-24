@@ -76,7 +76,14 @@
       Six nations, each with its own homeland — halls, temples, barracks and homes you can walk into.
       Your kingdom earns <b>gold</b> from the territory it holds; spend it at the muster to <b>buy troops</b>.
       Seize the neutral lands, crush the other kings, and own <b>128 of the 256 zones</b> — half the world — to rule it all.</p>
-    <button id="btn-begin" class="primary">Take the Throne</button>
+    <button id="btn-begin" class="primary" disabled>Raising the land…</button>
+    <div id="load-meter" class="load-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="load-meter-i"></i></div>
+    <p id="load-status" class="load-status">Raising the land on this machine. The throne opens when it is ready.</p>
+    <div class="load-area">
+      <label for="menu-load">Loaded area <b id="menu-load-v">Homeland</b></label>
+      <input type="range" id="menu-load" min="0" max="4" step="1" value="0" aria-label="Loaded area">
+      <p id="menu-load-h" class="load-status">Each kingdom and the ground you can see. Fastest on a weak machine.</p>
+    </div>
     <div class="row center" style="margin-top:14px">
       <a id="btn-bugreport" href="https://forms.gle/unx6BqouwTxsNPHu8" target="_blank" rel="noopener" class="bugreport-link">🐛 Bug Reports &amp; Suggestions</a>
     </div>
@@ -252,6 +259,11 @@
     <div class="set-row set-wide">
       <label>Q order-scope steps <i>(% of army per keypress, comma-separated)</i></label>
       <input type="text" id="set-scopes" value="100, 75, 50, 25, 10, 5" spellcheck="false">
+    </div>
+    <div class="set-row set-wide">
+      <label>Loaded area <i id="set-load-h">Each kingdom and the ground you can see. Fastest on a weak machine.</i></label>
+      <input type="range" id="set-load" min="0" max="4" step="1" value="0" aria-label="Loaded area">
+      <b id="set-load-v" class="set-load-name">Homeland</b>
     </div>
     <div class="set-row">
       <label>Doctrine presets</label>

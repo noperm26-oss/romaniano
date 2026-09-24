@@ -26,20 +26,55 @@ function seedRand(seed){
 /* ============================================================
    1. Merged geometry kit
    ============================================================ */
+/* 12 box triangles: 3 corner offsets into _c, then the normal offset into _n. Same winding as quad(). */
+var KIT_BOX_IX=new Uint8Array([
+  12,15,18,0, 12,18,21,0,
+  3,0,9,3, 3,9,6,3,
+  21,18,6,6, 21,6,9,6,
+  0,3,15,9, 0,15,12,9,
+  15,3,6,12, 15,6,18,12,
+  0,12,21,15, 0,21,9,15
+]);
+/* Vector3.applyQuaternion, inlined. For a pure yaw this matches THREE.Quaternion.setFromEuler('YXZ') bit for bit. */
+function kitYaw(o,i,lx,ly,lz,qx,qy,qz,qw){
+  var ix=qw*lx+qy*lz-qz*ly, iy=qw*ly+qz*lx-qx*lz, iz=qw*lz+qx*ly-qy*lx, iw=-qx*lx-qy*ly-qz*lz;
+  o[i]=ix*qw+iw*-qx+iy*-qz-iz*-qy;
+  o[i+1]=iy*qw+iw*-qy+iz*-qx-ix*-qz;
+  o[i+2]=iz*qw+iw*-qz+ix*-qy-iy*-qx;
+}
 function kitCreate(){
   var bags=new Map();
   var quat=new THREE.Quaternion(), eul=new THREE.Euler(0,0,0,'YXZ');
   var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3();
   var e1=new THREE.Vector3(), e2=new THREE.Vector3(), nv=new THREE.Vector3();
-  var tx=0, ty=0, tz=0;
+  var tx=0, ty=0, tz=0, ident=1;
+  var _c=new Float32Array(24), _n=new Float32Array(18);
   /* local frame: everything placed after frame(cx,cz,a) is rotated by a about (cx,cz) */
   var fx=0, fz=0, fa=0, fc=1, fs=0;
   function frame(cx,cz,a){ fx=cx||0; fz=cz||0; fa=a||0; fc=Math.cos(fa); fs=Math.sin(fa); }
   function toWorld(x,z){ if(!fa) return {x:x,z:z}; var dx=x-fx, dz=z-fz; return {x:fx+dx*fc+dz*fs, z:fz-dx*fs+dz*fc}; }
-  function bag(m){ var b=bags.get(m); if(!b){ b={p:[],n:[],u:[]}; bags.set(m,b); } return b; }
+  var _bm=null, _bb=null;
+  function bag(m){
+    if(m===_bm) return _bb;
+    var b=bags.get(m);
+    if(!b){ b={p:new Float32Array(12288), n:new Float32Array(12288), u:new Float32Array(8192), nv:0}; bags.set(m,b); }
+    _bm=m; _bb=b;
+    return b;
+  }
+  function ensure(b,add){
+    var need=(b.nv+add)*3;
+    if(need<=b.p.length) return;
+    var cap=b.p.length*2; if(cap<need) cap=need;
+    var p=new Float32Array(cap), n=new Float32Array(cap), u=new Float32Array(cap/3*2);
+    p.set(b.p.subarray(0,b.nv*3)); n.set(b.n.subarray(0,b.nv*3)); u.set(b.u.subarray(0,b.nv*2));
+    b.p=p; b.n=n; b.u=u;
+  }
   function place(x,y,z,rx,ry,rz){
-    if(fa){ var w=toWorld(x||0,z||0); x=w.x; z=w.z; ry=(ry||0)+fa; }
-    tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul);
+    x=x||0; y=y||0; z=z||0; rx=rx||0; ry=ry||0; rz=rz||0;
+    if(fa){ var dx=x-fx, dz=z-fz; x=fx+dx*fc+dz*fs; z=fz-dx*fs+dz*fc; ry+=fa; }
+    tx=x; ty=y; tz=z;
+    if(!rx && !ry && !rz){ ident=1; return; }
+    ident=0; eul.set(rx,ry,rz); quat.setFromEuler(eul);
   }
   /* axis-aligned collider given in local coordinates (rotated to a world AABB) */
   function collider(x0,z0,x1,z1){
@@ -47,31 +82,86 @@ function kitCreate(){
     addCollider(Math.min(a.x,b.x,c.x,d.x), Math.min(a.z,b.z,c.z,d.z), Math.max(a.x,b.x,c.x,d.x), Math.max(a.z,b.z,c.z,d.z));
   }
   function angle(){ return fa; }
-  function push(b,v,n){
-    b.p.push(v.x+tx, v.y+ty, v.z+tz);
-    b.n.push(n.x, n.y, n.z);
-    b.u.push((v.x+v.z)*0.25, v.y*0.25);
+  function emit3(b,ax,ay,az,bx,by,bz,cx,cy,cz,nx,ny,nz){
+    ensure(b,3);
+    var i=b.nv, p=i*3, q=i*2, P=b.p, N=b.n, U=b.u;
+    P[p]=ax+tx; P[p+1]=ay+ty; P[p+2]=az+tz; N[p]=nx; N[p+1]=ny; N[p+2]=nz; U[q]=(ax+az)*0.25; U[q+1]=ay*0.25;
+    P[p+3]=bx+tx; P[p+4]=by+ty; P[p+5]=bz+tz; N[p+3]=nx; N[p+4]=ny; N[p+5]=nz; U[q+2]=(bx+bz)*0.25; U[q+3]=by*0.25;
+    P[p+6]=cx+tx; P[p+7]=cy+ty; P[p+8]=cz+tz; N[p+6]=nx; N[p+7]=ny; N[p+8]=nz; U[q+4]=(cx+cz)*0.25; U[q+5]=cy*0.25;
+    b.nv=i+3;
   }
   function tri(m,p0,p1,p2){
-    var b=bag(m);
     va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]);
     e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
     if(nv.lengthSq()<1e-10) return;
     nv.normalize();
-    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat);
-    push(b,va,nv); push(b,vb,nv); push(b,vc,nv);
+    if(!ident){ va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat); }
+    emit3(bag(m), va.x,va.y,va.z, vb.x,vb.y,vb.z, vc.x,vc.y,vc.z, nv.x,nv.y,nv.z);
   }
   function quad(m,p0,p1,p2,p3){ tri(m,p0,p1,p2); tri(m,p0,p2,p3); }
-  /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz */
+  function corn(lx,ly,lz,o){
+    if(ident){ _c[o]=lx; _c[o+1]=ly; _c[o+2]=lz; return; }
+    va.set(lx,ly,lz).applyQuaternion(quat);
+    _c[o]=va.x; _c[o+1]=va.y; _c[o+2]=va.z;
+  }
+  function nrm(nx,ny,nz,o){
+    if(ident){ _n[o]=nx; _n[o+1]=ny; _n[o+2]=nz; return; }
+    nv.set(nx,ny,nz).applyQuaternion(quat);
+    _n[o]=nv.x; _n[o+1]=nv.y; _n[o+2]=nv.z;
+  }
+  function emitBox(b){
+    ensure(b,36);
+    var C=_c, N=_n, P=b.p, Nv=b.n, U=b.u, ix=KIT_BOX_IX;
+    var p=b.nv*3, q=b.nv*2, k=0, t, e, o, cx, cy, cz, n0, nx, ny, nz;
+    for(t=0;t<12;t++){
+      n0=ix[k+3]; nx=N[n0]; ny=N[n0+1]; nz=N[n0+2];
+      for(e=0;e<3;e++){
+        o=ix[k+e]; cx=C[o]; cy=C[o+1]; cz=C[o+2];
+        P[p]=cx+tx; P[p+1]=cy+ty; P[p+2]=cz+tz;
+        Nv[p]=nx; Nv[p+1]=ny; Nv[p+2]=nz;
+        U[q]=(cx+cz)*0.25; U[q+1]=cy*0.25;
+        p+=3; q+=2;
+      }
+      k+=4;
+    }
+    b.nv+=36;
+  }
+  /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz.
+     Axis-aligned and pure-yaw boxes write the same corners the quaternion path would, without a Vector3 per corner. */
   function box(m,w,h,d,x,y,z,ry,rx,rz){
-    place(x,y,z,rx,ry,rz);
+    x=x||0; y=y||0; z=z||0; rx=rx||0; ry=ry||0; rz=rz||0;
+    if(fa){ var dx=x-fx, dz=z-fz; x=fx+dx*fc+dz*fs; z=fz-dx*fs+dz*fc; ry+=fa; }
+    tx=x; ty=y; tz=z;
     var X=w/2, Y=h/2, Z=d/2;
-    quad(m,[-X,-Y,Z],[X,-Y,Z],[X,Y,Z],[-X,Y,Z]);
-    quad(m,[X,-Y,-Z],[-X,-Y,-Z],[-X,Y,-Z],[X,Y,-Z]);
-    quad(m,[-X,Y,Z],[X,Y,Z],[X,Y,-Z],[-X,Y,-Z]);
-    quad(m,[-X,-Y,-Z],[X,-Y,-Z],[X,-Y,Z],[-X,-Y,Z]);
-    quad(m,[X,-Y,Z],[X,-Y,-Z],[X,Y,-Z],[X,Y,Z]);
-    quad(m,[-X,-Y,-Z],[-X,-Y,Z],[-X,Y,Z],[-X,Y,-Z]);
+    if(!rx && !rz){
+      if(!ry){
+        ident=1;
+        _c[0]=-X; _c[1]=-Y; _c[2]=-Z; _c[3]=X; _c[4]=-Y; _c[5]=-Z;
+        _c[6]=X; _c[7]=Y; _c[8]=-Z; _c[9]=-X; _c[10]=Y; _c[11]=-Z;
+        _c[12]=-X; _c[13]=-Y; _c[14]=Z; _c[15]=X; _c[16]=-Y; _c[17]=Z;
+        _c[18]=X; _c[19]=Y; _c[20]=Z; _c[21]=-X; _c[22]=Y; _c[23]=Z;
+        _n[0]=0; _n[1]=0; _n[2]=1; _n[3]=0; _n[4]=0; _n[5]=-1;
+        _n[6]=0; _n[7]=1; _n[8]=0; _n[9]=0; _n[10]=-1; _n[11]=0;
+        _n[12]=1; _n[13]=0; _n[14]=0; _n[15]=-1; _n[16]=0; _n[17]=0;
+      } else {
+        ident=0;
+        var qy=Math.sin(ry/2), qw=Math.cos(ry/2);
+        kitYaw(_c,0,-X,-Y,-Z,0,qy,0,qw); kitYaw(_c,3,X,-Y,-Z,0,qy,0,qw);
+        kitYaw(_c,6,X,Y,-Z,0,qy,0,qw); kitYaw(_c,9,-X,Y,-Z,0,qy,0,qw);
+        kitYaw(_c,12,-X,-Y,Z,0,qy,0,qw); kitYaw(_c,15,X,-Y,Z,0,qy,0,qw);
+        kitYaw(_c,18,X,Y,Z,0,qy,0,qw); kitYaw(_c,21,-X,Y,Z,0,qy,0,qw);
+        kitYaw(_n,0,0,0,1,0,qy,0,qw); kitYaw(_n,3,0,0,-1,0,qy,0,qw);
+        kitYaw(_n,6,0,1,0,0,qy,0,qw); kitYaw(_n,9,0,-1,0,0,qy,0,qw);
+        kitYaw(_n,12,1,0,0,0,qy,0,qw); kitYaw(_n,15,-1,0,0,0,qy,0,qw);
+      }
+      emitBox(bag(m));
+      return;
+    }
+    ident=0; eul.set(rx,ry,rz); quat.setFromEuler(eul);
+    corn(-X,-Y,-Z,0); corn(X,-Y,-Z,3); corn(X,Y,-Z,6); corn(-X,Y,-Z,9);
+    corn(-X,-Y,Z,12); corn(X,-Y,Z,15); corn(X,Y,Z,18); corn(-X,Y,Z,21);
+    nrm(0,0,1,0); nrm(0,0,-1,3); nrm(0,1,0,6); nrm(0,-1,0,9); nrm(1,0,0,12); nrm(-1,0,0,15);
+    emitBox(bag(m));
   }
   /* prism: triangle in local XY (base w along X, apex up, apex shifted -1..1), extruded d along Z */
   function prism(m,w,h,d,x,y,z,ry,rx,rz,apex){
@@ -112,36 +202,46 @@ function kitCreate(){
      and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
   function exportGeo(dy){
     dy=dy||0;
-    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    var bodyN=0, paneN=0, c=new THREE.Color(), white=new THREE.Color(0xffffff);
+    bags.forEach(function(b,m){ if(!b.nv) return; if(m===PANE_MAT) paneN+=b.nv; else bodyN+=b.nv; });
+    var pos=new Float32Array(bodyN*3), nor=new Float32Array(bodyN*3), col=new Float32Array(bodyN*3), pat=new Float32Array(bodyN);
+    var pp=paneN?new Float32Array(paneN*3):null, pn=paneN?new Float32Array(paneN*3):null, pu=paneN?new Float32Array(paneN*2):null;
+    var o=0, po=0;
     bags.forEach(function(b,m){
-      var i, n=b.p.length, sp=surfPatOf(m);
-      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
-      c.copy(m.color||new THREE.Color(0xffffff));
+      var i, nv=b.nv, p, d, sp;
+      if(!nv) return;
+      if(m===PANE_MAT){
+        for(i=0;i<nv;i++){ p=i*3; d=po*3; pp[d]=b.p[p]; pp[d+1]=b.p[p+1]-dy; pp[d+2]=b.p[p+2]; pn[d]=b.n[p]; pn[d+1]=b.n[p+1]; pn[d+2]=b.n[p+2]; pu[po*2]=b.u[i*2]; pu[po*2+1]=b.u[i*2+1]; po++; }
+        return;
+      }
+      c.copy(m.color||white);
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
+      sp=surfPatOf(m);
+      var r=c.r, g=c.g, bl=c.b;
+      for(i=0;i<nv;i++){ p=i*3; d=o*3; pos[d]=b.p[p]; pos[d+1]=b.p[p+1]-dy; pos[d+2]=b.p[p+2]; nor[d]=b.n[p]; nor[d+1]=b.n[p+1]; nor[d+2]=b.n[p+2]; col[d]=r; col[d+1]=g; col[d+2]=bl; pat[o]=sp; o++; }
     });
-    bags.clear();
+    bags.clear(); _bm=null; _bb=null;
     function geo(p,nn,cc,uu,pt){
-      if(!p.length) return null;
+      if(!p || !p.length) return null;
       var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
-      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
-      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
-      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
+      g.setAttribute('position', new THREE.BufferAttribute(p,3));
+      g.setAttribute('normal', new THREE.BufferAttribute(nn,3));
+      if(cc) g.setAttribute('color', new THREE.BufferAttribute(cc,3));
+      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(uu,2));
+      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(pt,1));   /* surface pattern per vertex (surface.js) */
       g.computeBoundingSphere(); g.computeBoundingBox();
       return g;
     }
-    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
+    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:bodyN/3};
   }
   function flush(parent,shadow){
     var made=0;
     bags.forEach(function(b,m){
-      if(!b.p.length) return;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.n),3));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.u),2));
+      if(!b.nv) return;
+      var g=new THREE.BufferGeometry(), nv=b.nv;
+      g.setAttribute('position', new THREE.BufferAttribute(b.p.subarray(0,nv*3),3));
+      g.setAttribute('normal', new THREE.BufferAttribute(b.n.subarray(0,nv*3),3));
+      g.setAttribute('uv', new THREE.BufferAttribute(b.u.subarray(0,nv*2),2));
       g.computeBoundingSphere();
       var mesh=new THREE.Mesh(g,m);
       mesh.castShadow=shadow!==false; mesh.receiveShadow=true;

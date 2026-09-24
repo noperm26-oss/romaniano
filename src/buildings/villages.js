@@ -9,7 +9,7 @@
    a wayside cross, lanterns, and the special feature of §7.1 for
    the NV villages (orchard, apiary, salt pans, log bridge, sluice…).
    ============================================================ */
-function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
+function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z,64); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
 /* a broadleaf tree: trunk, three tapered tiers that read as a round crown */
 function kitTree(kit,tx,tz,col,s,fir){
   var ty=groundH(tx,tz), C=MS(col,SURF.GRAIN), C2=MS(tintHex(col,0.12),SURF.GRAIN);
@@ -84,16 +84,21 @@ function yardGarden(kit,x,z,w,d,ry,crop){
   for(i=0;i<rows;i++){ var u=-w/2+(i+0.5)*(w/rows); kit.box(MS(i%2?crop:0x4a6a3a,SURF.GRAIN),0.6,0.32,d-0.5,x+u*c,y+0.2,z-u*s,ry); }
 }
 function villageYards(rows,v,K,rnd,kit){
+  var deadline=(typeof VILLAGE_TEND!=='undefined')?VILLAGE_TEND:0;
+  var job=v._yard||(v._yard={ri:0,hi:0});
   var reg=v.region||'wallachian', fir=(reg==='carpathian'||reg==='moldavian'), crop=(reg==='wallachian'||reg==='battlefield')?0x6a8a3a:0xb4a15a, n=0;
-  rows.forEach(function(row){
-    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; }); if(!hs.length) return;
+  for(; job.ri<rows.length; job.ri++){
+    var row=rows[job.ri];
+    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; });
+    if(!hs.length){ job.hi=0; continue; }
     var axis=row.axis, side=row.side, cross=row.cross;
     var P=(axis==='x')?function(u,vv){ return [u, cross+side*vv]; }:function(u,vv){ return [cross+side*vv, u]; };
     var faceHouse=(axis==='x')?(side>0?'N':'S'):(side>0?'W':'E');          /* looking back toward the street */
     var edges=[hs[0].u-hs[0].w/2-1.4], i;
     for(i=0;i<hs.length-1;i++) edges.push((hs[i].u+hs[i].w/2+hs[i+1].u-hs[i+1].w/2)/2);
     edges.push(hs[hs.length-1].u+hs[hs.length-1].w/2+1.4);
-    hs.forEach(function(h,i){
+    for(; job.hi<hs.length; job.hi++){
+      var h=hs[job.hi], i=job.hi;
       var u0=edges[i], u1=edges[i+1], vF=3.0, vWall=5.2+h.d, vBack=vWall+10+rnd()*3.5;
       var gw=h.doorW+1.9, g0=h.u-gw/2, g1=h.u+gw/2;
       yardFence(P(u0,vF),P(g0,vF)); yardFence(P(g1,vF),P(u1,vF));
@@ -120,24 +125,36 @@ function villageYards(rows,v,K,rnd,kit){
         else { if((p=spot(2.0))) yardTree(kit,p[0],p[1],K,rnd,fir); }
       }
       n++;
-    });
-  });
-  return n;
+      if(deadline && performance.now()>=deadline){ job.hi++; return true; }
+    }
+    job.hi=0;
+  }
+  v._yard=null;
+  return false;
 }
-function buildVillages(){
-  VILLAGES.forEach(function(v, vi){
-    var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
-    siteBegin('sat:'+v.name, X, Z, 120);
-    var SC=K.street;
-    townPlaza(X, Z, 12, SC);
-    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
-    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
-    var rows=[], curRow=null;
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
-             onBuilt:function(h){ curRow.houses.push(h); }};
-    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
-    row('x', X-50, X-12, Z, 1); row('x', X+12, X+50, Z, 1); row('x', X-50, X-12, Z, -1); row('x', X+12, X+50, Z, -1);
-    row('z', Z+28, Z+52, X, 1); row('z', Z-52, Z-28, X, -1); row('z', Z+28, Z+52, X, -1); row('z', Z-52, Z-28, X, 1);
+var _villageI=0, VILLAGE_TEND=0;
+function finishVillageYard(v){
+  var h=v._vy;
+  if(villageYards(h.rows, v, h.K, h.rnd, h.kit)) return true;
+  vTreeRing(h.X, h.Z, 10, 62, h.rnd, h.K.tree, 1); vTreeRing(h.X, h.Z, 8, 74, h.rnd, h.K.tree, 1.2);
+  siteEnd();
+  registerLore({key:'village'+h.vi, x:h.X, z:h.Z, r:34, icon:'V',
+    name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,
+    story:'Craftsmen, fields and quiet days. A village pays tribute to whoever holds the land it stands on — take the zone and its workers earn gold for your crown. Guard them: wolves and soldiers ask no permission.'});
+  v._vy=null;
+  return false;
+}
+function villageResume(v){
+  var h=v._hold, deadline=(typeof VILLAGE_TEND!=='undefined')?VILLAGE_TEND:0;
+  for(; h.ri<h.specs.length; h.ri++){
+    if(deadline && h.ri && performance.now()>=deadline) return true;
+    var rw=h.specs[h.ri];
+    h.row(rw[0], rw[1], rw[2], rw[3], rw[4]);
+  }
+  return false;
+}
+function villageFinish(v){
+  var h=v._hold, K=h.K, rnd=h.rnd, X=h.X, Z=h.Z, kit=h.kit, rows=h.rows, vi=h.vi, i;
     /* the church of the kit */
     var cs=vSlot(X,Z,5);
     if(K.church==='lemn') rblBisericaLemn({x:cs[0], z:cs[1], door:'S', name:'Biserica de lemn din '+v.name});
@@ -174,11 +191,40 @@ function buildVillages(){
     propFence(X-48, Z+30, X-30, Z+30, 1.0); propFence(X-48, Z+30, X-48, Z+44, 1.0);
     propTroita(X+8, Z-10, 0.2);
     torchPost(X-6, Z-6, 2.4); torchPost(X+6, Z-6, 2.4);
-    villageYards(rows, v, K, rnd, kit);
-    vTreeRing(X, Z, 10, 62, rnd, K.tree, 1); vTreeRing(X, Z, 8, 74, rnd, K.tree, 1.2);
-    siteEnd();
-    registerLore({key:'village'+vi, x:X, z:Z, r:34, icon:'V',
-      name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,
-      story:'Craftsmen, fields and quiet days. A village pays tribute to whoever holds the land it stands on — take the zone and its workers earn gold for your crown. Guard them: wolves and soldiers ask no permission.'});
-  });
+  v._vy={rows:rows, K:K, rnd:rnd, kit:kit, X:X, Z:Z, vi:vi};
+  v._hold=null;
+  if(VILLAGE_TEND && performance.now()>=VILLAGE_TEND) return true;
+  if(finishVillageYard(v)) return true;
+  return false;
+}
+function buildVillages(budget){
+  var tEnd=budget?performance.now()+budget:1e15, start=_villageI;
+  VILLAGE_TEND=tEnd;
+  for(; _villageI<VILLAGES.length; _villageI++){
+    var v=VILLAGES[_villageI], vi=_villageI;
+    if(v._vy){ if(finishVillageYard(v)) return true; continue; }
+    if(v._hold){ if(villageResume(v)) return true; if(villageFinish(v)) return true; continue; }
+    if(budget && _villageI>start && performance.now()>=tEnd) return true;
+    if(v._area) continue;
+    if(typeof inLoadArea==='function' && !inLoadArea(v.x, v.z)) continue;
+    v._area=1;
+    var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
+    siteBegin('sat:'+v.name, X, Z, 120);
+    var SC=K.street;
+    townPlaza(X, Z, 12, SC);
+    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
+    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
+    var rows=[], curRow=null;
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
+             onBuilt:function(h){ curRow.houses.push(h); }};
+    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
+    v._hold={ri:0, rows:rows, row:row, K:K, rnd:rnd, X:X, Z:Z, kit:kit, vi:vi, specs:[
+      ['x', X-50, X-12, Z, 1], ['x', X+12, X+50, Z, 1], ['x', X-50, X-12, Z, -1], ['x', X+12, X+50, Z, -1],
+      ['z', Z+28, Z+52, X, 1], ['z', Z-52, Z-28, X, -1], ['z', Z+28, Z+52, X, -1], ['z', Z-52, Z-28, X, 1]
+    ]};
+    if(villageResume(v)) return true;
+    if(villageFinish(v)) return true;
+  }
+  _villageI=0;
+  return false;
 }

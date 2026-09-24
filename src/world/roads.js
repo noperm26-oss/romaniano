@@ -25,6 +25,8 @@ function nearSite(x,z,extra){
 function roadSurfY(x,z){ return Math.max(terrainMeshH(x,z), groundH(x,z)); }
 
 var roadStats={ribbons:0, quads:0, lanes:0, trails:0, milestones:0, crosses:0, signs:0, wells:0, lanterns:0, tolls:0, junctions:0};
+var _roadPhase=0;
+var _roadJob=null;
 var ROAD_JUNCTIONS=[];
 function onBridgeDeck(x,z,margin){
   for(var i=0;i<BRIDGES.length;i++){
@@ -41,9 +43,14 @@ function inFordWater(x,z){
   for(var i=0;i<BRIDGES.length;i++){ var b=BRIDGES[i]; if(b.ford && Math.hypot(x-b.x,z-b.z)<hw*2+14) return true; }
   return false;
 }
-function buildRoads(){
-  window.__roadPts=window.__roadPts||[];
-  var rnd=srand(4471), cells=new Map(), CELL=375, i;
+function buildRoads(budget){
+  var deadline=budget?performance.now()+budget:0, i;
+  if(_roadPhase<1){
+  if(!_roadJob){
+    window.__roadPts=window.__roadPts||[];
+    _roadJob={rnd:srand(4471), cells:new Map(), ri:0, phase:'ribbons'};
+  }
+  var job=_roadJob, rnd=job.rnd, cells=job.cells, CELL=375;
   var EG=TOWNS.egypt;
   function cellOf(x,z){ var k=Math.floor((x+WORLD.half)/CELL)+':'+Math.floor((z+WORLD.half)/CELL); var c=cells.get(k); if(!c){ c={pos:[],col:[],x:(Math.floor((x+WORLD.half)/CELL)+0.5)*CELL-WORLD.half,z:(Math.floor((z+WORLD.half)/CELL)+0.5)*CELL-WORLD.half}; cells.set(k,c); } return c; }
   function quad(a,b,c,d){ /* a,b = previous section (left,right), c,d = current */
@@ -58,12 +65,17 @@ function buildRoads(){
     if(inFordWater(x,z)) return true;
     return false;
   }
-  ROADS.forEach(function(R){
+  if(job.phase==='ribbons'){
+  for(; job.ri<ROADS.length; job.ri++){
+    if(deadline && job.ri && performance.now()>=deadline) return true;
+    var R=ROADS[job.ri];
     var P=R.pts, C=ROAD_CLASSES[R.cls], hw=R.w/2, lift=C.y, kerbed=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t');
     var base=new THREE.Color(R.col).multiplyScalar(0.78), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.78: the noon sun + sky light sum to ~1.25 */
-    if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++;
-    roadStats.ribbons++;
-    for(i=0;i<P.length;i++){
+    var pi0=0;
+    if(job.road && job.road.ri===job.ri){ prev=job.road.prev; pi0=job.road.pi; }
+    else { if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++; roadStats.ribbons++; }
+    for(i=pi0;i<P.length;i++){
+      if(deadline && i>pi0 && (i&3)===0 && performance.now()>=deadline){ job.road={ri:job.ri, pi:i, prev:prev}; return true; }
       var x=P[i][0], z=P[i][1];
       window.__roadPts.push([x,z]);
       if(skipAt(x,z)){ prev=null; continue; }
@@ -80,9 +92,15 @@ function buildRoads(){
       if(prev){ for(k=0;k<sec.length-1;k++) quad(prev[k],prev[k+1],sec[k],sec[k+1]); }
       prev=sec;
     }
-  });
-  var mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND);
-  cells.forEach(function(c){
+  }
+    job.phase='mesh'; job.mi=0; job.keys=Array.from(cells.keys());
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(job.phase==='mesh'){
+  var mat=job.mat||(job.mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
+  for(; job.mi<job.keys.length; job.mi++){
+    if(deadline && job.mi && performance.now()>=deadline) return true;
+    var c=cells.get(job.keys[job.mi]);
     var g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(c.pos),3));
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(c.col),3));
@@ -90,8 +108,14 @@ function buildRoads(){
     var m=new THREE.Mesh(g,mat); m.name='road'; m.receiveShadow=true; m.frustumCulled=false;
     m.userData.cullBounds={x:c.x, z:c.z, r:CELL*0.8};
     scene.add(m);
-  });
+  }
+  }
+    _roadPhase=1;
+    _roadJob=null;
+    if(deadline && performance.now()>=deadline) return true;
+  }
   /* ---- junctions: road ends meeting another road, and R0/R1 crossings ---- */
+  if(_roadPhase===1){
   function segX(ax,az,bx,bz,cx,cz,dx,dz){
     var r1x=bx-ax, r1z=bz-az, r2x=dx-cx, r2z=dz-cz, den=r1x*r2z-r1z*r2x; if(Math.abs(den)<1e-9) return null;
     var t=((cx-ax)*r2z-(cz-az)*r2x)/den, u=((cx-ax)*r1z-(cz-az)*r1x)/den; if(t<0.02||t>0.98||u<0.02||u>0.98) return null;
@@ -107,8 +131,12 @@ function buildRoads(){
       for(var a=0;a<R.wp.length-1;a++) for(var b=0;b<Q.wp.length-1;b++){ var h=segX(R.wp[a][0],R.wp[a][1],R.wp[a+1][0],R.wp[a+1][1],Q.wp[b][0],Q.wp[b][1],Q.wp[b+1][0],Q.wp[b+1][1]); if(h) addJunction(h[0],h[1],'cross'); } }
   });
   roadStats.junctions=ROAD_JUNCTIONS.length;
+  _roadPhase=2;
+  if(deadline && performance.now()>=deadline) return true;
+  }
   /* ---- furniture ---- */
   function freeSpot(px,pz,r){ if(insideSolid(px,pz,r)) return false; var f=roadField(px,pz); if(f.road&&f.d<f.road.w/2+0.6) return false; var rf=riverField(px,pz); if(rf.river&&rf.d<riverHalfWidth(rf.river,pz)+2) return false; if(nearTown(px,pz,-30)) return false; return true; }
+  if(_roadPhase===2){
   ROAD_JUNCTIONS.forEach(function(J,ji){
     if(nearTown(J.x,J.z,-20)) return;
     var placed=false;
@@ -117,6 +145,10 @@ function buildRoads(){
       if(J.kind==='cross'||ji%3===0){ propTroita(px,pz,ang+Math.PI/2); roadStats.crosses++; } else { propSignpost(px,pz,ang); roadStats.signs++; }
       placed=true; }
   });
+  _roadPhase=3;
+  if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roadPhase===3){
   ROADS.forEach(function(R){
     var P=R.pts, acc=0, accW=0, side=1;
     var mile=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t'), wells=(R.id==='RG-04');
@@ -130,6 +162,10 @@ function buildRoads(){
         if(!nearSite(wx,wz,10)&&freeSpot(wx,wz,1.8)){ propWell(wx,wz,0x6d5a3e); roadStats.wells++; } }
     }
   });
+  _roadPhase=4;
+  if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roadPhase===4){
   /* gate approaches: a lantern every 30u on the last 200u of any road that ends at a town */
   ROADS.forEach(function(R){
     if(R.cls==='R3'||R.lane) return;
@@ -143,6 +179,9 @@ function buildRoads(){
         if(freeSpot(lx,lz,0.4)&&!onBridgeDeck(lx,lz,2)){ torchPost(lx,lz,2.6); roadStats.lanterns++; } }
     });
   });
+  _roadPhase=5;
+  if(deadline && performance.now()>=deadline) return true;
+  }
   /* toll arches on the Caravan Road */
   [[-1300,2530],[1350,2540]].forEach(function(t){
     var R=ROADS.filter(function(r){ return r.id==='RG-04'; })[0], best=null, bd=1e9, bi=0;
@@ -150,13 +189,13 @@ function buildRoads(){
     var a=R.pts[Math.max(0,bi-1)], b=R.pts[Math.min(R.pts.length-1,bi+1)];
     propTollArch(best[0],best[1],Math.atan2(b[1]-a[1],b[0]-a[0]),R.w); roadStats.tolls++;
   });
+  _roadPhase=0;
+  return false;
 }
-/* nearest road that is not R (for junction detection) */
+
 function roadFieldExcept(x,z,R){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null;
-  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){ var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(var i=0;i<arr.length;i++){ var Q=ROADS[Math.floor(arr[i]/100000)]; if(Q===R) continue; var pi=arr[i]%100000, a=Q.pts[pi], b=Q.pts[pi+1], d=distToSeg(x,z,a[0],a[1],b[0],b[1]); if(d<best){ best=d; br=Q; } } }
-  return {d:best, road:br};
+  var q=roadQuery(x,z,1,R), br=q.seg?q.seg.road:null;
+  return {d:q.seg?Math.sqrt(q.d2):1e9, road:br};
 }
 /* ---- road furniture ---- */
 function propMilestone(cx,cz,ry,R){

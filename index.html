@@ -79,6 +79,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 .panel{background:linear-gradient(#f4e8c8,#e6d3a3);color:#3a2a1a;border:3px solid #5a3d1e;border-radius:10px;
   box-shadow:0 18px 60px rgba(0,0,0,0.7), inset 0 0 60px rgba(120,85,30,0.25);
   padding:34px 44px;max-width:860px;text-align:center;margin:20px;}
+/* short windows (and the 600×500 check) must still reach every button */
+#pause .panel,#settings .panel,#menu .panel{max-height:calc(100vh - 24px);overflow-y:auto;}
 .panel h1{font-size:60px;margin:6px 0 0;letter-spacing:8px;color:#6e1414;
   text-shadow:0 1px 0 #c9a227, 0 3px 0 #5a3d1e;}
 .panel h1 .of{font-size:30px;letter-spacing:2px;font-style:italic;color:#8a6a2f;}
@@ -97,6 +99,15 @@ button{font-family:inherit;font-size:17px;padding:11px 26px;border-radius:7px;cu
 button:hover{box-shadow:0 4px 14px rgba(0,0,0,0.35);transform:translateY(-1px);}
 button:active{transform:translateY(1px);}
 button.primary{background:linear-gradient(#a8271f,#6e1414);color:#f7ecd0;border-color:#3f0c0a;font-weight:bold;letter-spacing:1px;}
+.load-status{font-size:13px;color:#6e1414;margin:10px auto 0;min-height:1.2em;max-width:460px;}
+.load-meter{height:8px;border:1px solid #5a3d1e;border-radius:4px;background:#d8c491;margin:12px auto 0;width:min(420px,80%);overflow:hidden;}
+.load-meter i{display:block;height:100%;width:0;background:linear-gradient(#a8271f,#6e1414);}
+.load-area{margin:12px auto 0;max-width:460px;text-align:left;}
+.load-area label{display:flex;justify-content:space-between;align-items:baseline;font-weight:bold;font-size:14px;color:#4a3418;}
+.load-area label b,.set-load-name{color:#8a271f;font-size:14px;}
+.set-row b.set-load-name{width:auto;min-width:108px;text-align:left;}
+.load-area input[type=range]{width:100%;accent-color:#8a271f;margin:6px 0 0;}
+.load-area .load-status{margin-top:4px;text-align:left;}
 button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 .bugreport-link{display:inline-block;font-family:inherit;font-size:15px;padding:10px 22px;border-radius:7px;cursor:pointer;
   border:2px solid #5a3d1e;background:linear-gradient(#efe2bd,#dcc491);color:#3a2a1a;text-decoration:none;
@@ -319,7 +330,14 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
       Six nations, each with its own homeland — halls, temples, barracks and homes you can walk into.
       Your kingdom earns <b>gold</b> from the territory it holds; spend it at the muster to <b>buy troops</b>.
       Seize the neutral lands, crush the other kings, and own <b>128 of the 256 zones</b> — half the world — to rule it all.</p>
-    <button id="btn-begin" class="primary">Take the Throne</button>
+    <button id="btn-begin" class="primary" disabled>Raising the land…</button>
+    <div id="load-meter" class="load-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="load-meter-i"></i></div>
+    <p id="load-status" class="load-status">Raising the land on this machine. The throne opens when it is ready.</p>
+    <div class="load-area">
+      <label for="menu-load">Loaded area <b id="menu-load-v">Homeland</b></label>
+      <input type="range" id="menu-load" min="0" max="4" step="1" value="0" aria-label="Loaded area">
+      <p id="menu-load-h" class="load-status">Each kingdom and the ground you can see. Fastest on a weak machine.</p>
+    </div>
     <div class="row center" style="margin-top:14px">
       <a id="btn-bugreport" href="https://forms.gle/unx6BqouwTxsNPHu8" target="_blank" rel="noopener" class="bugreport-link">🐛 Bug Reports &amp; Suggestions</a>
     </div>
@@ -496,6 +514,11 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
       <label>Q order-scope steps <i>(% of army per keypress, comma-separated)</i></label>
       <input type="text" id="set-scopes" value="100, 75, 50, 25, 10, 5" spellcheck="false">
     </div>
+    <div class="set-row set-wide">
+      <label>Loaded area <i id="set-load-h">Each kingdom and the ground you can see. Fastest on a weak machine.</i></label>
+      <input type="range" id="set-load" min="0" max="4" step="1" value="0" aria-label="Loaded area">
+      <b id="set-load-v" class="set-load-name">Homeland</b>
+    </div>
     <div class="set-row">
       <label>Doctrine presets</label>
       <div class="row" style="margin:0;gap:6px">
@@ -534,6 +557,7 @@ button:disabled{opacity:0.55;cursor:default;transform:none;box-shadow:none;}
 // SOURCE: src/system/helpers.js
 /* boot-time profile (ms per phase) — filled by the world builders and boot.js */
 var BOOT_TIMES={};
+var BOOT_T0=(typeof performance!=='undefined')?performance.now():0;
 /* deterministic per-feature random streams (LCG) */
 function srand(seed){ var s=(seed>>>0)||7; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
 var $ = function(id){ return document.getElementById(id); };
@@ -567,7 +591,12 @@ var WORLD = {half:3000};            /* 6,000 × 6,000 units — preserved for te
 var ZN = 16, ZS = 375;             /* 16×16 ownership zones of 375u = 256 */
 
 function ss(e0,e1,x){ var t=clamp((x-e0)/(e1-e0),0,1); return t*t*(3-2*t); }
-function gauss(x,z,cx,cz,sig){ var dx=x-cx, dz=z-cz; return Math.exp(-(dx*dx+dz*dz)/(2*sig*sig)); }
+function gauss(x,z,cx,cz,sig){
+  var dx=x-cx, dz=z-cz, q=(dx*dx+dz*dz)/(2*sig*sig);
+  /* Math.exp underflows to exact 0 past this; the cutoff does not change any height */
+  if(q>=745.5) return 0;
+  return Math.exp(-q);
+}
 
 /* ---------- THE SEVEN REGIONS (R-01..R-07) + the secret places ---------- */
 var WORLD_REGIONS = {
@@ -766,6 +795,84 @@ function densifyPolyline(P,step,keepEnds){
   return out;
 }
 RIVERS.forEach(function(R){ R.wp=R.pts; R.pts=densifyPolyline(R.pts,45); });
+/* 64u grid of river segments so a height or paint query tests the nearby pieces, not every bend.
+   RIVER_RING[cell] is the chebyshev distance to the nearest segment cell (255 = none within RIV_MARK).
+   A query farther than that cannot see a river, so it returns the empty result without scanning. */
+var RIVER_CELL=64, RIVER_GRID=new Map(), RIVER_STAMP=1, _rivTouch=[];
+var RIV_OFF=80, RIV_N=160, RIV_MARK=8, RIVER_RING=new Uint8Array(RIV_N*RIV_N), RIV_LIST=new Array(RIV_N*RIV_N);
+function riverKey(gx,gz){ return (gx+4096)*8192+(gz+4096); }
+function riverRingMark(gx,gz){
+  var dx, dz, d, ad, ix, iz, p;
+  for(dx=-RIV_MARK;dx<=RIV_MARK;dx++) for(dz=-RIV_MARK;dz<=RIV_MARK;dz++){
+    d=dx<0?-dx:dx; ad=dz<0?-dz:dz; if(ad>d) d=ad;
+    ix=gx+dx+RIV_OFF; iz=gz+dz+RIV_OFF;
+    if(ix<0||iz<0||ix>=RIV_N||iz>=RIV_N) continue;
+    p=iz*RIV_N+ix;
+    if(d<RIVER_RING[p]) RIVER_RING[p]=d;
+  }
+}
+function riverIndexBuild(){
+  RIVER_GRID=new Map();
+  RIVER_RING.fill(255);
+  RIV_LIST=new Array(RIV_N*RIV_N);
+  for(var ri=0;ri<RIVERS.length;ri++){
+    var R=RIVERS[ri], pts=R.pts, bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9}, j;
+    R.ri=ri; R.segs=[];
+    for(j=0;j<pts.length;j++){ var p=pts[j]; if(p[0]<bb.x0)bb.x0=p[0]; if(p[0]>bb.x1)bb.x1=p[0]; if(p[1]<bb.z0)bb.z0=p[1]; if(p[1]>bb.z1)bb.z1=p[1]; }
+    R.bb=bb;
+    for(j=0;j<pts.length-1;j++){
+      var a=pts[j], b=pts[j+1], dx=b[0]-a[0], dz=b[1]-a[1];
+      var seg={ax:a[0],az:a[1],bx:b[0],bz:b[1],dx:dx,dz:dz,L2:dx*dx+dz*dz,j:j,ri:ri,river:R,stamp:0};
+      R.segs.push(seg);
+      var gx0=Math.floor(Math.min(a[0],b[0])/RIVER_CELL), gx1=Math.floor(Math.max(a[0],b[0])/RIVER_CELL);
+      var gz0=Math.floor(Math.min(a[1],b[1])/RIVER_CELL), gz1=Math.floor(Math.max(a[1],b[1])/RIVER_CELL), gx, gz;
+      for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+        var k=riverKey(gx,gz), arr=RIVER_GRID.get(k); if(!arr){ arr=[]; RIVER_GRID.set(k,arr); } arr.push(seg);
+        var lix=gx+RIV_OFF, liz=gz+RIV_OFF;
+        if(lix>=0&&liz>=0&&lix<RIV_N&&liz<RIV_N){
+          var lp=liz*RIV_N+lix, lst=RIV_LIST[lp];
+          if(!lst){ lst=[]; RIV_LIST[lp]=lst; riverRingMark(gx,gz); }
+          lst.push(seg);
+        }
+      }
+    }
+  }
+}
+riverIndexBuild();
+var _rivQ={d2:1e18, river:null, seg:0, t:0};
+function riverQuery(x,z,maxRing){
+  var gx=Math.floor(x/RIVER_CELL), gz=Math.floor(z/RIVER_CELL), cell=RIVER_CELL;
+  var best=1e18, br=null, bi=0, bt=0, stamp=++RIVER_STAMP, ring, ix, iz, i;
+  var ix0=gx+RIV_OFF, iz0=gz+RIV_OFF;
+  var inArr=ix0-maxRing>=0 && iz0-maxRing>=0 && ix0+maxRing<RIV_N && iz0+maxRing<RIV_N;
+  for(ring=0; ring<=maxRing; ring++){
+    if(ring>0 && best<(ring-1)*(ring-1)*cell*cell) break;
+    for(ix=-ring; ix<=ring; ix++) for(iz=-ring; iz<=ring; iz++){
+      if(ring && Math.max(Math.abs(ix),Math.abs(iz))!==ring) continue;
+      var arr=inArr?RIV_LIST[(iz0+iz)*RIV_N+(ix0+ix)]:RIVER_GRID.get(riverKey(gx+ix,gz+iz)); if(!arr) continue;
+      for(i=0;i<arr.length;i++){
+        var s=arr[i]; if(s.stamp===stamp) continue; s.stamp=stamp;
+        var L2=s.L2, t=L2>0?clamp(((x-s.ax)*s.dx+(z-s.az)*s.dz)/L2,0,1):0;
+        var cx=s.ax+s.dx*t, cz=s.az+s.dz*t, ex=x-cx, ez=z-cz, d2=ex*ex+ez*ez;
+        if(d2<best || (d2===best && br && (s.ri<br.ri || (s.ri===br.ri && s.j<bi)))){ best=d2; br=s.river; bi=s.j; bt=t; }
+      }
+    }
+  }
+  _rivQ.d2=best; _rivQ.river=br; _rivQ.seg=bi; _rivQ.t=bt;
+  return _rivQ;
+}
+/* segments whose cells the segment a→b touches, in river-then-index order (bridge detection depends on that order) */
+function riverSegsTouching(x0,z0,x1,z1){
+  var gx0=Math.floor(Math.min(x0,x1)/RIVER_CELL), gx1=Math.floor(Math.max(x0,x1)/RIVER_CELL);
+  var gz0=Math.floor(Math.min(z0,z1)/RIVER_CELL), gz1=Math.floor(Math.max(z0,z1)/RIVER_CELL);
+  var stamp=++RIVER_STAMP, out=_rivTouch, gx, gz, i; out.length=0;
+  for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+    var arr=RIVER_GRID.get(riverKey(gx,gz)); if(!arr) continue;
+    for(i=0;i<arr.length;i++){ var s=arr[i]; if(s.stamp===stamp) continue; s.stamp=stamp; out.push(s); }
+  }
+  if(out.length>1) out.sort(function(a,b){ return a.ri-b.ri || a.j-b.j; });
+  return out;
+}
 /* ponds, marshes, tarns, springs (WTR-01..07 + the mill ponds) */
 var LAKES=[
   {id:'WTR-01', name:'Mlaștina Valahă',    x:1300,  z:620,   r:38, depth:0.7, marsh:true},
@@ -799,33 +906,28 @@ var BRIDGES=[
   {id:'BR-M2', x:TOWNS.moldavia.x, z:TOWNS.moldavia.z+196, ang:Math.PI/2, len:20, w:5, name:'Podul Hotarului de Sud', moat:true, timber:true},
   {id:'BR-M3', x:TOWNS.moldavia.x, z:TOWNS.moldavia.z-196, ang:Math.PI/2, len:20, w:5, name:'Podul Hotarului de Nord', moat:true, timber:true}
 ];
-function riverSegDist(px,pz,pts){
-  var best=1e9, bi=0, bt=0, i;
-  for(i=0;i<pts.length-1;i++){
-    var ax=pts[i][0], az=pts[i][1], bx=pts[i+1][0], bz=pts[i+1][1];
-    var dx=bx-ax, dz=bz-az, L2=dx*dx+dz*dz;
-    var t=L2>0?clamp(((px-ax)*dx+(pz-az)*dz)/L2,0,1):0;
-    var cx=ax+dx*t, cz=az+dz*t, ex=px-cx, ez=pz-cz, d2=ex*ex+ez*ez;
-    if(d2<best){ best=d2; bi=i; bt=t; }
+/* nearest river: {d, river, seg, t}. The object is reused — copy fields before the next call.
+   maxD (default 260, the old bbox pad) ignores rivers farther than that. */
+var _rivOut={d:1e9, river:null, seg:0, t:0};
+function riverField(x,z,maxD){
+  if(maxD===undefined) maxD=260;
+  _rivOut.d=1e9; _rivOut.river=null; _rivOut.seg=0; _rivOut.t=0;
+  var maxRing=Math.ceil(maxD/RIVER_CELL)+1;
+  if(maxRing<=RIV_MARK){
+    var rix=(Math.floor(x/RIVER_CELL)+RIV_OFF)|0, riz=(Math.floor(z/RIVER_CELL)+RIV_OFF)|0;
+    if(rix>=0&&riz>=0&&rix<RIV_N&&riz<RIV_N&&RIVER_RING[riz*RIV_N+rix]>maxRing) return _rivOut;
   }
-  return {d:Math.sqrt(best), seg:bi, t:bt};
-}
-/* nearest river: {d, river, seg, t} — used by terrain paint, reeds, docks */
-function riverField(x,z){
-  var out={d:1e9, river:null, seg:0, t:0}, i;
+  var i, any=false;
   for(i=0;i<RIVERS.length;i++){
-    var R=RIVERS[i];
-    var bb=R.bb;
-    if(!bb){
-      bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9};
-      R.pts.forEach(function(p){ bb.x0=Math.min(bb.x0,p[0]); bb.x1=Math.max(bb.x1,p[0]); bb.z0=Math.min(bb.z0,p[1]); bb.z1=Math.max(bb.z1,p[1]); });
-      R.bb=bb;
-    }
-    if(x<bb.x0-260||x>bb.x1+260||z<bb.z0-260||z>bb.z1+260) continue;
-    var r=riverSegDist(x,z,R.pts);
-    if(r.d<out.d){ out.d=r.d; out.river=R; out.seg=r.seg; out.t=r.t; }
+    var bb=RIVERS[i].bb;
+    if(x<bb.x0-maxD||x>bb.x1+maxD||z<bb.z0-maxD||z>bb.z1+maxD) continue;
+    any=true; break;
   }
-  return out;
+  if(!any) return _rivOut;
+  var q=riverQuery(x,z,Math.ceil(maxD/RIVER_CELL)+1);
+  if(!q.river || q.d2>maxD*maxD) return _rivOut;
+  _rivOut.d=Math.sqrt(q.d2); _rivOut.river=q.river; _rivOut.seg=q.seg; _rivOut.t=q.t;
+  return _rivOut;
 }
 function riverHalfWidth(R,z){ return R.hw*(1+0.3*(1-ss(-2050,-1700,z))); }
 function distToSeg(px,pz, ax,az, bx,bz){
@@ -925,29 +1027,50 @@ function segCrossesWideRiver(ax,az,bx,bz){
 })();
 /* every road: keep the waypoints (wp) and a dense spline (pts, ~10u) for ribbons, paint and navigation */
 ROADS.forEach(function(R){ R.wp=R.pts; R.pts=densifyPolyline(R.pts, R.switchbacks?6:10); });
-/* a 64u grid of road samples: O(1) "how far is the nearest road" for terrain, scenery and movement */
-var ROAD_GRID=new Map(), ROAD_CELL=64;
+/* a 64u grid of road segments: O(1) "how far is the nearest road" for terrain, scenery and movement */
+var ROAD_GRID=new Map(), ROAD_CELL=64, ROAD_SEGS=[], ROAD_STAMP=1;
+function roadKey(gx,gz){ return (gx+4096)*8192+(gz+4096); }
 ROADS.forEach(function(R,ri){
-  R.pts.forEach(function(p,pi){
-    if(pi===R.pts.length-1) return;
-    var q=R.pts[pi+1], x0=Math.min(p[0],q[0]), x1=Math.max(p[0],q[0]), z0=Math.min(p[1],q[1]), z1=Math.max(p[1],q[1]);
+  for(var pi=0;pi<R.pts.length-1;pi++){
+    var p=R.pts[pi], q=R.pts[pi+1], dx=q[0]-p[0], dz=q[1]-p[1];
+    var seg={ax:p[0],az:p[1],bx:q[0],bz:q[1],dx:dx,dz:dz,L2:dx*dx+dz*dz,road:R,stamp:0};
+    var si=ROAD_SEGS.length; ROAD_SEGS.push(seg);
+    var x0=Math.min(p[0],q[0]), x1=Math.max(p[0],q[0]), z0=Math.min(p[1],q[1]), z1=Math.max(p[1],q[1]);
     for(var gx=Math.floor(x0/ROAD_CELL);gx<=Math.floor(x1/ROAD_CELL);gx++) for(var gz=Math.floor(z0/ROAD_CELL);gz<=Math.floor(z1/ROAD_CELL);gz++){
-      var k=gx+':'+gz; if(!ROAD_GRID.has(k)) ROAD_GRID.set(k,[]); ROAD_GRID.get(k).push(ri*100000+pi);
-    }
-  });
-});
-/* nearest road: {d, road, w, cls} — cells within 64u only (roads never matter further than that) */
-function roadField(x,z){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null, ix, iz, i;
-  for(ix=-1;ix<=1;ix++) for(iz=-1;iz<=1;iz++){
-    var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(i=0;i<arr.length;i++){
-      var R=ROADS[Math.floor(arr[i]/100000)], pi=arr[i]%100000, a=R.pts[pi], b=R.pts[pi+1];
-      var d=distToSeg(x,z,a[0],a[1],b[0],b[1]);
-      if(d<best){ best=d; br=R; }
+      var k=roadKey(gx,gz); if(!ROAD_GRID.has(k)) ROAD_GRID.set(k,[]); ROAD_GRID.get(k).push(si);
     }
   }
-  return {d:best, road:br, w:br?br.w:0, cls:br?br.cls:null};
+});
+/* rings=1 is the old 3×3 roadField; rings=2 is roadNearest. skip drops one road (junction test).
+   Cell order matches the old scan, so an exact tie keeps the same road. */
+function roadQuery(x,z,rings,skip){
+  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL);
+  var best2=1e18, seg=null, bt=0, stamp=++ROAD_STAMP, ix, iz, i;
+  for(ix=-rings;ix<=rings;ix++) for(iz=-rings;iz<=rings;iz++){
+    var arr=ROAD_GRID.get(roadKey(gx+ix,gz+iz)); if(!arr) continue;
+    for(i=0;i<arr.length;i++){
+      var s=ROAD_SEGS[arr[i]];
+      if(s.stamp===stamp) continue; s.stamp=stamp;
+      if(skip && s.road===skip) continue;
+      var L2=s.L2, t=L2>0?clamp(((x-s.ax)*s.dx+(z-s.az)*s.dz)/L2,0,1):0;
+      var cx=s.ax+s.dx*t, cz=s.az+s.dz*t, ex=x-cx, ez=z-cz, d2=ex*ex+ez*ez;
+      if(d2<best2){ best2=d2; seg=s; bt=t; }
+    }
+  }
+  return {d2:best2, seg:seg, t:bt};
+}
+/* nearest road: {d, road, w, cls} — object reused, cells within 64u only */
+var _roadOut={d:1e9, road:null, w:0, cls:null};
+function roadField(x,z){
+  var q=roadQuery(x,z,1,null), br=q.seg?q.seg.road:null;
+  _roadOut.d=q.seg?Math.sqrt(q.d2):1e9; _roadOut.road=br; _roadOut.w=br?br.w:0; _roadOut.cls=br?br.cls:null;
+  return _roadOut;
+}
+function roadNearest(x,z){
+  var q=roadQuery(x,z,2,null);
+  if(!q.seg) return {d:1e9, road:null, px:x, pz:z};
+  var s=q.seg;
+  return {d:Math.sqrt(q.d2), road:s.road, px:s.ax+s.dx*q.t, pz:s.az+s.dz*q.t};
 }
 /* roads are the fastest surface: +35 % on the imperial via, +10 % on a trail */
 function roadSpeedAt(x,z){ var f=roadField(x,z); return (f.road && f.d<f.w/2+0.8) ? f.road.speed : 1; }
@@ -966,9 +1089,12 @@ var BRIDGE_NAMES={'HW-01|RV-03':[['BR-01','Podul Pustnicului','stone']],'CR-05|R
   }
   var used={};
   ROADS.forEach(function(road){
-    for(var i=0;i<road.pts.length-1;i++) RIVERS.forEach(function(R){
-      for(var j=0;j<R.pts.length-1;j++){
-        var hit=segX(road.pts[i][0],road.pts[i][1],road.pts[i+1][0],road.pts[i+1][1],R.pts[j][0],R.pts[j][1],R.pts[j+1][0],R.pts[j+1][1]);
+    for(var i=0;i<road.pts.length-1;i++){
+      var ax=road.pts[i][0], az=road.pts[i][1], bx=road.pts[i+1][0], bz=road.pts[i+1][1];
+      var segs=riverSegsTouching(ax,az,bx,bz), s;
+      for(s=0;s<segs.length;s++){
+        var seg=segs[s], R=seg.river;
+        var hit=segX(ax,az,bx,bz,seg.ax,seg.az,seg.bx,seg.bz);
         if(!hit) continue;
         var hw=riverHalfWidth(R,hit.z), dup=false;
         for(var k=0;k<BRIDGES.length;k++) if(Math.hypot(BRIDGES[k].x-hit.x,BRIDGES[k].z-hit.z)<hw*2+12) dup=true;
@@ -980,7 +1106,7 @@ var BRIDGE_NAMES={'HW-01|RV-03':[['BR-01','Podul Pustnicului','stone']],'CR-05|R
         BRIDGES.push({id:id, x:hit.x, z:hit.z, ang:hit.ang, len:hw*2+10, w:ford?Math.max(4,road.w*0.8):Math.min(Math.max(road.w*0.8,4.5),9), river:R.id, road:road.id, name:name,
           ford:ford, timber:type==='timber', stone:type==='stone'});
       }
-    });
+    }
   });
 })();
 
@@ -1042,7 +1168,7 @@ function baseH(x,z){
 /* rivers carve troughs (ravines in the mountains); lakes are bowls; fords lift the bed to wading depth */
 function waterCut(x,z){
   var cut=0, mC=1-ss(-2050,-1700,z);
-  var rf=riverField(x,z);
+  var rf=riverField(x,z,64);
   if(rf.river){
     var R=rf.river, hw=riverHalfWidth(R,z), depth=R.depth+3.2*mC;
     if(rf.d<hw*1.5){
@@ -1066,7 +1192,8 @@ function waterCut(x,z){
 
 /* ---------- FLATS (section 1.5): every site stands on level ground ---------- */
 var FLATS=[], FLAT_GRID=null, FLAT_CELL=256;
-function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; }
+var _ghx=NaN, _ghz=NaN, _ghh=0;
+function addFlat(x,z,r,h){ FLATS.push({x:x,z:z,r:r,h:h===undefined?baseH(x,z):h}); FLAT_GRID=null; _ghx=NaN; }
 /* spatial index: flatsH only visits the flats whose blend zone covers the query cell */
 function flatGridBuild(){
   FLAT_GRID=new Map();
@@ -1094,7 +1221,7 @@ var HAMLETS=[];
   function nearSiteG(x,z,extra){ for(var i=0;i<SITES_DEF.length;i++){ var s=SITES_DEF[i], r=s.r+extra; if((x-s.x)*(x-s.x)+(z-s.z)*(z-s.z)<r*r) return true; } return false; }
   function nearVillageG(x,z,r){ for(var i=0;i<VILLAGES.length;i++){ var v=VILLAGES[i]; if((x-v.x)*(x-v.x)+(z-v.z)*(z-v.z)<r*r) return true; } return false; }
   function waterG(x,z){
-    var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
+    var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+48) return true;
     for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+55,2)) return true; }
     for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+60) return true; }
     return false;
@@ -1132,7 +1259,7 @@ var DISTRICT_C=[];
     for(k=0;k<VILLAGES.length && !bad;k++){ var V=VILLAGES[k]; if((x-V.x)*(x-V.x)+(z-V.z)*(z-V.z)<130*130) bad=true; }
     for(k=0;k<DISTRICT_C.length && !bad;k++){ var D=DISTRICT_C[k]; if((x-D.x)*(x-D.x)+(z-D.z)*(z-D.z)<200*200) bad=true; }
     for(k=0;k<HAMLETS.length && !bad;k++){ var Hm=HAMLETS[k]; if(Math.abs(x-Hm.x)<80 && Math.abs(z-Hm.z)<112) bad=true; }   /* outside the hamlet's lane, yards and fields */
-    if(!bad){ var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
+    if(!bad){ var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+45) bad=true; }
     if(!bad) for(k=0;k<LAKES.length;k++){ var L=LAKES[k]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+60,2)) bad=true; }
     if(!bad && groundH(x,z)>34) bad=true; /* not on the high crags */
     if(!bad){ DISTRICT_C.push({x:x, z:z, region:getRegion(x,z)}); addFlat(x,z,52); }   /* level ground for a real farmstead */
@@ -1164,10 +1291,30 @@ BRIDGES.forEach(function(b){
 });
 /* ground without bridges: flats + river troughs + lake bowls + moats */
 function groundHBase(x,z){ return flatsH(x,z)-waterCut(x,z); }
+/* non-ford decks only affect a disc of len/2+14. The cell list is rebuilt if a later feature pushes a bridge
+   (the log bridge at Vadul Lupului). Visit order inside a cell is bridge index order, same as the old scan. */
+var _brN=-1, _brGrid=null, BR_CELL=64;
+function bridgeIndexBuild(){
+  _brN=BRIDGES.length; _brGrid=new Map();
+  var i, b, rad, gx, gz, k, a;
+  for(i=0;i<_brN;i++){
+    b=BRIDGES[i]; if(b.ford) continue;
+    rad=b.len/2+14;
+    var gx0=Math.floor((b.x-rad)/BR_CELL), gx1=Math.floor((b.x+rad)/BR_CELL);
+    var gz0=Math.floor((b.z-rad)/BR_CELL), gz1=Math.floor((b.z+rad)/BR_CELL);
+    for(gx=gx0;gx<=gx1;gx++) for(gz=gz0;gz<=gz1;gz++){
+      k=(gx+1024)*4096+(gz+1024);
+      a=_brGrid.get(k); if(!a){ a=[]; _brGrid.set(k,a); } a.push(i);
+    }
+  }
+}
 function groundH(x,z){
+  if(x===_ghx && z===_ghz) return _ghh;
   var h=groundHBase(x,z), i;
-  for(i=0;i<BRIDGES.length;i++){
-    var b=BRIDGES[i]; if(b.ford) continue;
+  if(_brN!==BRIDGES.length) bridgeIndexBuild();
+  var arr=_brGrid.get((Math.floor(x/BR_CELL)+1024)*4096+(Math.floor(z/BR_CELL)+1024));
+  if(arr) for(i=0;i<arr.length;i++){
+    var b=BRIDGES[arr[i]];
     var bx=x-b.x, bz=z-b.z;
     if(bx*bx+bz*bz>(b.len/2+14)*(b.len/2+14)) continue;
     var c=Math.cos(b.ang), s=Math.sin(b.ang);
@@ -1177,6 +1324,7 @@ function groundH(x,z){
       if(k2>0) h=Math.max(h, h*(1-k2)+b.y*k2);
     }
   }
+  _ghx=x; _ghz=z; _ghh=h;
   return h;
 }
 /* water surface height on a river centreline point: 1.1 above the bed */
@@ -1234,6 +1382,7 @@ var BEACON_DEF=[
 /* ---------- LORE SUMMARY USED BY MAP / HUD ---------- */
 var EXTENDED_LANDMARKS = SITES_DEF.map(function(s){ return {x:s.x, z:s.z, name:s.name, type:s.kind, region:s.region, id:s.id}; });
 FAC_KEYS_T.forEach(function(f){ var T=TOWNS[f]; EXTENDED_LANDMARKS.push({x:T.x, z:T.z, name:T.name, type:T.kind, region:T.region, id:T.id}); });
+if(typeof performance!=='undefined' && typeof BOOT_T0!=='undefined') BOOT_TIMES.geography=Math.round(performance.now()-BOOT_T0);
 
 
 // SOURCE: src/world/zone-info.js
@@ -1538,6 +1687,20 @@ function finalizeBattle(zoneIdx, winner){
 var colliders=[];
 var collisionVersion=0;
 var colGrid=new Map(); var CCELL=64;
+/* flat heads for the map; the Map remains the fallback for a box that lands outside the table */
+var COL_OFF=160, COL_N=320, COL_HEADS=new Array(COL_N*COL_N);
+function colKey(gx,gz){ return (gx+1024)*4096+(gz+1024); }
+function colBucket(gx,gz,create){
+  var ix=gx+COL_OFF, iz=gz+COL_OFF;
+  if(ix>=0&&iz>=0&&ix<COL_N&&iz<COL_N){
+    var p=iz*COL_N+ix, a=COL_HEADS[p];
+    if(!a&&create){ a=[]; COL_HEADS[p]=a; }
+    return a;
+  }
+  var k=colKey(gx,gz), b=colGrid.get(k);
+  if(!b&&create){ b=[]; colGrid.set(k,b); }
+  return b;
+}
 function addCollider(x0,z0,x1,z1){
   if(typeof PREFAB_REC!=='undefined' && PREFAB_REC){ PREFAB_REC.col.push([Math.min(x0,x1),Math.min(z0,z1),Math.max(x0,x1),Math.max(z0,z1)]); return; }   /* prefab capture: local footprint, re-added per instance */
   var c={x0:Math.min(x0,x1)-0.05, x1:Math.max(x0,x1)+0.05, z0:Math.min(z0,z1)-0.05, z1:Math.max(z0,z1)+0.05};
@@ -1546,16 +1709,14 @@ function addCollider(x0,z0,x1,z1){
   var gx0=Math.floor(c.x0/CCELL), gx1=Math.floor(c.x1/CCELL);
   var gz0=Math.floor(c.z0/CCELL), gz1=Math.floor(c.z1/CCELL);
   for(var gx=gx0;gx<=gx1;gx++)for(var gz=gz0;gz<=gz1;gz++){
-    var k=gx+':'+gz;
-    if(!colGrid.has(k)) colGrid.set(k,[]);
-    colGrid.get(k).push(c);
+    colBucket(gx,gz,true).push(c);
   }
 }
 function insideSolid(x, z, r){
   /* v10: true if the disc at (x,z) overlaps any collider — no pushing, pure query */
   var gx=Math.floor(x/CCELL), gz=Math.floor(z/CCELL);
   for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+    var arr=colBucket(gx+ix,gz+iz,false);
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
@@ -1570,7 +1731,7 @@ function collideCircle(pos, r){
   var __sx=pos.x, __sz=pos.z;   /* v10: cap the escape push so nobody phases through a wall */
   var gx=Math.floor(pos.x/CCELL), gz=Math.floor(pos.z/CCELL);
   for(var ix=-1;ix<=1;ix++)for(var iz=-1;iz<=1;iz++){
-    var arr=colGrid.get((gx+ix)+':'+(gz+iz));
+    var arr=colBucket(gx+ix,gz+iz,false);
     if(!arr) continue;
     for(var i=0;i<arr.length;i++){
       var c=arr[i];
@@ -1615,7 +1776,7 @@ function segmentClear(ax,az,bx,bz,r){
     var gx=Math.floor((ax+dx*step/steps)/CCELL),gz=Math.floor((az+dz*step/steps)/CCELL);
     var reach=Math.ceil(r/CCELL);
     for(var ix=-reach;ix<=reach;ix++)for(var iz=-reach;iz<=reach;iz++){
-      var list=colGrid.get((gx+ix)+':'+(gz+iz));if(!list)continue;
+      var list=colBucket(gx+ix,gz+iz,false);if(!list)continue;
       for(var i=0;i<list.length;i++){
         var c=list[i];if(seen.has(c))continue;seen.add(c);
         var low=0,high=1;
@@ -1754,7 +1915,7 @@ var canvas = $('game');
 var renderer;
 try{
   renderer = new THREE.WebGLRenderer({canvas:canvas, antialias:true});
-}catch(e){ $('webgl-error').classList.remove('hidden'); return; }
+}catch(e){ $('webgl-error').classList.remove('hidden'); var b=$('btn-begin'); if(b){ b.disabled=false; b.textContent='Take the Throne'; } var m=$('load-meter'); if(m) m.style.display='none'; var s=$('load-status'); if(s) s.textContent=''; return; }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -2022,7 +2183,7 @@ function regionWeights(x,z,out){
   out.wallachian=side*south*(1-eastMold)*(1-rimW);
   return out;
 }
-/* ---- the rendered ground grid: PlaneGeometry TM_SEGS² over TM_SIZE (diagonal b–d per cell) ---- */
+/* ---- the rendered ground grid: TM_SEGS² over TM_SIZE, same layout as PlaneGeometry (diagonal b–d per cell) ---- */
 var TM_SIZE=WORLD.half*2+400, TM_SEGS=512, TM_STEP=TM_SIZE/TM_SEGS, _tmNodes=new Map();
 function terrainNodeH(ix,iz){
   var k=ix*4096+iz, v=_tmNodes.get(k);
@@ -2037,11 +2198,84 @@ function terrainMeshH(x,z){
   if(u+v<=1) return ha+(hd-ha)*u+(hb-ha)*v;
   return hc+(hb-hc)*(1-u)+(hd-hc)*(1-v);
 }
-(function buildGround(){
-  var _t0=performance.now();
-  var size=TM_SIZE, segs=TM_SEGS;
-  var geo=new THREE.PlaneGeometry(size,size,segs,segs);
-  geo.rotateX(-Math.PI/2);
+var _groundJob=null;
+/* same accumulation as BufferGeometry.computeVertexNormals, a few thousand faces at a time */
+function groundNormals(geo, job, deadline){
+  var idx=geo.index, pos=geo.attributes.position, nrm=geo.attributes.normal, st=job.nv;
+  if(!nrm){ nrm=new THREE.BufferAttribute(new Float32Array(pos.count*3),3); geo.setAttribute('normal', nrm); }
+  if(!st){
+    st=job.nv={fi:0, ni:0, phase:0,
+      i:new THREE.Vector3(), r:new THREE.Vector3(), s:new THREE.Vector3(),
+      a:new THREE.Vector3(), o:new THREE.Vector3(), l:new THREE.Vector3(),
+      c:new THREE.Vector3(), h:new THREE.Vector3(), u:new THREE.Vector3()};
+  }
+  if(st.phase===0){
+    var start=st.fi, count=idx.count;
+    for(; st.fi<count; st.fi+=3){
+      if(deadline && st.fi>start && ((st.fi-start)&63)===0 && performance.now()>=deadline) return true;
+      var d=idx.getX(st.fi), p=idx.getX(st.fi+1), m=idx.getX(st.fi+2);
+      st.i.fromBufferAttribute(pos,d); st.r.fromBufferAttribute(pos,p); st.s.fromBufferAttribute(pos,m);
+      st.c.subVectors(st.s, st.r); st.h.subVectors(st.i, st.r); st.c.cross(st.h);
+      st.a.fromBufferAttribute(nrm,d); st.o.fromBufferAttribute(nrm,p); st.l.fromBufferAttribute(nrm,m);
+      st.a.add(st.c); st.o.add(st.c); st.l.add(st.c);
+      nrm.setXYZ(d, st.a.x, st.a.y, st.a.z);
+      nrm.setXYZ(p, st.o.x, st.o.y, st.o.z);
+      nrm.setXYZ(m, st.l.x, st.l.y, st.l.z);
+    }
+    st.phase=1; st.ni=0;
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  var ncount=nrm.count, nstart=st.ni;
+  for(; st.ni<ncount; st.ni++){
+    if(deadline && st.ni>nstart && ((st.ni-nstart)&63)===0 && performance.now()>=deadline) return true;
+    st.u.fromBufferAttribute(nrm, st.ni); st.u.normalize(); nrm.setXYZ(st.ni, st.u.x, st.u.y, st.u.z);
+  }
+  nrm.needsUpdate=true;
+  return false;
+}
+function buildGround(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  var j=_groundJob;
+  if(!j){
+  j=_groundJob={phase:-1, iy:0, faceY:0, segs:TM_SEGS, size:TM_SIZE};
+  if(budget) return true;
+  }
+  if(j.phase===-1){
+  if(!j.posArr){
+    var segs0=j.segs, n0=segs0+1;
+    j.n=n0;
+    j.posArr=new Float32Array(n0*n0*3);
+    j.nrmArr=new Float32Array(n0*n0*3);
+    j.uvArr=new Float32Array(n0*n0*2);
+    j.idxArr=new Uint32Array(segs0*segs0*6);
+    if(budget && performance.now()>=tEnd) return true;
+  }
+  var segs=j.segs, n=j.n, step=j.size/segs, half=j.size/2, ix, ix2;
+  for(; j.iy<=segs; j.iy++){
+    if(budget && j.iy && performance.now()>=tEnd) return true;
+    var z=-half+j.iy*step, row=j.iy*n, base=row*3, ub=row*2, vv=1-j.iy/segs;
+    for(ix=0; ix<n; ix++){
+      j.posArr[base+ix*3]=-half+ix*step;
+      j.posArr[base+ix*3+2]=z;
+      j.nrmArr[base+ix*3+1]=1;
+      j.uvArr[ub+ix*2]=ix/segs;
+      j.uvArr[ub+ix*2+1]=vv;
+    }
+  }
+  for(; j.faceY<segs; j.faceY++){
+    if(budget && j.faceY && performance.now()>=tEnd) return true;
+    var o=j.faceY*segs*6, rowF=j.faceY*n;
+    for(ix2=0; ix2<segs; ix2++){
+      var a=rowF+ix2, b=a+n, d=a+1, c=b+1, k=o+ix2*6;
+      j.idxArr[k]=a; j.idxArr[k+1]=b; j.idxArr[k+2]=d;
+      j.idxArr[k+3]=b; j.idxArr[k+4]=c; j.idxArr[k+5]=d;
+    }
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(j.posArr, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(j.nrmArr, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(j.uvArr, 2));
+  geo.setIndex(new THREE.BufferAttribute(j.idxArr, 1));
   var pos=geo.attributes.position;
   var colors=new Float32Array(pos.count*3);
   var C=function(h){ return new THREE.Color(h); };
@@ -2056,42 +2290,62 @@ function terrainMeshH(x,z){
   };
   var w={}, tmp=new THREE.Color(), acc=new THREE.Color(), burnedSites=SITES_DEF.filter(function(s){ return s.kind==='burned'||s.kind==='graves'||s.kind==='siege'||s.kind==='memorial'; });
   var ROAD_PAINT={R0:C(0x9a9a8a), R1:C(0x9a8555), R1t:C(0xc2b08a), R2:C(0x9b8866), R3:C(0x8a7a5a)};
-  for(var i=0;i<pos.count;i++){
-    var x=pos.getX(i), z=pos.getZ(i);
+  var arr=pos.array;
+  j.geo=geo; j.pos=pos; j.colors=colors; j.arr=arr; j.w=w; j.tmp=tmp; j.acc=acc; j.burnedSites=burnedSites; j.ROAD_PAINT=ROAD_PAINT; j.pal=pal; j.i=0; j.phase=0;
+  if(budget) return true;
+  }
+  if(j.phase===0){
+  var arr=j.arr, pos=j.pos, segs=j.segs, colors=j.colors, w=j.w, tmp=j.tmp, acc=j.acc, pal=j.pal, burnedSites=j.burnedSites, ROAD_PAINT=j.ROAD_PAINT;
+  for(; j.i<pos.count; j.i++){
+    if(budget && performance.now()>=tEnd) return true;
+    var i=j.i;
+    var i3=i*3, x=arr[i3], z=arr[i3+2];
     var h=terrainNodeH(i%(segs+1), Math.floor(i/(segs+1)));
-    pos.setY(i,h);
+    arr[i3+1]=h;
     regionWeights(x,z,w);
     var n=Math.sin(x*0.13+z*0.17)*0.5+Math.sin(x*0.031-z*0.043)*0.5;
     var n2=Math.sin(x*0.011+1.7)*Math.cos(z*0.009-0.4);
     var n3=Math.sin(x*0.0021)*Math.cos(z*0.0027);
     acc.setRGB(0,0,0);
+    /* a zero region weight adds nothing — skip that blend so the colour stays identical */
+    if(w.carpathian){
     /* Carpathians: forest floor low, scree, snow high */
     tmp.copy(pal.pine).lerp(pal.limestone, clamp((h-6)/22,0,1));
     if(n>0.25) tmp.lerp(pal.rock,0.3);
     if(n2>0.55) tmp.lerp(pal.scree,0.35);
     if(h>24) tmp.lerp(pal.snow, clamp((h-24)/9,0,1)*(0.7+0.3*n2));
     acc.r+=tmp.r*w.carpathian; acc.g+=tmp.g*w.carpathian; acc.b+=tmp.b*w.carpathian;
+    }
+    if(w.transylvanian){
     /* Transylvania: wheat and vineyards in patches, oak woods on hilltops */
     tmp.copy(pal.grass);
     if(n2>0.35) tmp.lerp(pal.wheat, 0.55+0.3*n);
     else if(n2<-0.45) tmp.lerp(pal.vine, 0.6);
     if(h>7.5) tmp.lerp(pal.forest, clamp((h-7.5)/3,0,1)*0.55);
     acc.r+=tmp.r*w.transylvanian; acc.g+=tmp.g*w.transylvanian; acc.b+=tmp.b*w.transylvanian;
+    }
+    if(w.wallachian){
     /* Wallachia: grass, marsh in the hollows, mud along the water */
     tmp.copy(pal.wgrass);
     if(h<-1.2) tmp.lerp(pal.marsh, clamp((-1.2-h)/1.4,0,1));
     if(n<-0.35) tmp.lerp(pal.marsh,0.3);
     if(n2>0.6) tmp.lerp(pal.mud,0.3);
     acc.r+=tmp.r*w.wallachian; acc.g+=tmp.g*w.wallachian; acc.b+=tmp.b*w.wallachian;
+    }
+    if(w.moldavian){
     /* Moldavia: black forest with rock breaking through */
     tmp.copy(pal.mgrass).lerp(pal.forest, clamp(0.35+n*0.5,0,1));
     if(h>8) tmp.lerp(pal.mrock, clamp((h-8)/4,0,1)*0.6);
     if(n3>0.5) tmp.lerp(pal.mrock,0.2);
     acc.r+=tmp.r*w.moldavian; acc.g+=tmp.g*w.moldavian; acc.b+=tmp.b*w.moldavian;
+    }
+    if(w.trade_route){
     /* Trade route: dust and dry earth */
     tmp.copy(pal.tbase).lerp(pal.dust, 0.45+0.35*Math.sin(x*0.01));
     if(n<-0.5) tmp.lerp(pal.dry,0.4);
     acc.r+=tmp.r*w.trade_route; acc.g+=tmp.g*w.trade_route; acc.b+=tmp.b*w.trade_route;
+    }
+    if(w.capital){
     /* Capital: garden belt inside r300, paved districts to the wall at r520, boulevards fading outside */
     tmp.copy(pal.cbase);
     var dc=Math.sqrt(x*x+z*z);
@@ -2100,10 +2354,13 @@ function terrainMeshH(x,z){
     else if(dc<620) tmp.lerp(pal.boulevard, 0.35*(1-(dc-524)/96));
     if(Math.abs(x-600)<130 && Math.abs(z-600)<130) tmp.lerp(pal.stone, 0.55*(1-ss(80,130,Math.max(Math.abs(x-600),Math.abs(z-600)))));
     acc.r+=tmp.r*w.capital; acc.g+=tmp.g*w.capital; acc.b+=tmp.b*w.capital;
+    }
+    if(w.battlefield){
     /* Battlefields: scarred plains */
     tmp.copy(pal.bbase).lerp(pal.scar, 0.15+0.25*Math.max(0,n));
     if(n2>0.7) tmp.lerp(pal.burned,0.3);
     acc.r+=tmp.r*w.battlefield; acc.g+=tmp.g*w.battlefield; acc.b+=tmp.b*w.battlefield;
+    }
     tmp.copy(acc);
     /* scarred / burned ground around war sites */
     for(var bi=0;bi<burnedSites.length;bi++){
@@ -2116,7 +2373,7 @@ function terrainMeshH(x,z){
     /* the rock-hall floor of the cave village is earth, not snow */
     if(Math.abs(x-MASSIF.cave.x)<74 && z>MASSIF.cave.z-48 && z<MASSIF.cave.z+46) tmp.lerp(pal.mud, 0.7);
     /* river banks: mud, then reeds/marsh */
-    var rf=riverField(x,z);
+    var rf=riverField(x,z,64);
     if(rf.river){
       var hw=rf.river.hw*(1+0.3*(1-ss(-2050,-1700,z)));
       if(rf.d<hw*0.75) tmp.lerp(pal.lakebed, 0.7*(1-rf.d/(hw*0.75)));
@@ -2135,19 +2392,41 @@ function terrainMeshH(x,z){
     tmp.multiplyScalar(0.92);   /* noon light sums to ~1.25; the surface shader adds its own ±15% */
     colors[i*3]=tmp.r; colors[i*3+1]=tmp.g; colors[i*3+2]=tmp.b;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
-  geo.computeVertexNormals();
+  j.phase=1;
+  if(budget && performance.now()>=tEnd) return true;
+  }
+  if(j.phase===1){
+  j.geo.setAttribute('color', new THREE.BufferAttribute(j.colors,3));
+  j.phase=2;
+  if(budget) return true;
+  }
+  if(j.phase===2){
+  var geo=j.geo;
+  if(groundNormals(geo, j, budget?tEnd:0)) return true;
   var ground=new THREE.Mesh(geo, surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
   ground.receiveShadow=true;
   ground.name='always';
   scene.add(ground);
+  j.phase=3;
+  j.ri=0; j.li=0;
+  if(budget && performance.now()>=tEnd) return true;
+  }
+  if(j.phase!==3) return false;
 
   /* ---- water: rivers as ribbons over the troughs, lakes as discs ---- */
+  if(!j.waterReady){
   WATER_MAT=new THREE.MeshLambertMaterial({color:0x6f8f9c, map:makeWaterTexture(), transparent:true, opacity:0.84, side:THREE.DoubleSide});
   ICE_MAT=new THREE.MeshLambertMaterial({color:0xcfe3ee, emissive:0x223038, transparent:true, opacity:0.96});
-  RIVERS.forEach(function(R){
-    var P=R.pts, verts=[], idx=[], i;
-    for(i=0;i<P.length;i++){
+  j.waterReady=1; j.ri=0; j.li=0;
+  }
+  for(; j.ri<RIVERS.length; j.ri++){
+    var R=RIVERS[j.ri];
+    var P=R.pts;
+    if(!j.rv || j.rv.ri!==j.ri) j.rv={ri:j.ri, i:0, verts:[], idx:[]};
+    var rv=j.rv, verts=rv.verts, idx=rv.idx, i;
+    for(; rv.i<P.length; rv.i++){
+      if(budget && rv.i && (rv.i&31)===0 && performance.now()>=tEnd) return true;
+      i=rv.i;
       var a=P[Math.max(0,i-1)], b=P[Math.min(P.length-1,i+1)];
       var dx=b[0]-a[0], dz=b[1]-a[1], L=Math.hypot(dx,dz)||1, nx=-dz/L, nz=dx/L;
       var mC=1-ss(-2050,-1700,P[i][1]);
@@ -2167,15 +2446,20 @@ function terrainMeshH(x,z){
     g.setIndex(idx); g.computeVertexNormals();
     var m=new THREE.Mesh(g, WATER_MAT); m.name='always'; m.receiveShadow=true;
     scene.add(m); waterSurfaces.push(m);
-  });
-  LAKES.forEach(function(L){
+    j.rv=null;
+    if(budget && performance.now()>=tEnd) return true;
+  }
+  for(; j.li<LAKES.length; j.li++){
+    if(budget && performance.now()>=tEnd) return true;
+    var L=LAKES[j.li];
     var y=groundHBase(L.x,L.z)+L.depth*0.55;
     var m=new THREE.Mesh(new THREE.CircleGeometry(L.r*1.02,28), L.frozen?ICE_MAT:WATER_MAT);
     m.rotation.x=-Math.PI/2; m.position.set(L.x,y,L.z); m.name='always'; m.receiveShadow=true;
     scene.add(m); waterSurfaces.push(m);
-  });
-  BOOT_TIMES.terrain=Math.round(performance.now()-_t0);
-})();
+  }
+  _groundJob=null;
+  return false;
+}
 
 
 // SOURCE: src/world/scenery.js
@@ -2208,7 +2492,8 @@ function bucketIM(geo, items, mat, name, opts){
   var made=0;
   buckets.forEach(function(b){
     var im=new THREE.InstancedMesh(geo, mat, b.items.length);
-    b.items.forEach(function(orig,i){ im.setMatrixAt(i, items[orig].m); if(items[orig].c!==undefined) im.setColorAt(i, new THREE.Color(items[orig].c)); });
+    var _bc=new THREE.Color();
+    b.items.forEach(function(orig,i){ im.setMatrixAt(i, items[orig].m); if(items[orig].c!==undefined) im.setColorAt(i, _bc.setHex(items[orig].c)); });
     im.instanceMatrix.needsUpdate=true; if(im.instanceColor) im.instanceColor.needsUpdate=true;
     im.frustumCulled=false; im.name=name||'scenery-chunk';
     im.castShadow=opts.shadow!==false; im.receiveShadow=true;
@@ -2227,23 +2512,77 @@ function imItem(x,y,z,ry,sx,sy,sz,col,rx,rz){
 /* keep-out test shared by trees, rocks, reeds: sites, towns, roads, rivers, lakes */
 function sceneryRoadDist(x,z){ var f=roadField(x,z); return f.d-(f.w||8)/2; }
 function sceneryBlocked(x,z,margin){
-  var i;
-  for(i=0;i<FLATS.length;i++){
-    var f=FLATS[i], dx=x-f.x, dz=z-f.z, rr=f.r+(margin||0);
-    if(dx*dx+dz*dz<rr*rr) return true;
+  var i, gx=Math.floor(x/FLAT_CELL), gz=Math.floor(z/FLAT_CELL);
+  if(!FLAT_GRID) flatGridBuild();
+  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){
+    var arr=FLAT_GRID.get((gx+ix)*4096+(gz+iz)); if(!arr) continue;
+    for(i=0;i<arr.length;i++){
+      var f=arr[i], dx=x-f.x, dz=z-f.z, rr=f.r+(margin||0);
+      if(dx*dx+dz*dz<rr*rr) return true;
+    }
   }
   if(sceneryRoadDist(x,z)<5) return true;
-  var rf=riverField(x,z);
+  var rf=riverField(x,z,48);
   if(rf.river && rf.d<rf.river.hw*1.25+3) return true;
   for(i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<(L.r+6)*(L.r+6)) return true; }
   return false;
 }
 
-(function buildField(){
-  var _t0=performance.now();
-  var rnd=srand(20260919);
+/* trees and rocks outside the loaded area keep the same seed, but their meshes wait until the reach includes them */
+var SCENERY_LATER=[];
+function sceneryEmit(list, kind, x,y,z,ry,sx,sy,sz,col,rx,rz){
+  if(typeof inLoadArea==='function' && !inLoadArea(x,z)){
+    SCENERY_LATER.push(kind,x,y,z,ry,sx,sy,sz,col,rx||0,rz||0);
+    return;
+  }
+  list.push(imItem(x,y,z,ry,sx,sy,sz,col,rx,rz));
+}
+function sceneryFlushHeld(flat){
+  var lists=[[],[],[],[],[],[],[],[],[],[],[]], i, k;
+  for(i=0;i<flat.length;i+=11){
+    lists[flat[i]].push(imItem(flat[i+1],flat[i+2],flat[i+3],flat[i+4],flat[i+5],flat[i+6],flat[i+7],flat[i+8],flat[i+9],flat[i+10]));
+  }
+  var trunk=sharedGeometry('sc-trunk',function(){ return new THREE.CylinderGeometry(0.4,0.55,1,6); });
+  var cone=sharedGeometry('sc-cone',function(){ return new THREE.ConeGeometry(0.5,1,7); });
+  var sphG=sharedGeometry('sc-sph',function(){ return new THREE.SphereGeometry(0.5,7,5); });
+  var rock=sharedGeometry('sc-rock',function(){ return new THREE.IcosahedronGeometry(0.5,0); });
+  var box=sharedGeometry('sc-box',function(){ return new THREE.BoxGeometry(1,1,1); });
+  var reed=sharedGeometry('sc-reed',function(){ return new THREE.ConeGeometry(0.08,1,4); });
+  var stump=sharedGeometry('sc-stump',function(){ return new THREE.CylinderGeometry(0.5,0.6,1,7); });
+  var white=M(0xffffff);
+  var geos=[trunk,cone,trunk,sphG,trunk,rock,rock,reed,box,box,stump];
+  var names=['forest','forest','forest','forest','forest','rocks','rocks','reeds','vines','vines','stumps'];
+  for(k=0;k<11;k++) if(lists[k].length) bucketIM(geos[k], lists[k], white, names[k], {shadow:k<7});
+}
+function loadAreaScenery(budget){
+  if(!SCENERY_LATER.length) return false;
+  var tEnd=performance.now()+(budget||8), a=SCENERY_LATER, still=[], take=[], i, k, cut=false;
+  for(i=0;i<a.length;i+=11){
+    if(inLoadArea(a[i+1], a[i+3])){ for(k=0;k<11;k++) take.push(a[i+k]); }
+    else { for(k=0;k<11;k++) still.push(a[i+k]); }
+    if(take.length>=660 && performance.now()>=tEnd){
+      for(k=i+11;k<a.length;k++) still.push(a[k]);
+      cut=true; break;
+    }
+  }
+  SCENERY_LATER=still;
+  if(take.length) sceneryFlushHeld(take);
+  return cut;
+}
+var _fieldJob=null;
+function buildField(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  function over(){ return !!(budget && performance.now()>=tEnd); }
+  var j=_fieldJob;
+  if(!j){
+    j=_fieldJob={phase:'rim', rnd:srand(20260919), wi:0, mi:0, ci:0, gz:-2880, gx:-2880, placed:0, ri:0, qi:0, vi:0, si:0, w:{},
+      pineTrunk:[], pineTop:[], oakTrunk:[], oakTop:[], deadTrunk:[], rocks:[], bigRocks:[], reeds:[], vinePosts:[], vineRows:[], stumps:[],
+      rimM:M(0x7d94a5), rimSnow:M(0xe8f0f8), rimDark:M(0x6c8090), cm:null};
+  }
+  var rnd=j.rnd, rimM=j.rimM, rimSnow=j.rimSnow, rimDark=j.rimDark, w=j.w;
+  var pineTrunk=j.pineTrunk, pineTop=j.pineTop, oakTrunk=j.oakTrunk, oakTop=j.oakTop, deadTrunk=j.deadTrunk;
+  var rocks=j.rocks, bigRocks=j.bigRocks, reeds=j.reeds, vinePosts=j.vinePosts, vineRows=j.vineRows, stumps=j.stumps;
   /* ---- rim peaks: a square wall of mountains just outside the 6,000 × 6,000 world, highest in the north ---- */
-  var rimM=M(0x7d94a5), rimSnow=M(0xe8f0f8), rimDark=M(0x6c8090);
   function peak(x,z,wrad,wh,dark){
     var wall=cone(wrad, wh, dark?rimDark:rimM, 7); wall.name='always';
     wall.position.set(x, wh*0.32, z); wall.castShadow=false; scene.add(wall);
@@ -2262,21 +2601,36 @@ function sceneryBlocked(x,z,margin){
     if(sceneryRoadDist(x,z)<r*0.6) return true;
     return false;
   }
-  for(var wi=0; wi<128; wi++){
+  if(j.phase==='rim'){
+  for(; j.wi<128; j.wi++){
+    if(over() && j.wi) return true;
+    var wi=j.wi;
     var side=wi%4, t=(Math.floor(wi/4)+rnd()*0.9)/32*6600-3300, off=3110+rnd()*130, wx, wz;
     if(side===0){ wx=t; wz=-off; } else if(side===1){ wx=t; wz=off; } else if(side===2){ wx=-off; wz=t; } else { wx=off; wz=t; }
     var north=wz<-2400?1:0, wrad=190+rnd()*110, wh=95+rnd()*85+north*90;
     if(peakBlocked(wx,wz,wrad)){ wrad=150; if(peakBlocked(wx,wz,wrad)) continue; }   /* the rim keeps its skirt off the border hamlets */
     peak(wx, wz, wrad, wh, wi%3===0);
   }
-  for(var mi=0; mi<60; mi++){
+  j.phase='massif';
+  if(over()) return true;
+  }
+  if(j.phase==='massif'){
+  for(; j.mi<60; j.mi++){
+    if(over() && j.mi) return true;
+    var mi=j.mi;
     var mx=rnd()*5400-2700, mz=-3000+rnd()*1050, mrad=110+rnd()*120, mh=(70+rnd()*90)*(1-ss(-2600,-1950,mz))+40;
     if(mz>-1950||peakBlocked(mx,mz,mrad)) continue;
     peak(mx, mz, mrad, mh, mi%2===0);
   }
-  /* ---- clouds: iron-grey overcast, thicker over the Carpathians ---- */
-  var cm=new THREE.MeshLambertMaterial({color:0xe6eaee, emissive:0x7d8a99});
-  for(var ci=0; ci<30; ci++){
+  j.phase='clouds';
+  if(over()) return true;
+  }
+  if(j.phase==='clouds'){
+  if(!j.cm) j.cm=new THREE.MeshLambertMaterial({color:0xe6eaee, emissive:0x7d8a99});
+  var cm=j.cm;
+  for(; j.ci<30; j.ci++){
+    if(over() && j.ci) return true;
+    var ci=j.ci;
     var cl=new THREE.Group();
     var parts=3+Math.floor(rnd()*3);
     for(var pi=0; pi<parts; pi++){
@@ -2289,44 +2643,55 @@ function sceneryBlocked(x,z,margin){
     else cl.position.set(rnd()*2400-1200, 52+rnd()*26, rnd()*2400-1200);
     scene.add(cl); clouds.push(cl);
   }
-
-  /* ---- forests ---- */
-  var pineTrunk=[], pineTop=[], oakTrunk=[], oakTop=[], deadTrunk=[], rocks=[], bigRocks=[], reeds=[], vinePosts=[], vineRows=[], stumps=[];
-  var w={}, placed=0;
-  for(var gz=-2880; gz<2880; gz+=22) for(var gx=-2880; gx<2880; gx+=22){
+  j.phase='forest';
+  if(over()) return true;
+  }
+  if(j.phase==='forest'){
+  for(; j.gz<2880; j.gz+=22){
+  for(; j.gx<2880; j.gx+=22){
+    if(over()) return true;
+    var gx=j.gx, gz=j.gz;
     var x=gx+rnd()*20-10, z=gz+rnd()*20-10;
     regionWeights(x,z,w);
     var n=Math.sin(x*0.0072+1.1)*Math.cos(z*0.0066-0.3)+0.5*Math.sin(x*0.021)*Math.sin(z*0.019);
-    var h=groundH(x,z);
-    var kind=null, p=0;
-    if(w.carpathian>0.5){ p=h<27 ? 0.62-0.012*Math.max(0,h-12) : 0; kind='pine'; if(n<-0.55) p*=0.25; }
+    /* height only changes the Carpathian and Transylvanian odds; everywhere else it is asked after the reject so the seed stays identical */
+    var h, kind=null, p=0;
+    if(w.carpathian>0.5){ h=groundH(x,z); p=h<27 ? 0.62-0.012*Math.max(0,h-12) : 0; kind='pine'; if(n<-0.55) p*=0.25; }
     else if(w.moldavian>0.5){ p=0.55+0.25*n; kind=rnd()<0.75?'pine':'oak'; }
-    else if(w.transylvanian>0.5){ p=h>7 ? 0.55 : 0.09; kind='oak'; }
+    else if(w.transylvanian>0.5){ h=groundH(x,z); p=h>7 ? 0.55 : 0.09; kind='oak'; }
     else if(w.wallachian>0.5){ p=0.09; kind='oak'; }
     else if(w.trade_route>0.5){ p=0.045; kind='oak'; }
     else if(w.capital>0.5){ p=Math.max(Math.abs(x),Math.abs(z))>430 ? 0.16 : 0; kind='oak'; }
     else { p=0.14+0.1*n; kind=rnd()<0.3?'dead':'oak'; }
     if(p<=0||rnd()>p) continue;
+    if(h===undefined) h=groundH(x,z);
     if(sceneryBlocked(x,z,14)) continue;
     var s=0.8+rnd()*0.55, ry=rnd()*TAU;
     if(kind==='pine'){
       var dark=w.moldavian>0.5;
-      pineTrunk.push(imItem(x,h+1.4*s,z,ry,0.36*s,2.8*s,0.36*s,0x4a3a2a));
-      pineTop.push(imItem(x,h+3.6*s,z,ry,2.6*s,4.2*s,2.6*s,dark?0x2a4126:(h>18?0x3d5a3c:0x2f4a2e)));
-      pineTop.push(imItem(x,h+5.6*s,z,ry+0.4,1.8*s,3.2*s,1.8*s,dark?0x243a20:0x35533a));
+      sceneryEmit(pineTrunk,0,x,h+1.4*s,z,ry,0.36*s,2.8*s,0.36*s,0x4a3a2a);
+      sceneryEmit(pineTop,1,x,h+3.6*s,z,ry,2.6*s,4.2*s,2.6*s,dark?0x2a4126:(h>18?0x3d5a3c:0x2f4a2e));
+      sceneryEmit(pineTop,1,x,h+5.6*s,z,ry+0.4,1.8*s,3.2*s,1.8*s,dark?0x243a20:0x35533a);
     } else if(kind==='oak'){
       var dusty=w.trade_route>0.5;
-      oakTrunk.push(imItem(x,h+1.1*s,z,ry,0.42*s,2.2*s,0.42*s,0x5d4326));
-      oakTop.push(imItem(x,h+3.1*s,z,ry,3.0*s,2.6*s,3.0*s,dusty?0x7a8a5a:(rnd()<0.5?0x4a7a37:0x57893f)));
-      if(rnd()<0.6) oakTop.push(imItem(x+0.7*s,h+3.7*s,z-0.4*s,ry,2.0*s,1.9*s,2.0*s,0x3f6a30));
+      sceneryEmit(oakTrunk,2,x,h+1.1*s,z,ry,0.42*s,2.2*s,0.42*s,0x5d4326);
+      sceneryEmit(oakTop,3,x,h+3.1*s,z,ry,3.0*s,2.6*s,3.0*s,dusty?0x7a8a5a:(rnd()<0.5?0x4a7a37:0x57893f));
+      if(rnd()<0.6) sceneryEmit(oakTop,3,x+0.7*s,h+3.7*s,z-0.4*s,ry,2.0*s,1.9*s,2.0*s,0x3f6a30);
     } else {
-      deadTrunk.push(imItem(x,h+1.5*s,z,ry,0.32*s,3.0*s,0.32*s,0x3a3028,0,0.12));
-      deadTrunk.push(imItem(x+0.5*s,h+2.6*s,z,ry,0.12*s,1.5*s,0.12*s,0x3a3028,0,0.8));
+      sceneryEmit(deadTrunk,4,x,h+1.5*s,z,ry,0.32*s,3.0*s,0.32*s,0x3a3028,0,0.12);
+      sceneryEmit(deadTrunk,4,x+0.5*s,h+2.6*s,z,ry,0.12*s,1.5*s,0.12*s,0x3a3028,0,0.8);
     }
-    placed++;
+    j.placed++;
   }
-  /* ---- rocks: Carpathian scree, Moldavian outcrops, boulders on every plain ---- */
-  for(var ri=0; ri<2600; ri++){
+  j.gx=-2880;
+  }
+  j.phase='rocks';
+  if(over()) return true;
+  }
+  if(j.phase==='rocks'){
+  for(; j.ri<2600; j.ri++){
+    if(over() && j.ri) return true;
+    var ri=j.ri;
     var rx=rnd()*5800-2900, rz=rnd()*5800-2900;
     regionWeights(rx,rz,w);
     var pr=w.carpathian*0.9+w.moldavian*0.5+w.battlefield*0.2+w.transylvanian*0.12+w.wallachian*0.05+w.trade_route*0.15+w.capital*0.05;
@@ -2334,43 +2699,64 @@ function sceneryBlocked(x,z,margin){
     if(sceneryBlocked(rx,rz,10)) continue;
     var rh=groundH(rx,rz), rs=0.5+rnd()*1.6+(w.carpathian>0.5?rnd()*1.6:0);
     var col=w.carpathian>0.5?0x8a8a86:(w.trade_route>0.5?0xa09070:0x777772);
-    if(rs>1.7){ bigRocks.push(imItem(rx,rh+rs*0.35,rz,rnd()*3,rs*1.4,rs,rs*1.2,col,rnd()*0.5,rnd()*0.5)); addCollider(rx-rs*0.6,rz-rs*0.55,rx+rs*0.6,rz+rs*0.55); }
-    else rocks.push(imItem(rx,rh+rs*0.3,rz,rnd()*3,rs*1.3,rs*0.9,rs,col,rnd()*0.5,rnd()*0.5));
+    var ryR=rnd()*3, rxR=rnd()*0.5, rzR=rnd()*0.5;
+    if(rs>1.7){ sceneryEmit(bigRocks,6,rx,rh+rs*0.35,rz,ryR,rs*1.4,rs,rs*1.2,col,rxR,rzR); addCollider(rx-rs*0.6,rz-rs*0.55,rx+rs*0.6,rz+rs*0.55); }
+    else sceneryEmit(rocks,5,rx,rh+rs*0.3,rz,ryR,rs*1.3,rs*0.9,rs,col,rxR,rzR);
   }
-  /* ---- reeds along Wallachian water and marsh hollows ---- */
-  for(var qi=0; qi<9000; qi++){
+  j.phase='reeds';
+  if(over()) return true;
+  }
+  if(j.phase==='reeds'){
+  for(; j.qi<9000; j.qi++){
+    if(over() && j.qi) return true;
+    var qi=j.qi;
     var qx=rnd()*5800-2900, qz=rnd()*5800-2900;
     regionWeights(qx,qz,w);
     if(w.wallachian<0.4 && w.trade_route<0.4 && w.capital<0.4) continue;
-    var rf=riverField(qx,qz), qh=groundH(qx,qz), ok=false;
-    if(rf.river && rf.d>rf.river.hw*0.85 && rf.d<rf.river.hw*1.7) ok=true;
+    var rf=riverField(qx,qz,64), rd=rf.d, rriv=rf.river, qh=groundH(qx,qz), ok=false;
+    if(rriv && rd>rriv.hw*0.85 && rd<rriv.hw*1.7) ok=true;
     if(w.wallachian>0.5 && qh<-1.3) ok=rnd()<0.5;
     for(var lk=0; lk<LAKES.length && !ok; lk++){ var L=LAKES[lk]; var dl=Math.hypot(qx-L.x,qz-L.z); if(!L.frozen && dl>L.r*0.95 && dl<L.r+9) ok=true; }
     if(!ok) continue;
     if(sceneryRoadDist(qx,qz)<3) continue;
-    for(var fi=0; fi<FLATS.length; fi++){ var F=FLATS[fi]; if(F.r>100 && (qx-F.x)*(qx-F.x)+(qz-F.z)*(qz-F.z)<F.r*F.r){ ok=false; break; } }
+    if(!FLAT_GRID) flatGridBuild();
+    var farr=FLAT_GRID.get(Math.floor(qx/FLAT_CELL)*4096+Math.floor(qz/FLAT_CELL));
+    if(farr) for(var fi=0; fi<farr.length; fi++){ var F=farr[fi], fdx=qx-F.x, fdz=qz-F.z; if(F.r>100 && fdx*fdx+fdz*fdz<F.r*F.r){ ok=false; break; } }
     if(!ok) continue;
     var qs=0.8+rnd()*0.7;
-    reeds.push(imItem(qx,qh+0.9*qs,qz,rnd()*TAU,0.9*qs,1.8*qs,0.9*qs,rnd()<0.5?0x8a9a5a:0x6f8a48,rnd()*0.2-0.1,rnd()*0.2-0.1));
+    sceneryEmit(reeds,7,qx,qh+0.9*qs,qz,rnd()*TAU,0.9*qs,1.8*qs,0.9*qs,rnd()<0.5?0x8a9a5a:0x6f8a48,rnd()*0.2-0.1,rnd()*0.2-0.1);
   }
-  /* ---- vineyards on Transylvanian slopes ---- */
-  for(var vi=0; vi<2600; vi++){
+  j.phase='vines';
+  if(over()) return true;
+  }
+  if(j.phase==='vines'){
+  for(; j.vi<2600; j.vi++){
+    if(over() && j.vi) return true;
+    var vi=j.vi;
     var vx=rnd()*1900-2950, vz=rnd()*1900-1750;
     if(getRegion(vx,vz)!=='transylvanian') continue;
     var vn=Math.sin(vx*0.011+1.7)*Math.cos(vz*0.009-0.4);
     if(vn>-0.45) continue;
     if(sceneryBlocked(vx,vz,20)) continue;
     var vh=groundH(vx,vz), va=Math.round(vn*4)%2?0:Math.PI/2;
-    vinePosts.push(imItem(vx,vh+0.8,vz,va,0.14,1.6,0.14,0x5d4326));
-    vineRows.push(imItem(vx,vh+0.95,vz,va,4.6,0.9,0.5,0x6b8f3a));
+    sceneryEmit(vinePosts,8,vx,vh+0.8,vz,va,0.14,1.6,0.14,0x5d4326);
+    sceneryEmit(vineRows,9,vx,vh+0.95,vz,va,4.6,0.9,0.5,0x6b8f3a);
   }
-  /* ---- stumps and log piles at the woodcutters' edges ---- */
-  for(var si=0; si<500; si++){
+  j.phase='stumps';
+  if(over()) return true;
+  }
+  if(j.phase==='stumps'){
+  for(; j.si<500; j.si++){
+    if(over() && j.si) return true;
+    var si=j.si;
     var sx=rnd()*5800-2900, sz=rnd()*5800-2900;
     regionWeights(sx,sz,w);
     if(w.moldavian+w.transylvanian+w.carpathian<0.6) continue;
     if(sceneryBlocked(sx,sz,12)) continue;
     stumps.push(imItem(sx,groundH(sx,sz)+0.25,sz,rnd()*TAU,0.9,0.5,0.9,0x6b4f2e));
+  }
+  j.phase='flush';
+  if(over()) return true;
   }
   var trunkGeo=new THREE.CylinderGeometry(0.4,0.55,1,6), coneGeo=new THREE.ConeGeometry(0.5,1,7), sphGeo=new THREE.SphereGeometry(0.5,7,5);
   var rockGeo=new THREE.IcosahedronGeometry(0.5,0), boxGeo=new THREE.BoxGeometry(1,1,1), reedGeo=new THREE.ConeGeometry(0.08,1,4), stumpGeo=new THREE.CylinderGeometry(0.5,0.6,1,7);
@@ -2386,9 +2772,10 @@ function sceneryBlocked(x,z,margin){
   bucketIM(boxGeo, vinePosts, white, 'vines', {shadow:false});
   bucketIM(boxGeo, vineRows, white, 'vines', {shadow:false});
   bucketIM(stumpGeo, stumps, white, 'stumps', {shadow:false});
-  scenery.trees=placed; scenery.rocks=rocks.length+bigRocks.length; scenery.reeds=reeds.length;
-  BOOT_TIMES.scenery=Math.round(performance.now()-_t0);
-})();
+  scenery.trees=j.placed; scenery.rocks=rocks.length+bigRocks.length; scenery.reeds=reeds.length;
+  _fieldJob=null;
+  return false;
+}
 
 
 // SOURCE: src/buildings/registry.js
@@ -2641,20 +3028,55 @@ function seedRand(seed){
 /* ============================================================
    1. Merged geometry kit
    ============================================================ */
+/* 12 box triangles: 3 corner offsets into _c, then the normal offset into _n. Same winding as quad(). */
+var KIT_BOX_IX=new Uint8Array([
+  12,15,18,0, 12,18,21,0,
+  3,0,9,3, 3,9,6,3,
+  21,18,6,6, 21,6,9,6,
+  0,3,15,9, 0,15,12,9,
+  15,3,6,12, 15,6,18,12,
+  0,12,21,15, 0,21,9,15
+]);
+/* Vector3.applyQuaternion, inlined. For a pure yaw this matches THREE.Quaternion.setFromEuler('YXZ') bit for bit. */
+function kitYaw(o,i,lx,ly,lz,qx,qy,qz,qw){
+  var ix=qw*lx+qy*lz-qz*ly, iy=qw*ly+qz*lx-qx*lz, iz=qw*lz+qx*ly-qy*lx, iw=-qx*lx-qy*ly-qz*lz;
+  o[i]=ix*qw+iw*-qx+iy*-qz-iz*-qy;
+  o[i+1]=iy*qw+iw*-qy+iz*-qx-ix*-qz;
+  o[i+2]=iz*qw+iw*-qz+ix*-qy-iy*-qx;
+}
 function kitCreate(){
   var bags=new Map();
   var quat=new THREE.Quaternion(), eul=new THREE.Euler(0,0,0,'YXZ');
   var va=new THREE.Vector3(), vb=new THREE.Vector3(), vc=new THREE.Vector3();
   var e1=new THREE.Vector3(), e2=new THREE.Vector3(), nv=new THREE.Vector3();
-  var tx=0, ty=0, tz=0;
+  var tx=0, ty=0, tz=0, ident=1;
+  var _c=new Float32Array(24), _n=new Float32Array(18);
   /* local frame: everything placed after frame(cx,cz,a) is rotated by a about (cx,cz) */
   var fx=0, fz=0, fa=0, fc=1, fs=0;
   function frame(cx,cz,a){ fx=cx||0; fz=cz||0; fa=a||0; fc=Math.cos(fa); fs=Math.sin(fa); }
   function toWorld(x,z){ if(!fa) return {x:x,z:z}; var dx=x-fx, dz=z-fz; return {x:fx+dx*fc+dz*fs, z:fz-dx*fs+dz*fc}; }
-  function bag(m){ var b=bags.get(m); if(!b){ b={p:[],n:[],u:[]}; bags.set(m,b); } return b; }
+  var _bm=null, _bb=null;
+  function bag(m){
+    if(m===_bm) return _bb;
+    var b=bags.get(m);
+    if(!b){ b={p:new Float32Array(12288), n:new Float32Array(12288), u:new Float32Array(8192), nv:0}; bags.set(m,b); }
+    _bm=m; _bb=b;
+    return b;
+  }
+  function ensure(b,add){
+    var need=(b.nv+add)*3;
+    if(need<=b.p.length) return;
+    var cap=b.p.length*2; if(cap<need) cap=need;
+    var p=new Float32Array(cap), n=new Float32Array(cap), u=new Float32Array(cap/3*2);
+    p.set(b.p.subarray(0,b.nv*3)); n.set(b.n.subarray(0,b.nv*3)); u.set(b.u.subarray(0,b.nv*2));
+    b.p=p; b.n=n; b.u=u;
+  }
   function place(x,y,z,rx,ry,rz){
-    if(fa){ var w=toWorld(x||0,z||0); x=w.x; z=w.z; ry=(ry||0)+fa; }
-    tx=x||0; ty=y||0; tz=z||0; eul.set(rx||0,ry||0,rz||0); quat.setFromEuler(eul);
+    x=x||0; y=y||0; z=z||0; rx=rx||0; ry=ry||0; rz=rz||0;
+    if(fa){ var dx=x-fx, dz=z-fz; x=fx+dx*fc+dz*fs; z=fz-dx*fs+dz*fc; ry+=fa; }
+    tx=x; ty=y; tz=z;
+    if(!rx && !ry && !rz){ ident=1; return; }
+    ident=0; eul.set(rx,ry,rz); quat.setFromEuler(eul);
   }
   /* axis-aligned collider given in local coordinates (rotated to a world AABB) */
   function collider(x0,z0,x1,z1){
@@ -2662,31 +3084,86 @@ function kitCreate(){
     addCollider(Math.min(a.x,b.x,c.x,d.x), Math.min(a.z,b.z,c.z,d.z), Math.max(a.x,b.x,c.x,d.x), Math.max(a.z,b.z,c.z,d.z));
   }
   function angle(){ return fa; }
-  function push(b,v,n){
-    b.p.push(v.x+tx, v.y+ty, v.z+tz);
-    b.n.push(n.x, n.y, n.z);
-    b.u.push((v.x+v.z)*0.25, v.y*0.25);
+  function emit3(b,ax,ay,az,bx,by,bz,cx,cy,cz,nx,ny,nz){
+    ensure(b,3);
+    var i=b.nv, p=i*3, q=i*2, P=b.p, N=b.n, U=b.u;
+    P[p]=ax+tx; P[p+1]=ay+ty; P[p+2]=az+tz; N[p]=nx; N[p+1]=ny; N[p+2]=nz; U[q]=(ax+az)*0.25; U[q+1]=ay*0.25;
+    P[p+3]=bx+tx; P[p+4]=by+ty; P[p+5]=bz+tz; N[p+3]=nx; N[p+4]=ny; N[p+5]=nz; U[q+2]=(bx+bz)*0.25; U[q+3]=by*0.25;
+    P[p+6]=cx+tx; P[p+7]=cy+ty; P[p+8]=cz+tz; N[p+6]=nx; N[p+7]=ny; N[p+8]=nz; U[q+4]=(cx+cz)*0.25; U[q+5]=cy*0.25;
+    b.nv=i+3;
   }
   function tri(m,p0,p1,p2){
-    var b=bag(m);
     va.set(p0[0],p0[1],p0[2]); vb.set(p1[0],p1[1],p1[2]); vc.set(p2[0],p2[1],p2[2]);
     e1.subVectors(vb,va); e2.subVectors(vc,va); nv.crossVectors(e1,e2);
     if(nv.lengthSq()<1e-10) return;
     nv.normalize();
-    va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat);
-    push(b,va,nv); push(b,vb,nv); push(b,vc,nv);
+    if(!ident){ va.applyQuaternion(quat); vb.applyQuaternion(quat); vc.applyQuaternion(quat); nv.applyQuaternion(quat); }
+    emit3(bag(m), va.x,va.y,va.z, vb.x,vb.y,vb.z, vc.x,vc.y,vc.z, nv.x,nv.y,nv.z);
   }
   function quad(m,p0,p1,p2,p3){ tri(m,p0,p1,p2); tri(m,p0,p2,p3); }
-  /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz */
+  function corn(lx,ly,lz,o){
+    if(ident){ _c[o]=lx; _c[o+1]=ly; _c[o+2]=lz; return; }
+    va.set(lx,ly,lz).applyQuaternion(quat);
+    _c[o]=va.x; _c[o+1]=va.y; _c[o+2]=va.z;
+  }
+  function nrm(nx,ny,nz,o){
+    if(ident){ _n[o]=nx; _n[o+1]=ny; _n[o+2]=nz; return; }
+    nv.set(nx,ny,nz).applyQuaternion(quat);
+    _n[o]=nv.x; _n[o+1]=nv.y; _n[o+2]=nv.z;
+  }
+  function emitBox(b){
+    ensure(b,36);
+    var C=_c, N=_n, P=b.p, Nv=b.n, U=b.u, ix=KIT_BOX_IX;
+    var p=b.nv*3, q=b.nv*2, k=0, t, e, o, cx, cy, cz, n0, nx, ny, nz;
+    for(t=0;t<12;t++){
+      n0=ix[k+3]; nx=N[n0]; ny=N[n0+1]; nz=N[n0+2];
+      for(e=0;e<3;e++){
+        o=ix[k+e]; cx=C[o]; cy=C[o+1]; cz=C[o+2];
+        P[p]=cx+tx; P[p+1]=cy+ty; P[p+2]=cz+tz;
+        Nv[p]=nx; Nv[p+1]=ny; Nv[p+2]=nz;
+        U[q]=(cx+cz)*0.25; U[q+1]=cy*0.25;
+        p+=3; q+=2;
+      }
+      k+=4;
+    }
+    b.nv+=36;
+  }
+  /* box: size w(x) h(y) d(z), centre x,y,z, euler ry/rx/rz.
+     Axis-aligned and pure-yaw boxes write the same corners the quaternion path would, without a Vector3 per corner. */
   function box(m,w,h,d,x,y,z,ry,rx,rz){
-    place(x,y,z,rx,ry,rz);
+    x=x||0; y=y||0; z=z||0; rx=rx||0; ry=ry||0; rz=rz||0;
+    if(fa){ var dx=x-fx, dz=z-fz; x=fx+dx*fc+dz*fs; z=fz-dx*fs+dz*fc; ry+=fa; }
+    tx=x; ty=y; tz=z;
     var X=w/2, Y=h/2, Z=d/2;
-    quad(m,[-X,-Y,Z],[X,-Y,Z],[X,Y,Z],[-X,Y,Z]);
-    quad(m,[X,-Y,-Z],[-X,-Y,-Z],[-X,Y,-Z],[X,Y,-Z]);
-    quad(m,[-X,Y,Z],[X,Y,Z],[X,Y,-Z],[-X,Y,-Z]);
-    quad(m,[-X,-Y,-Z],[X,-Y,-Z],[X,-Y,Z],[-X,-Y,Z]);
-    quad(m,[X,-Y,Z],[X,-Y,-Z],[X,Y,-Z],[X,Y,Z]);
-    quad(m,[-X,-Y,-Z],[-X,-Y,Z],[-X,Y,Z],[-X,Y,-Z]);
+    if(!rx && !rz){
+      if(!ry){
+        ident=1;
+        _c[0]=-X; _c[1]=-Y; _c[2]=-Z; _c[3]=X; _c[4]=-Y; _c[5]=-Z;
+        _c[6]=X; _c[7]=Y; _c[8]=-Z; _c[9]=-X; _c[10]=Y; _c[11]=-Z;
+        _c[12]=-X; _c[13]=-Y; _c[14]=Z; _c[15]=X; _c[16]=-Y; _c[17]=Z;
+        _c[18]=X; _c[19]=Y; _c[20]=Z; _c[21]=-X; _c[22]=Y; _c[23]=Z;
+        _n[0]=0; _n[1]=0; _n[2]=1; _n[3]=0; _n[4]=0; _n[5]=-1;
+        _n[6]=0; _n[7]=1; _n[8]=0; _n[9]=0; _n[10]=-1; _n[11]=0;
+        _n[12]=1; _n[13]=0; _n[14]=0; _n[15]=-1; _n[16]=0; _n[17]=0;
+      } else {
+        ident=0;
+        var qy=Math.sin(ry/2), qw=Math.cos(ry/2);
+        kitYaw(_c,0,-X,-Y,-Z,0,qy,0,qw); kitYaw(_c,3,X,-Y,-Z,0,qy,0,qw);
+        kitYaw(_c,6,X,Y,-Z,0,qy,0,qw); kitYaw(_c,9,-X,Y,-Z,0,qy,0,qw);
+        kitYaw(_c,12,-X,-Y,Z,0,qy,0,qw); kitYaw(_c,15,X,-Y,Z,0,qy,0,qw);
+        kitYaw(_c,18,X,Y,Z,0,qy,0,qw); kitYaw(_c,21,-X,Y,Z,0,qy,0,qw);
+        kitYaw(_n,0,0,0,1,0,qy,0,qw); kitYaw(_n,3,0,0,-1,0,qy,0,qw);
+        kitYaw(_n,6,0,1,0,0,qy,0,qw); kitYaw(_n,9,0,-1,0,0,qy,0,qw);
+        kitYaw(_n,12,1,0,0,0,qy,0,qw); kitYaw(_n,15,-1,0,0,0,qy,0,qw);
+      }
+      emitBox(bag(m));
+      return;
+    }
+    ident=0; eul.set(rx,ry,rz); quat.setFromEuler(eul);
+    corn(-X,-Y,-Z,0); corn(X,-Y,-Z,3); corn(X,Y,-Z,6); corn(-X,Y,-Z,9);
+    corn(-X,-Y,Z,12); corn(X,-Y,Z,15); corn(X,Y,Z,18); corn(-X,Y,Z,21);
+    nrm(0,0,1,0); nrm(0,0,-1,3); nrm(0,1,0,6); nrm(0,-1,0,9); nrm(1,0,0,12); nrm(-1,0,0,15);
+    emitBox(bag(m));
   }
   /* prism: triangle in local XY (base w along X, apex up, apex shifted -1..1), extruded d along Z */
   function prism(m,w,h,d,x,y,z,ry,rx,rz,apex){
@@ -2727,36 +3204,46 @@ function kitCreate(){
      and the window panes (kept on PANE_MAT so they glow at night). Used by prefabs.js for instancing. */
   function exportGeo(dy){
     dy=dy||0;
-    var pos=[], nor=[], col=[], pat=[], pp=[], pn=[], pu=[], c=new THREE.Color();
+    var bodyN=0, paneN=0, c=new THREE.Color(), white=new THREE.Color(0xffffff);
+    bags.forEach(function(b,m){ if(!b.nv) return; if(m===PANE_MAT) paneN+=b.nv; else bodyN+=b.nv; });
+    var pos=new Float32Array(bodyN*3), nor=new Float32Array(bodyN*3), col=new Float32Array(bodyN*3), pat=new Float32Array(bodyN);
+    var pp=paneN?new Float32Array(paneN*3):null, pn=paneN?new Float32Array(paneN*3):null, pu=paneN?new Float32Array(paneN*2):null;
+    var o=0, po=0;
     bags.forEach(function(b,m){
-      var i, n=b.p.length, sp=surfPatOf(m);
-      if(m===PANE_MAT){ for(i=0;i<n;i+=3){ pp.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); pn.push(b.n[i],b.n[i+1],b.n[i+2]); } for(i=0;i<b.u.length;i++) pu.push(b.u[i]); return; }
-      c.copy(m.color||new THREE.Color(0xffffff));
+      var i, nv=b.nv, p, d, sp;
+      if(!nv) return;
+      if(m===PANE_MAT){
+        for(i=0;i<nv;i++){ p=i*3; d=po*3; pp[d]=b.p[p]; pp[d+1]=b.p[p+1]-dy; pp[d+2]=b.p[p+2]; pn[d]=b.n[p]; pn[d+1]=b.n[p+1]; pn[d+2]=b.n[p+2]; pu[po*2]=b.u[i*2]; pu[po*2+1]=b.u[i*2+1]; po++; }
+        return;
+      }
+      c.copy(m.color||white);
       if(m.emissive && m.emissive.getHex()>0 && m.emissiveIntensity>0) c.lerp(m.emissive, Math.min(0.8,m.emissiveIntensity*0.5));   /* glowing materials bake a little of their glow */
-      for(i=0;i<n;i+=3){ pos.push(b.p[i], b.p[i+1]-dy, b.p[i+2]); nor.push(b.n[i],b.n[i+1],b.n[i+2]); col.push(c.r,c.g,c.b); pat.push(sp); }
+      sp=surfPatOf(m);
+      var r=c.r, g=c.g, bl=c.b;
+      for(i=0;i<nv;i++){ p=i*3; d=o*3; pos[d]=b.p[p]; pos[d+1]=b.p[p+1]-dy; pos[d+2]=b.p[p+2]; nor[d]=b.n[p]; nor[d+1]=b.n[p+1]; nor[d+2]=b.n[p+2]; col[d]=r; col[d+1]=g; col[d+2]=bl; pat[o]=sp; o++; }
     });
-    bags.clear();
+    bags.clear(); _bm=null; _bb=null;
     function geo(p,nn,cc,uu,pt){
-      if(!p.length) return null;
+      if(!p || !p.length) return null;
       var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nn),3));
-      if(cc) g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cc),3));
-      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uu),2));
-      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(new Float32Array(pt),1));   /* surface pattern per vertex (surface.js) */
+      g.setAttribute('position', new THREE.BufferAttribute(p,3));
+      g.setAttribute('normal', new THREE.BufferAttribute(nn,3));
+      if(cc) g.setAttribute('color', new THREE.BufferAttribute(cc,3));
+      if(uu) g.setAttribute('uv', new THREE.BufferAttribute(uu,2));
+      if(pt) g.setAttribute('aPat', new THREE.BufferAttribute(pt,1));   /* surface pattern per vertex (surface.js) */
       g.computeBoundingSphere(); g.computeBoundingBox();
       return g;
     }
-    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:pos.length/9};
+    return {body:geo(pos,nor,col,null,pat), panes:geo(pp,pn,null,pu,null), tris:bodyN/3};
   }
   function flush(parent,shadow){
     var made=0;
     bags.forEach(function(b,m){
-      if(!b.p.length) return;
-      var g=new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.p),3));
-      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(b.n),3));
-      g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(b.u),2));
+      if(!b.nv) return;
+      var g=new THREE.BufferGeometry(), nv=b.nv;
+      g.setAttribute('position', new THREE.BufferAttribute(b.p.subarray(0,nv*3),3));
+      g.setAttribute('normal', new THREE.BufferAttribute(b.n.subarray(0,nv*3),3));
+      g.setAttribute('uv', new THREE.BufferAttribute(b.u.subarray(0,nv*2),2));
       g.computeBoundingSphere();
       var mesh=new THREE.Mesh(g,m);
       mesh.castShadow=shadow!==false; mesh.receiveShadow=true;
@@ -3897,10 +4384,12 @@ function fortWall(o){
   return {len:L};
 }
 /* wall along a polyline with gaps: gaps=[{x,z,w}] */
-function fortWallRun(pts,opts,gaps,closed){
-  var i, out=[];
+function fortWallRun(pts,opts,gaps,closed,job){
+  var i, out=(job&&job.out)||[];
   var n=closed?pts.length:pts.length-1;
-  for(i=0;i<n;i++){
+  var start=job?(job.i||0):0;
+  for(i=start;i<n;i++){
+    if(job && job.deadline && i>start && performance.now()>=job.deadline){ job.i=i; job.out=out; job.more=true; return out; }
     var a=pts[i], b=pts[(i+1)%pts.length];
     var segs=[[a[0],a[1],b[0],b[1]]];
     (gaps||[]).forEach(function(g){
@@ -4003,7 +4492,8 @@ function palisade(pts,opts){
   var geo=new THREE.CylinderGeometry(0.42,0.5,1,6), tipGeo=new THREE.ConeGeometry(0.42,0.9,6), mat=M(0xffffff);
   function make(list,gm){
     var im=new THREE.InstancedMesh(gm, mat, list.length);
-    list.forEach(function(it,k){ im.setMatrixAt(k,it.m); im.setColorAt(k,new THREE.Color(it.c)); });
+    var _pc=new THREE.Color();
+    list.forEach(function(it,k){ im.setMatrixAt(k,it.m); im.setColorAt(k,_pc.setHex(it.c)); });
     im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; im.castShadow=true; im.receiveShadow=true; im.frustumCulled=false;
     if(!PROP_PARENT){ var bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9}; pts.forEach(function(p){ bb.x0=Math.min(bb.x0,p[0]); bb.x1=Math.max(bb.x1,p[0]); bb.z0=Math.min(bb.z0,p[1]); bb.z1=Math.max(bb.z1,p[1]); }); im.userData.cullBounds={x:(bb.x0+bb.x1)/2,z:(bb.z0+bb.z1)/2,r:Math.hypot(bb.x1-bb.x0,bb.z1-bb.z0)/2+20}; }
     parent.add(im);
@@ -4790,7 +5280,7 @@ var PREFAB_DEFS={}, PREFAB_CACHE={};
 var PREFAB_CELLS=new Map();
 var PREFAB_MAT=surfApply(new THREE.MeshLambertMaterial({color:0xffffff, vertexColors:true, side:THREE.DoubleSide}), SURF.NONE);   /* pattern per vertex (aPat) */
 var PREFAB_STATS={defs:0, instances:0, houses:0, cells:0, meshes:0, tris:0, byKey:{}};
-var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1);
+var PREFAB_Y=new THREE.Vector3(0,1,0), PREFAB_ONE=new THREE.Vector3(1,1,1), PREFAB_IDQ=new THREE.Quaternion(), PREFAB_TMP_V=new THREE.Vector3(), PREFAB_TMP_Q=new THREE.Quaternion(), PREFAB_TMP_S=new THREE.Vector3();
 
 /* ---- capture: build once at the origin, keep what it produced ---- */
 function prefabCapture(key, fn){
@@ -4846,8 +5336,10 @@ function prefabPlace(key, x, z, face, opts){
     addCollider(x+Math.min(p[0],q[0]), z+Math.min(p[1],q[1]), x+Math.max(p[0],q[0]), z+Math.max(p[1],q[1]));
   }
   var cell=prefabCellOf(x,z);
+  if(!cell.items) cell.items=new Map();
+  if(!cell.flames) cell.flames=[];
   var list=cell.items.get(key); if(!list){ list=[]; cell.items.set(key,list); }
-  var m=new THREE.Matrix4(); m.compose(new THREE.Vector3(x,gy,z), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,a), PREFAB_ONE);
+  var m=new THREE.Matrix4(); PREFAB_TMP_V.set(x,gy,z); PREFAB_TMP_Q.setFromAxisAngle(PREFAB_Y,a); m.compose(PREFAB_TMP_V, PREFAB_TMP_Q, PREFAB_ONE);
   list.push(m);
   /* the door leaf becomes an instance of the shared leaf; DOORS drives it like any hinged door */
   for(i=0;i<pf.doors.length;i++){
@@ -4870,39 +5362,59 @@ function prefabPlace(key, x, z, face, opts){
 }
 /* the matrix of an instanced door leaf: hinge, swing angle, leaf size */
 function prefabDoorMatrix(E, out){
-  out.compose(new THREE.Vector3(E.hx,E.hy,E.hz), new THREE.Quaternion().setFromAxisAngle(PREFAB_Y,E.rot), new THREE.Vector3(E.w-0.12,E.hh-0.06,1));
+  PREFAB_TMP_V.set(E.hx,E.hy,E.hz); PREFAB_TMP_Q.setFromAxisAngle(PREFAB_Y,E.rot); PREFAB_TMP_S.set(E.w-0.12,E.hh-0.06,1);
+  out.compose(PREFAB_TMP_V, PREFAB_TMP_Q, PREFAB_TMP_S);
   return out;
 }
 /* turn every cell's instance lists into InstancedMeshes (called once, after the countryside is placed) */
-function prefabFlush(){
-  var tmp=new THREE.Matrix4(), made=0;
-  PREFAB_CELLS.forEach(function(cell){
+var _prefabJob=null;
+function prefabFlush(budget){
+  var deadline=budget?performance.now()+budget:0;
+  if(!_prefabJob) _prefabJob={i:0, keys:Array.from(PREFAB_CELLS.keys()), made:0};
+  else { var seen={}; for(var ki=0;ki<_prefabJob.keys.length;ki++) seen[_prefabJob.keys[ki]]=1; PREFAB_CELLS.forEach(function(c,k){ if(!seen[k]) _prefabJob.keys.push(k); }); }
+  var job=_prefabJob, tmp=new THREE.Matrix4(), start=job.i, made=job.made, cell;
+  for(; job.i<job.keys.length; job.i++){
+    if(deadline && job.i>start && performance.now()>=deadline){ job.made=made; return true; }
+    cell=PREFAB_CELLS.get(job.keys[job.i]);
+    if(!cell) continue;
+    {
+    var d0=cell.doorFrom||0;
+    var hasItems=!!(cell.items && cell.items.size);
+    var hasFlames=!!(cell.flames && cell.flames.length);
+    var hasDoors=cell.doors.length>d0;
+    if(!hasItems && !hasFlames && !hasDoors) continue;
     var g=propCell(cell.x,cell.z);
-    cell.items.forEach(function(list,key){
+    if(hasItems) cell.items.forEach(function(list,key){
       var pf=PREFAB_CACHE[key], i;
+      if(!list.length) return;
       if(pf.body){ var im=new THREE.InstancedMesh(pf.body, PREFAB_MAT, list.length); for(i=0;i<list.length;i++) im.setMatrixAt(i,list[i]); im.instanceMatrix.needsUpdate=true; im.frustumCulled=false; im.castShadow=true; im.receiveShadow=true; im.name='prefab:'+key; g.add(im); made++; }
       if(pf.panes){ var ip=new THREE.InstancedMesh(pf.panes, PANE_MAT, list.length); for(i=0;i<list.length;i++) ip.setMatrixAt(i,list[i]); ip.instanceMatrix.needsUpdate=true; ip.frustumCulled=false; ip.name='prefab-panes:'+key; g.add(ip); made++; }
     });
-    if(cell.flames.length){
+    if(cell.items) cell.items=new Map();
+    if(hasFlames){
       var fg=sharedGeometry('flame',function(){ return new THREE.ConeGeometry(0.22,0.55,6); });
       var fi=new THREE.InstancedMesh(fg, FLAME_MAT, cell.flames.length);
-      cell.flames.forEach(function(f,i){ tmp.compose(new THREE.Vector3(f.x,f.y,f.z), new THREE.Quaternion(), new THREE.Vector3(f.s,f.s,f.s)); fi.setMatrixAt(i,tmp); });
+      cell.flames.forEach(function(f,i){ PREFAB_TMP_V.set(f.x,f.y,f.z); PREFAB_TMP_S.set(f.s,f.s,f.s); tmp.compose(PREFAB_TMP_V, PREFAB_IDQ, PREFAB_TMP_S); fi.setMatrixAt(i,tmp); });
       fi.instanceMatrix.needsUpdate=true; fi.frustumCulled=false; fi.name='prefab-flames'; g.add(fi); made++;
+      cell.flames=[];
     }
-    if(cell.doors.length){
+    if(hasDoors){
+      var fresh=cell.doors.slice(d0);
       var dg=sharedGeometry('doorleafVC',function(){ return mergedColoredBoxes([
         {w:1,h:1,d:0.11,x:0.5,y:0.5,z:0,c:0x513820},
         {w:0.96,h:0.05,d:0.15,x:0.5,y:0.24,z:0,c:0x241d16},{w:0.96,h:0.05,d:0.15,x:0.5,y:0.76,z:0,c:0x241d16},
         {w:0.02,h:1,d:0.13,x:0.34,y:0.5,z:0,c:0x3a2a18},{w:0.02,h:1,d:0.13,x:0.66,y:0.5,z:0,c:0x3a2a18},
         {w:0.08,h:0.08,d:0.2,x:0.86,y:0.48,z:0,c:0x50565e}]); });
-      var di=new THREE.InstancedMesh(dg, DOOR_MAT, cell.doors.length);
-      cell.doors.forEach(function(E,i){ E.im=di; E.idx=i; di.setMatrixAt(i, prefabDoorMatrix(E,tmp)); });
+      var di=new THREE.InstancedMesh(dg, DOOR_MAT, fresh.length);
+      fresh.forEach(function(E,i){ E.im=di; E.idx=i; di.setMatrixAt(i, prefabDoorMatrix(E,tmp)); });
       di.instanceMatrix.needsUpdate=true; di.frustumCulled=false; di.castShadow=true; di.name='prefab-doors'; g.add(di); made++;
+      cell.doorFrom=cell.doors.length;
     }
-    cell.items=null; cell.flames=null;
-  });
-  PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes=made;
-  return made;
+    }
+  }
+  PREFAB_STATS.cells=PREFAB_CELLS.size; PREFAB_STATS.meshes+=made;
+  _prefabJob=null;
+  return false;
 }
 
 /* ============================================================
@@ -5026,6 +5538,8 @@ function nearSite(x,z,extra){
 function roadSurfY(x,z){ return Math.max(terrainMeshH(x,z), groundH(x,z)); }
 
 var roadStats={ribbons:0, quads:0, lanes:0, trails:0, milestones:0, crosses:0, signs:0, wells:0, lanterns:0, tolls:0, junctions:0};
+var _roadPhase=0;
+var _roadJob=null;
 var ROAD_JUNCTIONS=[];
 function onBridgeDeck(x,z,margin){
   for(var i=0;i<BRIDGES.length;i++){
@@ -5042,9 +5556,14 @@ function inFordWater(x,z){
   for(var i=0;i<BRIDGES.length;i++){ var b=BRIDGES[i]; if(b.ford && Math.hypot(x-b.x,z-b.z)<hw*2+14) return true; }
   return false;
 }
-function buildRoads(){
-  window.__roadPts=window.__roadPts||[];
-  var rnd=srand(4471), cells=new Map(), CELL=375, i;
+function buildRoads(budget){
+  var deadline=budget?performance.now()+budget:0, i;
+  if(_roadPhase<1){
+  if(!_roadJob){
+    window.__roadPts=window.__roadPts||[];
+    _roadJob={rnd:srand(4471), cells:new Map(), ri:0, phase:'ribbons'};
+  }
+  var job=_roadJob, rnd=job.rnd, cells=job.cells, CELL=375;
   var EG=TOWNS.egypt;
   function cellOf(x,z){ var k=Math.floor((x+WORLD.half)/CELL)+':'+Math.floor((z+WORLD.half)/CELL); var c=cells.get(k); if(!c){ c={pos:[],col:[],x:(Math.floor((x+WORLD.half)/CELL)+0.5)*CELL-WORLD.half,z:(Math.floor((z+WORLD.half)/CELL)+0.5)*CELL-WORLD.half}; cells.set(k,c); } return c; }
   function quad(a,b,c,d){ /* a,b = previous section (left,right), c,d = current */
@@ -5059,12 +5578,17 @@ function buildRoads(){
     if(inFordWater(x,z)) return true;
     return false;
   }
-  ROADS.forEach(function(R){
+  if(job.phase==='ribbons'){
+  for(; job.ri<ROADS.length; job.ri++){
+    if(deadline && job.ri && performance.now()>=deadline) return true;
+    var R=ROADS[job.ri];
     var P=R.pts, C=ROAD_CLASSES[R.cls], hw=R.w/2, lift=C.y, kerbed=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t');
     var base=new THREE.Color(R.col).multiplyScalar(0.78), kerb=base.clone().multiplyScalar(0.72), prev=null, k;  /* 0.78: the noon sun + sky light sum to ~1.25 */
-    if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++;
-    roadStats.ribbons++;
-    for(i=0;i<P.length;i++){
+    var pi0=0;
+    if(job.road && job.road.ri===job.ri){ prev=job.road.prev; pi0=job.road.pi; }
+    else { if(R.lane) roadStats.lanes++; else if(R.cls==='R3') roadStats.trails++; roadStats.ribbons++; }
+    for(i=pi0;i<P.length;i++){
+      if(deadline && i>pi0 && (i&3)===0 && performance.now()>=deadline){ job.road={ri:job.ri, pi:i, prev:prev}; return true; }
       var x=P[i][0], z=P[i][1];
       window.__roadPts.push([x,z]);
       if(skipAt(x,z)){ prev=null; continue; }
@@ -5081,9 +5605,15 @@ function buildRoads(){
       if(prev){ for(k=0;k<sec.length-1;k++) quad(prev[k],prev[k+1],sec[k],sec[k+1]); }
       prev=sec;
     }
-  });
-  var mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND);
-  cells.forEach(function(c){
+  }
+    job.phase='mesh'; job.mi=0; job.keys=Array.from(cells.keys());
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(job.phase==='mesh'){
+  var mat=job.mat||(job.mat=surfApply(new THREE.MeshLambertMaterial({vertexColors:true}), SURF.GROUND));
+  for(; job.mi<job.keys.length; job.mi++){
+    if(deadline && job.mi && performance.now()>=deadline) return true;
+    var c=cells.get(job.keys[job.mi]);
     var g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(c.pos),3));
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(c.col),3));
@@ -5091,8 +5621,14 @@ function buildRoads(){
     var m=new THREE.Mesh(g,mat); m.name='road'; m.receiveShadow=true; m.frustumCulled=false;
     m.userData.cullBounds={x:c.x, z:c.z, r:CELL*0.8};
     scene.add(m);
-  });
+  }
+  }
+    _roadPhase=1;
+    _roadJob=null;
+    if(deadline && performance.now()>=deadline) return true;
+  }
   /* ---- junctions: road ends meeting another road, and R0/R1 crossings ---- */
+  if(_roadPhase===1){
   function segX(ax,az,bx,bz,cx,cz,dx,dz){
     var r1x=bx-ax, r1z=bz-az, r2x=dx-cx, r2z=dz-cz, den=r1x*r2z-r1z*r2x; if(Math.abs(den)<1e-9) return null;
     var t=((cx-ax)*r2z-(cz-az)*r2x)/den, u=((cx-ax)*r1z-(cz-az)*r1x)/den; if(t<0.02||t>0.98||u<0.02||u>0.98) return null;
@@ -5108,8 +5644,12 @@ function buildRoads(){
       for(var a=0;a<R.wp.length-1;a++) for(var b=0;b<Q.wp.length-1;b++){ var h=segX(R.wp[a][0],R.wp[a][1],R.wp[a+1][0],R.wp[a+1][1],Q.wp[b][0],Q.wp[b][1],Q.wp[b+1][0],Q.wp[b+1][1]); if(h) addJunction(h[0],h[1],'cross'); } }
   });
   roadStats.junctions=ROAD_JUNCTIONS.length;
+  _roadPhase=2;
+  if(deadline && performance.now()>=deadline) return true;
+  }
   /* ---- furniture ---- */
   function freeSpot(px,pz,r){ if(insideSolid(px,pz,r)) return false; var f=roadField(px,pz); if(f.road&&f.d<f.road.w/2+0.6) return false; var rf=riverField(px,pz); if(rf.river&&rf.d<riverHalfWidth(rf.river,pz)+2) return false; if(nearTown(px,pz,-30)) return false; return true; }
+  if(_roadPhase===2){
   ROAD_JUNCTIONS.forEach(function(J,ji){
     if(nearTown(J.x,J.z,-20)) return;
     var placed=false;
@@ -5118,6 +5658,10 @@ function buildRoads(){
       if(J.kind==='cross'||ji%3===0){ propTroita(px,pz,ang+Math.PI/2); roadStats.crosses++; } else { propSignpost(px,pz,ang); roadStats.signs++; }
       placed=true; }
   });
+  _roadPhase=3;
+  if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roadPhase===3){
   ROADS.forEach(function(R){
     var P=R.pts, acc=0, accW=0, side=1;
     var mile=(R.cls==='R0'||R.cls==='R1'||R.cls==='R1t'), wells=(R.id==='RG-04');
@@ -5131,6 +5675,10 @@ function buildRoads(){
         if(!nearSite(wx,wz,10)&&freeSpot(wx,wz,1.8)){ propWell(wx,wz,0x6d5a3e); roadStats.wells++; } }
     }
   });
+  _roadPhase=4;
+  if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roadPhase===4){
   /* gate approaches: a lantern every 30u on the last 200u of any road that ends at a town */
   ROADS.forEach(function(R){
     if(R.cls==='R3'||R.lane) return;
@@ -5144,6 +5692,9 @@ function buildRoads(){
         if(freeSpot(lx,lz,0.4)&&!onBridgeDeck(lx,lz,2)){ torchPost(lx,lz,2.6); roadStats.lanterns++; } }
     });
   });
+  _roadPhase=5;
+  if(deadline && performance.now()>=deadline) return true;
+  }
   /* toll arches on the Caravan Road */
   [[-1300,2530],[1350,2540]].forEach(function(t){
     var R=ROADS.filter(function(r){ return r.id==='RG-04'; })[0], best=null, bd=1e9, bi=0;
@@ -5151,13 +5702,13 @@ function buildRoads(){
     var a=R.pts[Math.max(0,bi-1)], b=R.pts[Math.min(R.pts.length-1,bi+1)];
     propTollArch(best[0],best[1],Math.atan2(b[1]-a[1],b[0]-a[0]),R.w); roadStats.tolls++;
   });
+  _roadPhase=0;
+  return false;
 }
-/* nearest road that is not R (for junction detection) */
+
 function roadFieldExcept(x,z,R){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null;
-  for(var ix=-1;ix<=1;ix++) for(var iz=-1;iz<=1;iz++){ var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(var i=0;i<arr.length;i++){ var Q=ROADS[Math.floor(arr[i]/100000)]; if(Q===R) continue; var pi=arr[i]%100000, a=Q.pts[pi], b=Q.pts[pi+1], d=distToSeg(x,z,a[0],a[1],b[0],b[1]); if(d<best){ best=d; br=Q; } } }
-  return {d:best, road:br};
+  var q=roadQuery(x,z,1,R), br=q.seg?q.seg.road:null;
+  return {d:q.seg?Math.sqrt(q.d2):1e9, road:br};
 }
 /* ---- road furniture ---- */
 function propMilestone(cx,cz,ry,R){
@@ -5260,45 +5811,95 @@ function townTrees(x,z,n,r,rnd,col){
     kit.cyln(M2(0x5d4326),0.25*s,0.35*s,2.2*s,6,tx,ty+1.1*s,tz); kit.cyln(M2(col||0x4a7a37),1.9*s,0.9*s,2.4*s,7,tx,ty+3.2*s,tz); kit.cyln(M2(col||0x4a7a37),1.2*s,0.3*s,1.6*s,7,tx,ty+4.8*s,tz); addCollider(tx-0.4,tz-0.4,tx+0.4,tz+0.4); }
 }
 
+function townBudgetHit(){ return (typeof TOWN_BUDGET!=='undefined' && TOWN_BUDGET && performance.now()>=TOWN_TEND); }
+var _townStep={};
+function townAt(f,n){ var j=_townStep[f]; if(!j) j=_townStep[f]={step:0, ri:0}; if(j.done) return false; return j.step===n; }
+function townNext(f){ _townStep[f].step++; _townStep[f].ri=0; return townBudgetHit(); }
+function townRows(f, rows){
+  var j=_townStep[f];
+  for(; j.ri<rows.length; j.ri++){
+    if(j.ri && townBudgetHit()) return true;
+    var rw=rows[j.ri];
+    houseRow(rw[0], rw[1], rw[2], rw[3], rw[4], rw[5]);
+  }
+  return false;
+}
 function buildTown(f){
+  var townFn=({sparta:townArdealburg, rome:townCetatea, moldavia:townHotarul, vikings:townStanca, egypt:townDrumulLung, nippon:townRomaria})[f];
+  if(_townHold && _townHold.f===f){
+    var held=_townHold;
+    if(held.resume()) return true;
+    /* the body is finished — do not call it again while the infill yields */
+    held.resume=function(){ return false; };
+    if(f!=='nippon' && townInfill(held.T, held.td, held.rnd, TOWN_STREETS.slice(held.s0))) return true;
+    _townHold=null;
+    delete _townStep[f];
+    townData[f]=held.td;
+    siteEnd();
+    registerTownLore(f);
+    return false;
+  }
   var T=TOWNS[f], rnd=srand(f.length*977+T.x*3+T.z);
   siteBegin(T.name, T.x, T.z, TOWN_RADIUS[f]+80);
   window.__roadPts=window.__roadPts||[];
   var td={name:T.name, x:T.x, z:T.z, r:TOWN_RADIUS[f]}, s0=TOWN_STREETS.length;
-  ({sparta:townArdealburg, rome:townCetatea, moldavia:townHotarul, vikings:townStanca, egypt:townDrumulLung, nippon:townRomaria})[f](T.x,T.z,f,rnd,td);
-  if(f!=='nippon') td.infill=townInfill(T, td, rnd, TOWN_STREETS.slice(s0));
+  var more=townFn(T.x,T.z,f,rnd,td);
+  if(more){
+    _townHold={f:f, td:td, T:T, rnd:rnd, s0:s0, resume:function(){ return townFn(T.x,T.z,f,rnd,td); }};
+    return true;
+  }
+  if(f!=='nippon'){
+    _townHold={f:f, td:td, T:T, rnd:rnd, s0:s0, resume:function(){ return false; }};
+    if(townInfill(T, td, rnd, TOWN_STREETS.slice(s0))) return true;
+    _townHold=null;
+  }
+  delete _townStep[f];
   townData[f]=td;
   siteEnd();
   registerTownLore(f);
+  return false;
 }
 
 /* ---- infill: townhouses of the region's kit along every straight street inside the walls (instanced prefabs) ---- */
+var _infillJob=null;
 function townInfill(T, td, rnd, streets){
-  var reg=getRegion(T.x,T.z), n=0, inside=td.inside||function(x,z){ return Math.hypot(x-T.x,z-T.z)<(td.r||150)-10; };
-  function rect(s){ return {x0:Math.min(s.x0,s.x1)-s.w/2, x1:Math.max(s.x0,s.x1)+s.w/2, z0:Math.min(s.z0,s.z1)-s.w/2, z1:Math.max(s.z0,s.z1)+s.w/2}; }
-  var rects=streets.map(rect);
-  function hitsStreet(ax0,az0,ax1,az1){ for(var i=0;i<rects.length;i++){ var r=rects[i]; if(ax0<r.x1&&ax1>r.x0&&az0<r.z1&&az1>r.z0) return true; } return false; }
+  var deadline=(typeof TOWN_BUDGET!=='undefined' && TOWN_BUDGET)?TOWN_TEND:0;
+  var job=_infillJob;
+  if(!job){
+    job=_infillJob={si:0, sideI:0, u:null, n:0, reg:getRegion(T.x,T.z),
+      inside:td.inside||function(x,z){ return Math.hypot(x-T.x,z-T.z)<(td.r||150)-10; },
+      rects:streets.map(function(s){ return {x0:Math.min(s.x0,s.x1)-s.w/2, x1:Math.max(s.x0,s.x1)+s.w/2, z0:Math.min(s.z0,s.z1)-s.w/2, z1:Math.max(s.z0,s.z1)+s.w/2}; })};
+  }
+  function hitsStreet(ax0,az0,ax1,az1){ for(var i=0;i<job.rects.length;i++){ var r=job.rects[i]; if(ax0<r.x1&&ax1>r.x0&&az0<r.z1&&az1>r.z0) return true; } return false; }
   function nearPlaza(x,z,r){ for(var i=0;i<TOWN_PLAZAS.length;i++){ var p=TOWN_PLAZAS[i]; if(Math.hypot(x-p.x,z-p.z)<p.r+r) return true; } return false; }
-  streets.forEach(function(s){
+  var reg=job.reg, inside=job.inside, sides=[-1,1];
+  for(; job.si<streets.length; job.si++){
+    var s=streets[job.si];
     var ax=Math.abs(s.x1-s.x0)>Math.abs(s.z1-s.z0)?'x':'z';
-    if(ax==='x'?Math.abs(s.z1-s.z0)>0.5:Math.abs(s.x1-s.x0)>0.5) return;       /* only the straight grid streets */
+    if(ax==='x'?Math.abs(s.z1-s.z0)>0.5:Math.abs(s.x1-s.x0)>0.5){ job.sideI=0; job.u=null; continue; }       /* only the straight grid streets */
     var u0=Math.min(ax==='x'?s.x0:s.z0, ax==='x'?s.x1:s.z1), u1=Math.max(ax==='x'?s.x0:s.z0, ax==='x'?s.x1:s.z1), cross=ax==='x'?s.z0:s.x0;
-    [-1,1].forEach(function(side){
-      var u=u0+3+rnd()*4;
-      while(u<u1-4){
+    for(; job.sideI<2; job.sideI++){
+      var side=sides[job.sideI];
+      if(job.u===null) job.u=u0+3+rnd()*4;
+      while(job.u<u1-4){
         var type=rnd()<0.18?'workshop':rnd()<0.3?'cottage':'house', key=reg+'.'+type+(type==='workshop'?1:1+Math.floor(rnd()*3));
-        var pf=prefabGet(key); if(!pf){ u+=10; continue; }
+        var pf=prefabGet(key); if(!pf){ job.u+=10; if(deadline && performance.now()>=deadline) return true; continue; }
         var face=ax==='x'?(side<0?'S':'N'):(side<0?'E':'W'), r=prefabRot(face);
         var hx=(r%2)?pf.hz:pf.hx, hz=(r%2)?pf.hx:pf.hz, along=ax==='x'?hx:hz, deep=ax==='x'?hz:hx;
-        var cu=u+along, off=s.w/2+1.3+deep, x=ax==='x'?cu:cross+side*off, z=ax==='x'?cross+side*off:cu, rr=Math.hypot(hx,hz)+0.8;
+        var cu=job.u+along, off=s.w/2+1.3+deep, x=ax==='x'?cu:cross+side*off, z=ax==='x'?cross+side*off:cu, rr=Math.hypot(hx,hz)+0.8;
         if(inside(x,z) && inside(x-hx,z-hz) && inside(x+hx,z+hz) && !insideSolid(x,z,rr) && !nearDoor(x,z,rr+1) && !nearPlaza(x,z,rr) && !hitsStreet(x-hx-0.8,z-hz-0.8,x+hx+0.8,z+hz+0.8)){
-          if(prefabPlace(key,x,z,face,{maxSlope:2.5})) n++;
+          if(prefabPlace(key,x,z,face,{maxSlope:2.5})) job.n++;
         }
-        u=cu+along+1.2+rnd()*3;
+        job.u=cu+along+1.2+rnd()*3;
+        if(deadline && performance.now()>=deadline) return true;
       }
-    });
-  });
-  return n;
+      job.u=null;
+    }
+    job.sideI=0;
+  }
+  td.infill=job.n;
+  _infillJob=null;
+  return false;
 }
 /* ============================================================
    ARDEALBURG — walled Transylvanian market town (sparta)
@@ -5308,6 +5909,7 @@ function townArdealburg(X,Z,f,rnd,td){
   var WALL=0x9a8a6a, WH=[0xe2d6bb,0xd9c8a2,0xe8dcc0], RF=[0x8a4a3a,0x70503a,0x7a4030];
   var hx=112, hz=100;
   td.inside=function(x,z){ return Math.abs(x-X)<hx-9 && Math.abs(z-Z)<hz-9; };
+  if(townAt(f,0)){
   /* curtain wall, three gates, corner towers */
   fortWallRun([[X-hx,Z-hz],[X+hx,Z-hz],[X+hx,Z+hz],[X-hx,Z+hz]], {h:10, t:1.8, wall:WALL, slits:true},
     [{x:X+hx,z:Z,w:14},{x:X,z:Z+hz,w:14},{x:X,z:Z-hz,w:14}], true);
@@ -5321,6 +5923,9 @@ function townArdealburg(X,Z,f,rnd,td){
   townStreet(X-90, Z-60, X+90, Z-60, 6, 0x9a8555); townStreet(X-90, Z+60, X+90, Z+60, 6, 0x9a8555);
   townStreet(X-70, Z-95, X-70, Z+95, 6, 0x9a8555); townStreet(X+70, Z-95, X+70, Z+95, 6, 0x9a8555);
   townPlaza(X, Z, 24, 0x9a8555);
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,1)){
   /* town hall on the north side of the square (door faces the square = south = front) */
   var hall=buildBuilding({x:X, z:Z-42, w:22, d:14, h:7.5, wall:0xe2d6bb, roofCol:0x8a4a3a, roof:'gable', door:'S', interior:'townhall', name:'Primăria Ardealburg', fac:f, floors:2, tower:true, timberFrame:true,
     lore:{key:'ardeal_hall', icon:'🏛', sub:'Town hall of the guilds', story:'The council of Ardealburg sits under the painted beams: guild masters, the judge and the burgrave. Their seal opens every gate on the Transylvanian roads.'}});
@@ -5345,22 +5950,33 @@ function townArdealburg(X,Z,f,rnd,td){
   buildBuilding({x:X-62, z:Z+82, w:9, d:8, h:3.8, wall:0x9a8a6a, roofCol:0x4a4238, roof:'gable', door:'N', interior:'armorer', name:'Armurierul', fac:f});
   buildBuilding({x:X-80, z:Z+82, w:9, d:8, h:3.6, wall:0x9a8a6a, roofCol:0x4a4238, roof:'gable', door:'N', interior:'workshop', name:'Rotăria', fac:f});
   buildBuilding({x:X-90, z:Z-80, w:12, d:9, h:4, wall:0xd9c8a2, roofCol:0x70503a, roof:'gable', door:'S', interior:'granary', name:'Grânarul', fac:f});
-  /* houses along the inner streets */
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,2)){
+  /* houses along the inner streets — same rows, a paint between rows */
   var HO={rnd:rnd, wall:WH, roofCol:RF, fac:f, timberFrame:true, roof:['gable','gable','hip']};
-  houseRow('x', X-100, X-14, Z-60, -1, HO); houseRow('x', X+14, X+100, Z-60, -1, HO);
-  houseRow('x', X-100, X-60, Z-60, 1, HO); houseRow('x', X+14, X+60, Z-60, 1, HO);
-  houseRow('x', X-100, X-14, Z+60, -1, Object.assign({}, HO, {interior:function(i){ return i%3===1?'store':'house'; }}));
-  houseRow('x', X+14, X+60, Z+60, -1, HO); houseRow('x', X+14, X+100, Z+60, 1, HO);
-  houseRow('z', Z-95, Z-70, X-70, -1, HO); houseRow('z', Z+70, Z+95, X+70, 1, HO);
-  houseRow('z', Z-95, Z-70, X+70, -1, HO); houseRow('z', Z-95, Z-70, X+70, 1, HO);
-  houseRow('x', X-100, X-60, Z+10, -1, HO); houseRow('x', X-100, X-60, Z+10, 1, HO);
-  houseRow('x', X+30, X+60, Z+10, -1, HO); houseRow('x', X+30, X+60, Z+10, 1, HO);
+  if(townRows(f, [
+    ['x', X-100, X-14, Z-60, -1, HO], ['x', X+14, X+100, Z-60, -1, HO],
+    ['x', X-100, X-60, Z-60, 1, HO], ['x', X+14, X+60, Z-60, 1, HO],
+    ['x', X-100, X-14, Z+60, -1, Object.assign({}, HO, {interior:function(i){ return i%3===1?'store':'house'; }})],
+    ['x', X+14, X+60, Z+60, -1, HO], ['x', X+14, X+100, Z+60, 1, HO],
+    ['z', Z-95, Z-70, X-70, -1, HO], ['z', Z+70, Z+95, X+70, 1, HO],
+    ['z', Z-95, Z-70, X+70, -1, HO], ['z', Z-95, Z-70, X+70, 1, HO],
+    ['x', X-100, X-60, Z+10, -1, HO], ['x', X-100, X-60, Z+10, 1, HO],
+    ['x', X+30, X+60, Z+10, -1, HO], ['x', X+30, X+60, Z+10, 1, HO]
+  ])) return true;
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,3)){
   /* torches along the main street, banners on the square */
   for(var i=-80;i<=80;i+=40){ torchPost(X+i, Z-7); torchPost(X+i, Z+7); }
   bannerOn(PROP_PARENT, X-20, groundH(X-20,Z)+5, Z-20, 'sparta'); bannerOn(PROP_PARENT, X+20, groundH(X+20,Z)+5, Z-20, 'sparta');
   /* fields outside the walls */
   var kit=cellKit(X,Z);
   for(var fx=0;fx<6;fx++) for(var fz=0;fz<2;fz++){ var px=X-hx-60+fx*14, pz=Z+hz+40+fz*30; kit.box(M2(fx%2?0xc9b24a:0x6b8f3a), 12, 0.25, 24, px, groundH(px,pz)+0.1, pz); }
+  _townStep[f].done=1;
+  }
+  return false;
 }
 
 /* ============================================================
@@ -5371,6 +5987,7 @@ function townCetatea(X,Z,f,rnd,td){
   var WALL=0x8b8579, RF=0x4a4238;
   var hx=136, hz=98;
   td.inside=function(x,z){ return Math.abs(x-X)<hx-10 && Math.abs(z-Z)<hz-10; };
+  if(townAt(f,0)){
   /* the moat water and the 20 m curtain walls with four great towers */
   moatWater(X, Z, 150, 112, 14, groundHBase(X+150,Z)+1.0);
   fortWallRun([[X-hx,Z-hz],[X+hx,Z-hz],[X+hx,Z+hz],[X-hx,Z+hz]], {h:20, t:3.2, wall:WALL, slits:true}, [{x:X,z:Z-hz,w:20}], true);
@@ -5384,6 +6001,9 @@ function townCetatea(X,Z,f,rnd,td){
   townStreet(X-30, Z-92, X-30, Z-30, 5, 0x8a8070); townStreet(X+30, Z-92, X+30, Z-30, 5, 0x8a8070);           /* the lanes of the garrison quarter */
   townStreet(X-125, Z+36, X-26, Z+36, 5, 0x8a8070); townStreet(X+26, Z+36, X+125, Z+36, 5, 0x8a8070);
   townPlaza(X, Z-10, 26, 0x8a8070);
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,1)){
   var keep=buildBuilding({x:X, z:Z+56, w:40, d:26, h:14, wall:0x7d7669, roofCol:RF, roof:'flat', door:'N', interior:'grandhall', name:'Sala Mare a Cetății', fac:f, battlements:true, buttress:true,
     lore:{key:'sala_mare', icon:'🏰', sub:'Grand hall of the Danube fortress', story:'The Voivode holds court under iron chandeliers. Every treaty with the south was sealed at this table — and broken at least once.'}});
   td.hall={x:X, z:Z+56, door:keep.door};
@@ -5404,13 +6024,25 @@ function townCetatea(X,Z,f,rnd,td){
   propWell(X-24, Z-10, RF); propBrazier(X+24, Z-10, true);
   for(var i=0;i<4;i++) propBarrel(X-104+i*2.2, Z+40, i%2===0);
   for(var t=-1;t<=1;t+=2){ torchPost(X+t*10, Z-hz-14, 3); torchPost(X+t*30, Z-30, 2.6); torchPost(X+t*30, Z+30, 2.6); }
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,2)){
   /* the lower town outside the moat: fishermen and traders along the road */
   var HO={rnd:rnd, wall:[0x8a7a5e,0x7a6a4a,0x94826a], roofCol:[0x968047,0x6d5a3e], roof:['thatch','hipthatch','gable','hip'], fac:f, prispa:0.5};
-  houseRow('x', X-110, X-20, Z-150, -1, HO); houseRow('x', X+20, X+110, Z-150, -1, HO);
-  houseRow('x', X-110, X-20, Z-150, 1, Object.assign({}, HO, {avoid:function(x,z){ return z>Z-hz-30; }}));
-  houseRow('x', X+20, X+110, Z-150, 1, Object.assign({}, HO, {avoid:function(x,z){ return z>Z-hz-30; }}));
+  var avoidMoat=function(x,z){ return z>Z-hz-30; };
+  if(townRows(f, [
+    ['x', X-110, X-20, Z-150, -1, HO], ['x', X+20, X+110, Z-150, -1, HO],
+    ['x', X-110, X-20, Z-150, 1, Object.assign({}, HO, {avoid:avoidMoat})],
+    ['x', X+20, X+110, Z-150, 1, Object.assign({}, HO, {avoid:avoidMoat})]
+  ])) return true;
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,3)){
   townStreet(X-130, Z-150, X+130, Z-150, 7, 0x7a6a4a);
   for(var r=0;r<3;r++) propCart(X-40+r*30, Z-172, rnd()*0.6, false);
+  _townStep[f].done=1;
+  }
+  return false;
 }
 
 /* ============================================================
@@ -5421,6 +6053,7 @@ function townHotarul(X,Z,f,rnd,td){
   var TIM=0x5d4326, DK=0x3a2a1a, RF=0x4a3a2a;
   /* earth rampart, double palisade with two gates (north road, south road) */
   td.inside=function(x,z){ return Math.hypot(x-X,z-Z)<138; };
+  if(townAt(f,0)){
   rampart(X, Z, 178, 40, 2.2, 7);
   palisade(ringPts(X,Z,172,44), {h:6, gaps:[{x:X,z:Z-172,w:12},{x:X,z:Z+172,w:12}], walk:true});
   palisade(ringPts(X,Z,150,40), {h:5, gaps:[{x:X,z:Z-150,w:12},{x:X,z:Z+150,w:12}], col:0x6b4f2e});
@@ -5432,6 +6065,9 @@ function townHotarul(X,Z,f,rnd,td){
   townStreet(X-60, Z-112, X-60, Z+112, 5, 0x7a7a6a); townStreet(X+60, Z-112, X+60, Z+112, 5, 0x7a7a6a);
   townStreet(X-112, Z-60, X+112, Z-60, 5, 0x7a7a6a); townStreet(X-112, Z+60, X+112, Z+60, 5, 0x7a7a6a);
   townPlaza(X, Z, 22, 0x7a7a6a);
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,1)){
   var hall=buildBuilding({x:X, z:Z-44, w:24, d:14, h:6.5, wall:TIM, roofCol:RF, roof:'long', door:'S', interior:'hall', name:'Casa Pârcălabului', fac:f, style:'log',
     lore:{key:'hotar_hall', icon:'🛡', sub:'Seat of the border captain', story:'The pârcălab of the north keeps the muster horn above his chair. When it sounds, every hamlet between the rivers sends its men.'}});
   td.hall={x:X, z:Z-44, door:hall.door};
@@ -5449,16 +6085,27 @@ function townHotarul(X,Z,f,rnd,td){
   buildBuilding({x:X+28, z:Z-100, w:10, d:8, h:3.8, wall:TIM, roofCol:RF, roof:'gable', door:'W', interior:'guardhouse', name:'Corpul de Gardă', fac:f, style:'log'});
   /* the signal tower */
   fortTower({x:X-30, z:Z-96, r:3.2, h:16, sides:6, wall:0x6b4f2e, roofCol:RF, roof:'open', door:0, brazier:true, banner:'moldavia', name:'Turnul Semnalului'});
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,2)){
   /* cabins, archery butts, the training ground */
   var HO={rnd:rnd, wall:[TIM,0x6b4f2e,0x4a3a2a], roofCol:[RF,0x3a2a1a], roof:['gable','gable','hip'], fac:f, style:'log', h:3.4, prispa:0.4};
-  houseRow('x', X-120, X-20, Z+112, -1, HO); houseRow('x', X+20, X+120, Z+112, -1, HO);
-  houseRow('z', Z-120, Z-60, X-108, 1, HO); houseRow('z', Z+60, Z+120, X+108, -1, HO);
+  if(townRows(f, [
+    ['x', X-120, X-20, Z+112, -1, HO], ['x', X+20, X+120, Z+112, -1, HO],
+    ['z', Z-120, Z-60, X-108, 1, HO], ['z', Z+60, Z+120, X+108, -1, HO]
+  ])) return true;
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,3)){
   var kit=cellKit(X,Z);
   for(var b=0;b<4;b++){ var bx=X+80+b*6, bz=Z+96; kit.cyln(M2(0xc9b24a),0.9,0.9,0.5,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.cyln(M2(0x7a3434),0.3,0.3,0.52,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.box(M2(TIM),0.2,1.2,0.2,bx,groundH(bx,bz)+0.6,bz+0.3); addCollider(bx-0.9,bz-0.4,bx+0.9,bz+0.5); }
   for(var p=0;p<5;p++){ var px=X-90+p*5, pz=Z+96; kit.cyln(M2(0x5d4326),0.2,0.25,2.2,7,px,groundH(px,pz)+1.1,pz); kit.box(M2(0xb5a487),0.9,0.5,0.5,px,groundH(px,pz)+1.6,pz); addCollider(px-0.3,pz-0.3,px+0.3,pz+0.3); }
   propCampfire(X-24, Z+8, true); propCampfire(X+24, Z+8, false);
   for(var t=0;t<8;t++){ var ta=t/8*TAU; torchPost(X+Math.cos(ta)*26, Z+Math.sin(ta)*26, 2.6); }
   for(var s=0;s<6;s++) propStakes(X+Math.cos(s)*186, Z+Math.sin(s)*186, -s, 5);
+  _townStep[f].done=1;
+  }
+  return false;
 }
 
 /* ============================================================
@@ -5470,12 +6117,16 @@ function townStanca(X,Z,f,rnd,td){
   /* pentagon curtain: apex north, gate on the south face (U-CA-01) */
   var P5=[[X,Z-100],[X+95,Z-30],[X+60,Z+90],[X-60,Z+90],[X-95,Z-30]];
   td.inside=function(x,z){ var px=(x-X)/0.88, pz=(z-Z)/0.88, inn=false; for(var i=0,j=4;i<5;j=i++){ var xi=P5[i][0]-X, zi=P5[i][1]-Z, xj=P5[j][0]-X, zj=P5[j][1]-Z; if((zi>pz)!==(zj>pz) && px<(xj-xi)*(pz-zi)/(zj-zi)+xi) inn=!inn; } return inn; };
+  if(townAt(f,0)){
   fortWallRun(P5, {h:11, t:2.4, wall:WALL, slits:true}, [{x:X,z:Z+90,w:18}], true);
   var tn=['Farul Trecătorii','Turnul Gheții','Turnul Porții de Răsărit','Turnul Porții de Apus','Turnul Vântului'];
   P5.forEach(function(c,k){ fortTower({x:c[0], z:c[1], r:k===0?6.5:6, h:k===0?22:16, sides:8, wall:W2, roofCol:RF, roof:k===0?'open':(k<3?'flat':'cone'), door:Math.atan2(Z-c[1],X-c[0]), brazier:k<3, banner:k===2?'vikings':null, name:tn[k]}); });
   fortGate({x:X, z:Z+90, dir:'S', w:7, h:11, tw:5.5, ph:5.2, wall:W2, roofCol:RF, banner:'vikings', name:'Poarta de Fier'});
   townStreet(X, Z+90+40, X, Z-60, 9, 0x7a7a82); townStreet(X-80, Z, X+80, Z, 7, 0x7a7a82); townStreet(X-55, Z+50, X+55, Z+50, 5, 0x7a7a82);
   townPlaza(X, Z+10, 22, 0x7a7a82);
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,1)){
   var keep=buildBuilding({x:X, z:Z-50, w:30, d:22, h:12, wall:0x7a8a98, roofCol:RF, roof:'flat', door:'S', interior:'grandhall', name:'Donjonul Stâncii de Fier', fac:f, battlements:true, buttress:true,
     lore:{key:'stanca_keep', icon:'🏔', sub:'Keep of the iron rock', story:'Bolted to the spur with iron pins, the keep has never been taken. Its beacon answers the Turnul Vântului across the pass.'}});
   td.hall={x:X, z:Z-50, door:keep.door};
@@ -5488,14 +6139,25 @@ function townStanca(X,Z,f,rnd,td){
   buildBuilding({x:X+38, z:Z-60, w:14, d:10, h:4.8, wall:WALL, roofCol:RF, roof:'gable', door:'S', interior:'armory', name:'Armurăria Muntelui', fac:f});
   buildBuilding({x:X-50, z:Z+70, w:14, d:9, h:4.2, wall:WALL, roofCol:RF, roof:'gable', door:'E', interior:'stable', name:'Grajdurile', fac:f});
   buildBuilding({x:X+50, z:Z+70, w:10, d:8, h:4, wall:WALL, roofCol:RF, roof:'gable', door:'W', interior:'guardhouse', name:'Corpul de Gardă', fac:f});
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,2)){
   var HO={rnd:rnd, wall:[WALL,W2,0x8f8a80], roofCol:[RF,0x4a4238], roof:['gable','hip'], fac:f, h:3.4, plinth:true, band:true};
-  houseRow('x', X-70, X-20, Z+20, 1, HO); houseRow('x', X+20, X+70, Z+20, 1, HO);
-  houseRow('x', X-40, X-14, Z-24, -1, HO); houseRow('x', X+14, X+40, Z-24, -1, HO);
+  if(townRows(f, [
+    ['x', X-70, X-20, Z+20, 1, HO], ['x', X+20, X+70, Z+20, 1, HO],
+    ['x', X-40, X-14, Z-24, -1, HO], ['x', X+14, X+40, Z-24, -1, HO]
+  ])) return true;
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,3)){
   propWell(X-20, Z+10, RF); propBrazier(X+20, Z+10, true); propBrazier(X, Z+90+16, true);
   for(var t=-1;t<=1;t+=2){ torchPost(X+t*8, Z+90+12, 3); torchPost(X+t*40, Z+2, 2.6); }
   /* spike field flanking the approach, and the beacon on the eastern spur */
   for(i=0;i<5;i++){ propStakes(X-16-i*5, Z+108+(i%2)*6, 0.2*i, 5); propStakes(X+16+i*5, Z+108+(i%2)*6, -0.2*i, 5); }
   fortTower({x:X+150, z:Z-40, r:3.4, h:12, sides:6, wall:W2, roofCol:RF, roof:'open', door:Math.PI, brazier:true, name:'Rugul de Veghe'});
+  _townStep[f].done=1;
+  }
+  return false;
 }
 
 /* ============================================================
@@ -5505,6 +6167,7 @@ function townDrumulLung(X,Z,f,rnd,td){
   td.frontZ=1;
   var AD=0xc2b08a, AD2=0xd9c8a2, RF=0x9a6a3a, RF2=0x7a5a3a;
   td.inside=function(x,z){ return Math.hypot(x-X,z-Z)<135; };
+  if(townAt(f,0)){
   townStreet(X-170, Z, X+170, Z, 14, 0xc2b08a); townStreet(X, Z-120, X, Z+120, 8, 0xc2b08a);
   townStreet(X-120, Z-60, X+120, Z-60, 6, 0xc2b08a); townStreet(X-120, Z+60, X+120, Z+60, 6, 0xc2b08a);
   townPlaza(X, Z-30, 30, 0xc2b08a);
@@ -5521,18 +6184,33 @@ function townDrumulLung(X,Z,f,rnd,td){
   buildBuilding({x:X+30, z:Z+96, w:16, d:10, h:4.5, wall:AD, roofCol:RF2, roof:'gable', door:'N', interior:'tradepost', name:'Depozitul Negustorilor', fac:f});
   buildBuilding({x:X+120, z:Z-30, w:12, d:9, h:4, wall:AD, roofCol:RF2, roof:'gable', door:'W', interior:'forge', name:'Potcovăria', fac:f});
   buildBuilding({x:X-120, z:Z-30, w:12, d:9, h:4, wall:AD, roofCol:RF2, roof:'gable', door:'E', interior:'bathhouse', name:'Baia Drumeților', fac:f});
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,1)){
   /* caravan yard: carts, wells, market stalls, palms of the south (poplars) */
   townStalls(X, Z-30, 9, 20, rnd); propWell(X, Z-30, RF); propWell(X-100, Z+8, RF);
   for(var c=0;c<6;c++) propCart(X-60+c*24, Z+14, (c%2?0.2:-0.2)+rnd()*0.2, c===4);
   for(var t=-140;t<=140;t+=40){ torchPost(X+t, Z-9, 2.6); torchPost(X+t, Z+9, 2.6); }
   townTrees(X, Z+30, 8, 46, rnd, 0x7a8a5a);
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,2)){
   var HO={rnd:rnd, wall:[AD,AD2,0xb9a98a], roofCol:[RF,RF2], roof:['gable','flat','hip'], fac:f, h:3.4, band:true};
-  houseRow('x', X-130, X-20, Z+60, 1, Object.assign({}, HO, {interior:function(i){ return i%2?'store':'house'; }})); houseRow('x', X+20, X+130, Z+60, 1, HO);
-  houseRow('x', X-130, X-95, Z-60, -1, HO); houseRow('x', X+95, X+130, Z-60, -1, HO);
-  houseRow('x', X-130, X-20, Z+60, -1, HO); houseRow('x', X+20, X+130, Z+60, -1, HO);
+  if(townRows(f, [
+    ['x', X-130, X-20, Z+60, 1, Object.assign({}, HO, {interior:function(i){ return i%2?'store':'house'; }})],
+    ['x', X+20, X+130, Z+60, 1, HO],
+    ['x', X-130, X-95, Z-60, -1, HO], ['x', X+95, X+130, Z-60, -1, HO],
+    ['x', X-130, X-20, Z+60, -1, HO], ['x', X+20, X+130, Z+60, -1, HO]
+  ])) return true;
+  if(townNext(f)) return true;
+  }
+  if(townAt(f,3)){
   /* Poarta Sud checkpoint tower at the town's south-east edge */
   fortTower({x:X+150, z:Z+20, r:3.6, h:12, sides:8, wall:0x9a8a6a, roofCol:RF2, roof:'timber', door:Math.PI, banner:'egypt', name:'Turnul Vămii'});
   propFence(X-170, Z-14, X-140, Z-14, 1.1); propFence(X-170, Z+14, X-140, Z+14, 1.1);
+  _townStep[f].done=1;
+  }
+  return false;
 }
 
 /* ============================================================
@@ -5553,24 +6231,77 @@ function arcFree(x,z,rr){ /* keep-out shared by every capital row: ring road, ri
   if(x>230-rr && z>150-rr && z<400+rr && x<330) return true;        /* docks */
   return false;
 }
+/* The capital is one town, built in the same order as before. A player load
+   may return between phases (and between house-rows and courtyard blocks) so
+   the tab can paint. A zero deadline — the test path — runs every phase now. */
+var _roma=null;
 function townRomaria(X,Z,f,rnd,td){
-  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k;
-  var R=520, N=32, kit=cellKit(X,Z);
+  var deadline=(typeof TOWN_BUDGET!=='undefined' && TOWN_BUDGET)?TOWN_TEND:0;
+  if(_roma){ X=_roma.X; Z=_roma.Z; f=_roma.f; rnd=_roma.rnd; td=_roma.td; }
+  else _roma={phase:'walls', X:X, Z:Z, f:f, rnd:rnd, td:td};
+  if(_roma.phase==='walls'){
+    if(townRomariaWalls(X,Z,f,rnd,td,deadline)) return true;
+    _roma.phase='core';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roma.phase==='core'){
+    if(townRomariaCore(X,Z,f,rnd,td,deadline)) return true;
+    _roma.phase='fill';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_roma.phase==='fill'){
+    if(townRomariaFill(X,Z,f,rnd,td,deadline)) return true;
+    _roma=null;
+    return false;
+  }
+  _roma=null;
+  return false;
+}
+
+function townRomariaWalls(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, RV;
+  var R=j.R||520, N=j.N||32, kit=cellKit(X,Z);
+  var pts=j.pts, gates=j.gates, seGate=j.seGate, water=j.water;
+  if(!j.wphase) j.wphase='run';
+  if(j.wphase==='run'){
   td.frontZ=1;
   /* ---- the circular curtain: 32 sides, rotated half a step so gates sit on segment midpoints ---- */
-  var pts=[]; for(i=0;i<N;i++){ var a=(i+0.5)*TAU/N; pts.push([X+Math.cos(a)*R, Z+Math.sin(a)*R]); }
-  var gates=[{x:X+R,z:Z,dir:'E',name:'Poarta Hotarului'},{x:X,z:Z+R,dir:'S',name:'Poarta Regelui'},{x:X-R,z:Z,dir:'W',name:'Poarta Ardealului'},{x:X,z:Z-R,dir:'N',name:'Poarta de Nord (Poarta Leului)'}];
-  var seGate={x:X+Math.cos(Math.PI/4)*R, z:Z+Math.sin(Math.PI/4)*R, ang:Math.PI/4, name:'Poarta Târgului'};
+  pts=[]; for(i=0;i<N;i++){ var a=(i+0.5)*TAU/N; pts.push([X+Math.cos(a)*R, Z+Math.sin(a)*R]); }
+  gates=[{x:X+R,z:Z,dir:'E',name:'Poarta Hotarului'},{x:X,z:Z+R,dir:'S',name:'Poarta Regelui'},{x:X-R,z:Z,dir:'W',name:'Poarta Ardealului'},{x:X,z:Z-R,dir:'N',name:'Poarta de Nord (Poarta Leului)'}];
+  seGate={x:X+Math.cos(Math.PI/4)*R, z:Z+Math.sin(Math.PI/4)*R, ang:Math.PI/4, name:'Poarta Târgului'};
   var gaps=gates.map(function(g){ return {x:g.x,z:g.z,w:10+12+1}; });
   gaps.push({x:seGate.x, z:seGate.z, w:8+10+1});
   /* water gates: where the Royal River crosses the wall polygon */
-  var water=[], RV=RIVERS[1];
+  water=[], RV=RIVERS[1];
   for(i=0;i<N;i++){ var a0=pts[i], b0=pts[(i+1)%N];
     for(k=0;k<RV.pts.length-1;k++){ var h=segXw(a0[0],a0[1],b0[0],b0[1],RV.pts[k][0],RV.pts[k][1],RV.pts[k+1][0],RV.pts[k+1][1]); if(h){ water.push({x:h[0],z:h[1],w:2*(riverHalfWidth(RV,h[1])+13),seg:i}); } } }
   water.forEach(function(w){ gaps.push(w); });
-  fortWallRun(pts, {h:12, t:2.6, wall:ST, slits:true}, gaps, true);
-  for(i=0;i<N;i+=2){ var ta=(i+0.5)*TAU/N, tx=X+Math.cos(ta)*R, tz=Z+Math.sin(ta)*R;
-    fortTower({x:tx, z:tz, r:7, h:17, sides:10, wall:ST2, roofCol:BL, roof:'cone', door:ta+Math.PI, banner:(i%6===0)?'nippon':null, name:'Turnul Cetății '+(i/2+1)}); }
+    j.pts=pts; j.gates=gates; j.seGate=seGate; j.water=water; j.gaps=gaps; j.R=R; j.N=N; j.wallJob={i:0, deadline:deadline};
+    j.wphase='wallrun';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  pts=j.pts; gates=j.gates; seGate=j.seGate; water=j.water; R=j.R; N=j.N;
+  if(j.wphase==='wallrun'){
+    j.wallJob.deadline=deadline;
+    fortWallRun(j.pts, {h:12, t:2.6, wall:ST, slits:true}, j.gaps, true, j.wallJob);
+    if(j.wallJob.more) return true;
+    j.tw=0;
+    j.wphase='towers';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  pts=j.pts; gates=j.gates; seGate=j.seGate; water=j.water; R=j.R; N=j.N;
+  if(j.wphase==='towers'){
+    var tw=j.tw||0;
+    for(i=tw;i<N;i+=2){
+      if(i!==tw && deadline && performance.now()>=deadline){ j.tw=i; return true; }
+      var ta=(i+0.5)*TAU/N, tx=X+Math.cos(ta)*R, tz=Z+Math.sin(ta)*R;
+    fortTower({x:tx, z:tz, r:7, h:17, sides:10, wall:ST2, roofCol:BL, roof:'cone', door:ta+Math.PI, banner:(i%6===0)?'nippon':null, name:'Turnul Cetății '+(i/2+1)});
+    }
+    j.wphase='gates';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.wphase==='gates'){
   gates.forEach(function(g){ fortGate({x:g.x, z:g.z, dir:g.dir, w:10, h:12, tw:6, ph:6.2, wall:ST, roofCol:BL, banner:'nippon', name:g.name}); });
   fortGate({x:seGate.x, z:seGate.z, ang:seGate.ang, w:8, h:10, tw:5, ph:5.4, wall:ST, roofCol:BL, banner:'nippon', name:seGate.name});
   /* water gates: piers, a lintel arch and an iron grille down to the water — impassable (C-6) */
@@ -5585,6 +6316,17 @@ function townRomaria(X,Z,f,rnd,td){
     regStructure({name:wi===0?'Poarta Apei de Nord':'Poarta Apei de Sud', kind:'watergate', x:w.x, z:w.z, hx:w.w/2, hz:2, enterable:false});
     wallTorch(w.x-uz*2.4, gy+9.0, w.z+ux*2.4); wallTorch(w.x+uz*2.4, gy+9.0, w.z-ux*2.4);
   });
+    j.wphase='done';
+  }
+  return false;
+}
+
+function townRomariaCore(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, kit=cellKit(X,Z);
+  var B=function(o){ o.fac=f; return buildBuilding(o); };
+  if(!j.cphase) j.cphase='palace';
+  if(j.cphase==='palace'){
   /* ---- streets: the boulevards/ring are road ribbons (roads.js); secondary grid at ±120/±240/±360 ---- */
   [-360,-240,-120,120,240,360].forEach(function(o){
     var lim=Math.sqrt(440*440-o*o);
@@ -5614,6 +6356,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<8;i++){ var hx2=X-28+i*8; if(Math.abs(hx2-X)<6) continue; kit.box(M2(0x4a6a3a),3,0.9,2,hx2,groundH(hx2,GZ-14)+0.45,GZ-14); addCollider(hx2-1.5,GZ-15,hx2+1.5,GZ-13); }
   townTrees(X, GZ, 6, 30, rnd, 0x4a7a37);
   fortWallRun([[X-46,Z-176],[X-46,GZ-22],[X+46,GZ-22],[X+46,Z-176]], {h:3.0, t:0.7, wall:ST, merlons:false, walk:false}, [{x:X,z:GZ-22,w:5}], false);
+    j.cphase='garden';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.cphase==='garden'){
   /* ---- garden belt r<300: lindens, hedges, the Alley of the Voivodes along the market street ---- */
   for(i=0;i<40;i++){ var ga=rnd()*TAU, gr=130+rnd()*150, gx=X+Math.cos(ga)*gr, gz=Z+Math.sin(ga)*gr; if(arcFreeCore(gx,gz)) continue; townTrees(gx,gz,1,0,rnd,0x4a7a37); }
   for(i=1;i<=5;i++){ var sx=X+i*30, sz=Z+i*30*(i<4?1:1.3), off=6; [-1,1].forEach(function(sd){ var px=sx-sd*off*0.707, pz=sz+sd*off*0.707; kit.box(M2(ST),1.2,1.4,1.2,px,groundH(px,pz)+0.7,pz,0.785); kit.box(M2(0x6a6560),0.6,2.2,0.6,px,groundH(px,pz)+2.5,pz,0.785); addCollider(px-0.7,pz-0.7,px+0.7,pz+0.7); }); }
@@ -5651,6 +6397,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<5;i++){ var px=X-320+i*8, pz=Z+285; kit.cyln(M2(0x5d4326),0.2,0.25,2.2,7,px,groundH(px,pz)+1.1,pz); kit.box(M2(0xb5a487),0.9,0.5,0.5,px,groundH(px,pz)+1.6,pz); addCollider(px-0.3,pz-0.3,px+0.3,pz+0.3); }
   for(i=0;i<4;i++){ var bx=X-320+i*8, bz=Z+325; kit.cyln(M2(0xc9b24a),0.9,0.9,0.5,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.cyln(M2(0x7a3434),0.3,0.3,0.52,10,bx,groundH(bx,bz)+1.2,bz,0,Math.PI/2,0); kit.box(M2(0x5d4326),0.2,1.2,0.2,bx,groundH(bx,bz)+0.6,bz+0.3); addCollider(bx-0.9,bz-0.4,bx+0.9,bz+0.4); }
   propCampfire(X-290, Z+305, true);
+    j.cphase='docks';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.cphase==='docks'){
   /* ---- the river docks (west bank of the Royal River, z 200..370) ---- */
   var qy=flatsH(X+280,Z+290)-0.15, T=M2(0x5d4326);
   kit.box(T, 24, 0.5, 160, X+287, qy+0.25, Z+290); addCollider(X+275,Z+210,X+299,Z+370);
@@ -5663,20 +6413,45 @@ function townRomaria(X,Z,f,rnd,td){
   B({x:X+291, z:Z+180, w:10, d:8, h:4.5, wall:ST, roofCol:0x5d4a38, roof:'gable', door:'N', interior:'watermill', name:'Moara Regală', chimney:false});
   townStalls(X+262, Z+296, 5, 9, rnd);
   townStreet(X+240, Z+290, X+274, Z+290, 5, 0x8a8070);
-  /* ---- residential rows on the secondary grid (axis-aligned, clipped to the ring by arcFree) ---- */
-  var HO={rnd:rnd, wall:[WH,0xd9c8a2,0xe8dcc0,0xc9c2b0], roofCol:[RD,0x70503a,BL], roof:'gable', fac:f, timberFrame:true, floors:2, h:3.6, avoid:arcFree};
-  var HS={rnd:rnd, wall:[ST,ST2,0xa8a698], roofCol:[0x4a4238,RD], roof:'gable', fac:f, h:3.4, avoid:arcFree};
-  [-360,-240,120,240,360].forEach(function(o,idx){
-    var lim=Math.sqrt(440*440-o*o), P=(o<0)?HO:HS;
-    houseRow('x', X-lim, X-20, Z+o, -1, P); houseRow('x', X+20, X+lim, Z+o, -1, P);
-    houseRow('x', X-lim, X-20, Z+o, 1, P); houseRow('x', X+20, X+lim, Z+o, 1, P);
-    houseRow('z', Z-lim, Z-20, X+o, -1, P); houseRow('z', Z+20, Z+lim, X+o, -1, P);
-    houseRow('z', Z-lim, Z-20, X+o, 1, P); houseRow('z', Z+20, Z+lim, X+o, 1, P);
-  });
-  /* ---- block interiors: an alley cross through every block, townhouses along the alleys, a well and gardens
-          in the courtyards (instanced prefabs of the capital kit — solid, enterable, furnished like every house) ---- */
-  var blocks=0, bi, bj;
-  for(bi=-4;bi<4;bi++) for(bj=-4;bj<4;bj++){
+    j.cphase='done';
+  }
+  return false;
+}
+
+function townRomariaFill(X,Z,f,rnd,td,deadline){
+  var j=_roma;
+  var ST=0x9a9a8a, ST2=0x8a8a7a, BL=0x3f5f8a, RD=0x8a4a3a, WH=0xe2d6bb, i, k, kit=cellKit(X,Z);
+  if(!j.fillPhase) j.fillPhase='rows';
+  if(j.fillPhase==='rows'){
+    var HO={rnd:rnd, wall:[WH,0xd9c8a2,0xe8dcc0,0xc9c2b0], roofCol:[RD,0x70503a,BL], roof:'gable', fac:f, timberFrame:true, floors:2, h:3.6, avoid:arcFree};
+    var HS={rnd:rnd, wall:[ST,ST2,0xa8a698], roofCol:[0x4a4238,RD], roof:'gable', fac:f, h:3.4, avoid:arcFree};
+    var offs=[-360,-240,120,240,360];
+    if(j.oi===undefined){ j.oi=0; j.ri=0; }
+    for(; j.oi<offs.length; j.oi++){
+      var o=offs[j.oi], lim=Math.sqrt(440*440-o*o), P=(o<0)?HO:HS;
+      var rows=[
+        ['x', X-lim, X-20, Z+o, -1], ['x', X+20, X+lim, Z+o, -1],
+        ['x', X-lim, X-20, Z+o, 1], ['x', X+20, X+lim, Z+o, 1],
+        ['z', Z-lim, Z-20, X+o, -1], ['z', Z+20, Z+lim, X+o, -1],
+        ['z', Z-lim, Z-20, X+o, 1], ['z', Z+20, Z+lim, X+o, 1]
+      ];
+      for(; j.ri<rows.length; j.ri++){
+        if(deadline && (j.oi||j.ri) && performance.now()>=deadline) return true;
+        var rw=rows[j.ri];
+        houseRow(rw[0], rw[1], rw[2], rw[3], rw[4], P);
+      }
+      j.ri=0;
+    }
+    j.fillPhase='blocks'; j.bi=undefined;
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(j.fillPhase==='blocks'){
+    if(j.bi===undefined){ j.bi=-4; j.bj=-4; j.blocks=0; }
+    var blocks=j.blocks, bi, bj;
+    for(bi=j.bi;bi<4;bi++){
+      for(bj=(bi===j.bi?j.bj:-4);bj<4;bj++){
+        if(deadline && (bi>-4||bj>-4) && performance.now()>=deadline){ j.bi=bi; j.bj=bj; j.blocks=blocks; return true; }
+
     var bx=X+bi*120+60, bz=Z+bj*120+60;
     if(Math.hypot(bx-X,bz-Z)>375) continue;
     if(Math.abs(bx-X)<=60 && Math.abs(bz-Z)<=60) continue;                  /* plaza and esplanade */
@@ -5701,8 +6476,14 @@ function townRomaria(X,Z,f,rnd,td){
     if(!insideSolid(bx+7,bz+7,1.8)) prefabPlace('prop.well',bx+7,bz+7,'S',{force:true});
     [[-1,-1],[1,1],[-1,1]].forEach(function(q){ var gx=bx+q[0]*30, gz=bz+q[1]*30; if(!insideSolid(gx,gz,4)&&!arcFree(gx-X,gz-Z,4)) townTrees(gx,gz,2,4,rnd,0x4a7a37); });
     if(n) blocks++;
+        }
+      j.bj=-4;
+    }
+    td.blocks=blocks;
+    j.fillPhase='rest';
+    if(deadline && performance.now()>=deadline) return true;
   }
-  td.blocks=blocks;
+  if(j.fillPhase==='rest'){
   /* ---- street furniture: lanterns on the boulevards and ring, banners on the plaza ---- */
   for(i=-500;i<=500;i+=40){ if(Math.abs(i)<60) continue; var r0=Math.abs(i); if(r0<440||r0>470){ torchPost(X+i, Z-7, 2.8); torchPost(X+i, Z+7, 2.8); torchPost(X-7, Z+i, 2.8); torchPost(X+7, Z+i, 2.8); } }
   for(i=0;i<24;i++){ var ra=i/24*TAU+0.13, rx=X+Math.cos(ra)*(460+5.5), rz=Z+Math.sin(ra)*(460+5.5); if(!insideSolid(rx,rz,0.5)) torchPost(rx,rz,2.6); }
@@ -5728,7 +6509,10 @@ function townRomaria(X,Z,f,rnd,td){
   for(i=0;i<12;i++){ var sa=i*TAU/12+TAU/24, sx2=X+Math.cos(sa)*580, sz2=Z+Math.sin(sa)*580, tries=0;
     while(tries++<6){ var fr=roadField(sx2,sz2); var rf=riverField(sx2,sz2); if((fr.road&&fr.d<fr.road.w/2+3)||(rf.river&&rf.d<riverHalfWidth(rf.river,sz2)+4)||insideSolid(sx2,sz2,1.5)){ sa+=0.09; sx2=X+Math.cos(sa)*580; sz2=Z+Math.sin(sa)*580; } else break; }
     propTroita(sx2, sz2, -sa+Math.PI/2); }
+  }
+  return false;
 }
+
 function arcFreeCore(x,z){ var r=Math.hypot(x,z); if(r<52) return true; if(Math.abs(x)<60&&z>-250&&z<-30) return true; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+3) return true; if(insideSolid(x,z,3)) return true; return false; }
 function segXw(ax,az,bx,bz,cx,cz,dx,dz){
   var r1x=bx-ax, r1z=bz-az, r2x=dx-cx, r2z=dz-cz, den=r1x*r2z-r1z*r2x; if(Math.abs(den)<1e-9) return null;
@@ -6202,18 +6986,36 @@ SITE_BUILDERS.witch=function(s,rnd){
 };
 
 /* ============================================================ build them all ============================================================ */
-function buildLandmarks(){
-  SITES_DEF.forEach(function(s){
-    var fn=SITE_BUILDERS[s.kind];
-    if(!fn) return;
-    var rnd=srand(s.x*31+s.z*17+s.key.length);
-    siteBegin(s.name, s.x, s.z, s.r+60);
-    fn(s,rnd);
-    siteEnd();
-  });
-  /* bridges over rivers and moats */
-  BRIDGES.forEach(function(b){ buildBridge(b); });
+var _lmI=0, _lmBr=0, _lmPhase=0;
+function buildLandmarks(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  if(_lmPhase===0){
+    for(; _lmI<SITES_DEF.length; _lmI++){
+      if(budget && performance.now()>=tEnd && _lmI>0) return true;
+      var s=SITES_DEF[_lmI], fn=SITE_BUILDERS[s.kind];
+      if(!fn || s._area) continue;
+      if(typeof inLoadArea==='function' && !inLoadArea(s.x, s.z)) continue;
+      s._area=1;
+      var rnd=srand(s.x*31+s.z*17+s.key.length);
+      siteBegin(s.name, s.x, s.z, s.r+60);
+      fn(s,rnd);
+      siteEnd();
+    }
+    _lmPhase=1;
+    if(budget && performance.now()>=tEnd) return true;
+  }
+  /* bridges over rivers and moats — once; a later reach must not lay them again */
+  if(!_lmBridges){
+  for(; _lmBr<BRIDGES.length; _lmBr++){
+    if(budget && performance.now()>=tEnd && _lmBr>0) return true;
+    buildBridge(BRIDGES[_lmBr]);
+  }
+  _lmBridges=1;
+  }
+  _lmI=0; _lmBr=0; _lmPhase=0;
+  return false;
 }
+var _lmBridges=0;
 
 
 // SOURCE: src/buildings/areas.js
@@ -6227,15 +7029,7 @@ function buildLandmarks(){
    Every wall collides, every door opens into a furnished room, every
    free-standing solid registers its collider (NO-CLIP LAW G1–G8).
    ============================================================ */
-/* nearest road with the closest point — used to orient buildings toward the road and to push props off it */
-function roadNearest(x,z){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null, bx=x, bz=z;
-  for(var ix=-2;ix<=2;ix++) for(var iz=-2;iz<=2;iz++){ var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(var i=0;i<arr.length;i++){ var R=ROADS[Math.floor(arr[i]/100000)], pi=arr[i]%100000, a=R.pts[pi], b=R.pts[pi+1];
-      var dx=b[0]-a[0], dz=b[1]-a[1], L2=dx*dx+dz*dz, t=L2>0?clamp(((x-a[0])*dx+(z-a[1])*dz)/L2,0,1):0, px=a[0]+dx*t, pz=a[1]+dz*t, d=Math.hypot(px-x,pz-z);
-      if(d<best){ best=d; br=R; bx=px; bz=pz; } } }
-  return {d:best, road:br, px:bx, pz:bz};
-}
+/* nearest road (roadNearest) lives in geography.js — used to orient buildings toward the road and to push props off it */
 function offRoad(x,z,margin){
   var n=roadNearest(x,z); if(!n.road) return {x:x,z:z};
   var need=n.road.w/2+margin; if(n.d>=need) return {x:x,z:z};
@@ -6596,11 +7390,11 @@ function buildBeacons(){
 // SOURCE: src/buildings/batches.js
 /* Spatially bounded instancing for yard clutter (fences, garden rows, fields, trees). Nearby regions draw, distant regions cost no draw calls. */
 function createBuildingBatch(){
-  var buckets=new Map(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),pos=new THREE.Vector3(),scale=new THREE.Vector3();
+  var buckets=new Map(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),pos=new THREE.Vector3(),scale=new THREE.Vector3(),BATCH_Y=new THREE.Vector3(0,1,0);
   function add(kind,x,y,z,w,h,d,color,rotation){
     var key=Math.floor((x+WORLD.half)/375)+':'+Math.floor((z+WORLD.half)/375)+':'+kind;
     if(!buckets.has(key))buckets.set(key,{kind:kind,x:Math.floor((x+WORLD.half)/375),z:Math.floor((z+WORLD.half)/375),items:[]});
-    pos.set(x,y,z);scale.set(w,h,d);quat.setFromAxisAngle(new THREE.Vector3(0,1,0),rotation||0);matrix.compose(pos,quat,scale);
+    pos.set(x,y,z);scale.set(w,h,d);quat.setFromAxisAngle(BATCH_Y,rotation||0);matrix.compose(pos,quat,scale);
     buckets.get(key).items.push({matrix:matrix.clone(),color:color});
   }
   function finish(){
@@ -6609,7 +7403,8 @@ function createBuildingBatch(){
     var material=M(0xffffff);
     buckets.forEach(function(b){
       var mesh=new THREE.InstancedMesh(geos[b.kind],material,b.items.length);
-      b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,new THREE.Color(item.color));});
+      var col=new THREE.Color();
+      b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,col.setHex(item.color));});
       mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
       mesh.userData.cullBounds={x:(b.x+0.5)*375-WORLD.half,z:(b.z+0.5)*375-WORLD.half,r:285};
       mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=true;mesh.receiveShadow=true;
@@ -6635,15 +7430,16 @@ function createBuildingBatch(){
    fields and an orchard beyond.
    ============================================================ */
 var SETTLEMENTS=[],settlementStats={buildings:0,hamlets:0,chunks:0,zones:0,yards:0},settlementRoadGrid=new Map();
+function settlementRoadKey(gx,gz){ return (gx+1024)*4096+(gz+1024); }
 function settlementRoadNear(x,z,r){
   var gx=Math.floor(x/32),gz=Math.floor(z/32);
   for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++){
-    var pts=settlementRoadGrid.get((gx+dx)+':'+(gz+dz))||[];
+    var pts=settlementRoadGrid.get(settlementRoadKey(gx+dx,gz+dz))||[];
     for(var i=0;i<pts.length;i++)if(Math.hypot(x-pts[i][0],z-pts[i][1])<r)return true;
   }return false;
 }
 function hamletWater(x,z){
-  var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+40) return true;
+  var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+40) return true;
   for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+50,2)) return true; }
   for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+40) return true; }
   return false;
@@ -6668,19 +7464,37 @@ var HAMLET_KINDS={
 function hamletPick(list,rnd){ var t=0,i; for(i=0;i<list.length;i++) t+=list[i][1]; var r=rnd()*t; for(i=0;i<list.length;i++){ r-=list[i][1]; if(r<=0) return list[i][0]; } return list[0][0]; }
 function hamletVariants(type){ return type==='cottage'||type==='house'?3:type==='farm'?2:1; }
 
-function buildSettlements(){
-  (window.__roadPts||[]).forEach(function(p){var key=Math.floor(p[0]/32)+':'+Math.floor(p[1]/32);if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
-  var batch=createBuildingBatch(),covered=new Set();
-  HAMLETS.forEach(function(H){
-    if(nearTown(H.x,H.z,30)||nearSite(H.x,H.z,30)||hamletWater(H.x,H.z)) return;
-    var n=buildHamlet(batch,H);
-    if(!n) return;
-    covered.add(H.zi); settlementStats.hamlets++; settlementStats.buildings+=n;
+var _setJob=null, _setRoads=0, _setCovered=null;
+function buildSettlements(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  if(!_setJob){
+    if(!_setRoads){
+      (window.__roadPts||[]).forEach(function(p){var key=settlementRoadKey(Math.floor(p[0]/32),Math.floor(p[1]/32));if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
+      _setRoads=1;
+    }
+    if(!_setCovered) _setCovered=new Set();
+    _setJob={i:0, batch:null, covered:_setCovered};
+  }
+  var j=_setJob;
+  for(; j.i<HAMLETS.length; j.i++){
+    if(budget && performance.now()>=tEnd && j.i>0) return true;
+    var H=HAMLETS[j.i];
+    if(H._area) continue;
+    if(typeof inLoadArea==='function' && !inLoadArea(H.x, H.z)) continue;
+    H._area=1;
+    if(nearTown(H.x,H.z,30)||nearSite(H.x,H.z,30)||hamletWater(H.x,H.z)) continue;
+    if(!j.batch) j.batch=createBuildingBatch();
+    var n=buildHamlet(j.batch,H);
+    if(!n) continue;
+    j.covered.add(H.zi); settlementStats.hamlets++; settlementStats.buildings+=n;
     var regionLabel=WORLD_REGIONS[H.region]?WORLD_REGIONS[H.region].name:H.region;
     SETTLEMENTS.push({x:H.x,z:H.z,zi:H.zi,region:H.region,name:VNAMES[H.zi%VNAMES.length]+' — '+regionLabel+' cătun '+(H.q+1),buildings:n});
     window.__contentZi[H.zi]=1;
-  });
-  settlementStats.zones=covered.size;settlementStats.chunks=batch.finish();
+  }
+  settlementStats.zones=j.covered.size;
+  if(j.batch) settlementStats.chunks+=j.batch.finish();
+  _setJob=null;
+  return false;
 }
 /* ---- one hamlet: lane, yards, houses, the lane-end building, well, troiță, fields, orchard ----
    Built in lane coordinates (u along the lane, v across it) and turned onto the map, so half the hamlets
@@ -6848,9 +7662,12 @@ function batchField(batch,x,z,w,d,ry,c1,c2){ var y=groundH(x,z); for(var i=0;i<6
 function batchCairn(batch,x,z){ var y=groundH(x,z); batch.add('box',x,y+0.4,z,1.6,0.8,1.4,0x8a8a86,0.3); batch.add('box',x,y+1.0,z,1.1,0.6,1.0,0x8a8a86,0.7); batch.add('box',x,y+1.45,z,0.6,0.5,0.6,0x9a9a96,0.2); addCollider(x-0.8,z-0.7,x+0.8,z+0.7); }
 function siteEcon(x,z,type,rate){ SITES.push({zi:zoneIdxAt(x,z), rate:rate, type:type, region:getRegion(x,z), x:x, z:z}); }
 
-function buildDistricts(){
-  var batch=createBuildingBatch(), rnd=srand(1337);
-  window.__contentZi=window.__contentZi||{};
+var _distJob=null;
+function buildDistricts(budget){
+  var deadline=budget?performance.now()+budget:0;
+  if(!_distJob){
+    _distJob={batch:createBuildingBatch(), rnd:srand(1337), di:0, phase:'econ', gz:0, gx:0, wildsN:0};
+    window.__contentZi=window.__contentZi||{};
   /* economy of the named places */
   FAC_KEYS_T.forEach(function(f){ var T=TOWNS[f]; siteEcon(T.x,T.z,'market',0.5); siteEcon(T.x,T.z,'fort',0.4); siteEcon(T.x,T.z,'forge',0.3); window.__contentZi[zoneIdxAt(T.x,T.z)]=1; });
   SITES_DEF.forEach(function(s){
@@ -6862,8 +7679,15 @@ function buildDistricts(){
     window.__contentZi[zoneIdxAt(s.x,s.z)]=1;
   });
   VILLAGES.forEach(function(v){ siteEcon(v.x,v.z,'farm',0.18); window.__contentZi[zoneIdxAt(v.x,v.z)]=1; });
-  /* farmsteads and camps */
-  DISTRICT_C.forEach(function(D,di){
+    _distJob.phase='farms';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  var batch=_distJob.batch, rnd=_distJob.rnd;
+  if(_distJob.phase==='farms'){
+  /* farmsteads and camps — same order, same random stream; a player load may yield between farmsteads */
+  for(; _distJob.di<DISTRICT_C.length; _distJob.di++){
+    if(deadline && _distJob.di && performance.now()>=deadline) return true;
+    var D=DISTRICT_C[_distJob.di], di=_distJob.di;
     var reg=D.region, kind;
     var roll=rnd();
     if(reg==='carpathian') kind=roll<0.45?'fold':roll<0.8?'quarry':'hunt';
@@ -6888,7 +7712,7 @@ function buildDistricts(){
       var px=D.x+Math.cos(a+0.35)*(r+2), pz=D.z+Math.sin(a+0.35)*(r+2), pk=['prop.woodpile','prop.oven','prop.beehives','prop.woodpile','prop.dovecote'][Math.floor(rnd()*5)];
       if(!insideSolid(px,pz,1.6)&&!nearDoor(px,pz,2.5)) prefabPlace(pk,px,pz,faceToward(px,pz,D.x,D.z),{force:true});
     }
-    if(!placed) return;
+    if(!placed) continue;
     if(!insideSolid(D.x,D.z,2)) prefabPlace('prop.well',D.x,D.z,'S',{force:true});
     if(rnd()<0.7 && !insideSolid(D.x+5,D.z+3,2)) prefabPlace('prop.cart',D.x+5,D.z+3,rnd()<0.5?'S':'E',{force:true});
     var y=groundH(D.x,D.z);
@@ -6930,10 +7754,16 @@ function buildDistricts(){
     for(i=0;i<5;i++){ var ta2=rnd()*TAU, tr=ring*(0.35+rnd()*0.5), tx2=D.x+Math.cos(ta2)*tr, tz2=D.z+Math.sin(ta2)*tr; if(insideSolid(tx2,tz2,2.4)||nearDoor(tx2,tz2,3)||Math.abs(tx2-D.x)<3.5) continue; hamletTree(batch,tx2,tz2,TK,rnd,true); }
     D.buildings=placed;
     window.__contentZi[zoneIdxAt(D.x,D.z)]=1;
-  });
+  }
+    _distJob.phase='wilds';
+    if(deadline && performance.now()>=deadline) return true;
+  }
+  if(_distJob.phase==='wilds'){
   /* ---- WILDS: every remaining zone gets a feature ---- */
-  var wildsN=0, gx, gz;
-  for(gz=0;gz<ZN;gz++) for(gx=0;gx<ZN;gx++){
+  var wildsN=_distJob.wildsN, gx, gz;
+  for(gz=_distJob.gz;gz<ZN;gz++){
+    for(gx=(gz===_distJob.gz?_distJob.gx:0);gx<ZN;gx++){
+      if(deadline && (gz||gx) && performance.now()>=deadline){ _distJob.gz=gz; _distJob.gx=gx; _distJob.wildsN=wildsN; return true; }
     var zi=gz*ZN+gx;
     if(window.__contentZi[zi]) continue;
     var cx=(gx+0.5)*ZS-WORLD.half, cz=(gz+0.5)*ZS-WORLD.half, found=false;
@@ -6950,11 +7780,16 @@ function buildDistricts(){
       found=true; wildsN++;
     }
     window.__contentZi[zi]=1;
+    }
+    _distJob.gx=0;
   }
   window.__wildsN=wildsN;
   batch.finish();
   zoneSiteRate=new Float32Array(ZN*ZN);
   for(var s2=0;s2<SITES.length;s2++) zoneSiteRate[SITES[s2].zi]+=SITES[s2].rate;
+  _distJob=null;
+  return false;
+  }
 }
 
 
@@ -10391,7 +11226,7 @@ function buildRoleCards(redeploy){
 
 // SOURCE: src/ui/buttons.js
 /* ---------------- UI wiring ---------------- */
-$('btn-begin').addEventListener('click', function(){ Snd.init(); Snd.click(); toFaction(); });
+$('btn-begin').addEventListener('click', function(){ if(!WORLD_READY) return; Snd.init(); Snd.click(); toFaction(); });
 $('btn-back-fac').addEventListener('click', function(){ Snd.click(); toMenu(); });
 $('btn-back').addEventListener('click', function(){ Snd.click(); toFaction(); });
 $('btn-spawn').addEventListener('click', function(){
@@ -10794,6 +11629,135 @@ window.addEventListener('keydown', function(ev){
 });
 
 
+// SOURCE: src/system/load-area.js
+/* ============================================================
+   load-area.js — how much of the 6,000 × 6,000 map is raised
+   ------------------------------------------------------------
+   Lowest (the default) builds each kingdom and the land just
+   past the fog, so a weak machine can take the throne. Highest
+   is the entire map. What does get built is the same geometry,
+   the same colours and the same places — only the reach changes.
+   ?test=1 and ?load=4 always raise the entire map. A smaller
+   choice, or the entire map, reloads so memory actually drops
+   and the full world is built in its original order. A larger
+   step in between streams the same builders in short slices.
+   ============================================================ */
+var LOAD_AREA_STEPS=[
+  {name:'Homeland', r:780, hint:'Each kingdom and the ground you can see. Fastest on a weak machine.'},
+  {name:'County', r:1400, hint:'The countryside just beyond the towns. Same buildings, a wider reach.'},
+  {name:'Province', r:2200, hint:'A wide reach of the same map.'},
+  {name:'Realm', r:3400, hint:'Most of the world, still short of the rim.'},
+  {name:'Entire map', r:1e9, hint:'Every village, hamlet and forest — the full 6,000 × 6,000. Choosing this reloads so the map matches the whole world.'}
+];
+var loadAreaIndex=0, LOAD_CENTERS=[], loadAreaDirty=false, _areaPhase=0, _areaKids=-1;
+function loadAreaRead(){
+  try{
+    var q=new URLSearchParams(location.search).get('load');
+    if(q==='all'||q==='4'){ loadAreaIndex=LOAD_AREA_STEPS.length-1; return; }
+    if(q!==null && q!==''){
+      var qn=parseInt(q,10);
+      if(qn>=0 && qn<LOAD_AREA_STEPS.length){ loadAreaIndex=qn; return; }
+    }
+    var n=parseInt(localStorage.getItem('aow_load_area'),10);
+    if(n>=0 && n<LOAD_AREA_STEPS.length) loadAreaIndex=n;
+  }catch(e){}
+}
+function loadAreaWrite(){
+  try{ localStorage.setItem('aow_load_area', String(loadAreaIndex)); }catch(e){}
+}
+function loadAreaFull(){
+  return (typeof manualSimulation!=='undefined' && manualSimulation) || LOAD_AREA_STEPS[loadAreaIndex].r>8000;
+}
+function loadAreaRadius(){ return loadAreaFull()?1e9:LOAD_AREA_STEPS[loadAreaIndex].r; }
+function inLoadArea(x,z){
+  if(loadAreaFull()) return true;
+  var r2=LOAD_AREA_STEPS[loadAreaIndex].r*LOAD_AREA_STEPS[loadAreaIndex].r, i, T, dx, dz;
+  for(i=0;i<FAC_KEYS_T.length;i++){
+    T=TOWNS[FAC_KEYS_T[i]]; dx=x-T.x; dz=z-T.z;
+    if(dx*dx+dz*dz<=r2) return true;
+  }
+  for(i=0;i<LOAD_CENTERS.length;i++){
+    dx=x-LOAD_CENTERS[i][0]; dz=z-LOAD_CENTERS[i][1];
+    if(dx*dx+dz*dz<=r2) return true;
+  }
+  return false;
+}
+function loadAreaHint(n){
+  var s=LOAD_AREA_STEPS[n];
+  var extra='';
+  if(n<loadAreaIndex) extra=' Lowering this reloads, so a weak machine can drop what was already raised.';
+  else if(n===LOAD_AREA_STEPS.length-1 && n!==loadAreaIndex) extra='';
+  else if(n>loadAreaIndex) extra=' Raising this keeps the campaign and fills in the same places.';
+  return s.hint+extra;
+}
+function paintLoadArea(n){
+  n=clamp(Math.round(n),0,LOAD_AREA_STEPS.length-1);
+  var name=LOAD_AREA_STEPS[n].name, hint=loadAreaHint(n);
+  var v=$('menu-load-v'), h=$('menu-load-h'), sv=$('set-load-v'), sh=$('set-load-h');
+  if(v) v.textContent=name;
+  if(sv) sv.textContent=name;
+  if(h) h.textContent=hint;
+  if(sh) sh.textContent=hint;
+}
+function syncLoadAreaUI(){
+  var a=$('menu-load'), b=$('set-load');
+  if(a) a.value=String(loadAreaIndex);
+  if(b) b.value=String(loadAreaIndex);
+  paintLoadArea(loadAreaIndex);
+}
+function previewLoadArea(n){ paintLoadArea(n); }
+function setLoadArea(n){
+  n=clamp(Math.round(n),0,LOAD_AREA_STEPS.length-1);
+  if(n===loadAreaIndex){ syncLoadAreaUI(); return; }
+  var prev=loadAreaIndex;
+  loadAreaIndex=n;
+  loadAreaWrite();
+  syncLoadAreaUI();
+  if(typeof manualSimulation!=='undefined' && manualSimulation) return;
+  if(n<prev || n===LOAD_AREA_STEPS.length-1){ location.reload(); return; }
+  loadAreaDirty=true;
+  _areaPhase=0;
+}
+function loadAreaCover(x,z){
+  if(loadAreaFull()) return;
+  var r=LOAD_AREA_STEPS[loadAreaIndex].r, lim=r-560, i, T, dx, dz, best=1e18;
+  if(lim<180) lim=180;
+  for(i=0;i<FAC_KEYS_T.length;i++){
+    T=TOWNS[FAC_KEYS_T[i]]; dx=x-T.x; dz=z-T.z;
+    if(dx*dx+dz*dz<best) best=dx*dx+dz*dz;
+  }
+  for(i=0;i<LOAD_CENTERS.length;i++){
+    dx=x-LOAD_CENTERS[i][0]; dz=z-LOAD_CENTERS[i][1];
+    if(dx*dx+dz*dz<best) best=dx*dx+dz*dz;
+  }
+  if(best>lim*lim){ LOAD_CENTERS.push([x,z]); loadAreaDirty=true; _areaPhase=0; }
+}
+/* after the throne is open, raise anything the current reach now includes — same builders, short slices */
+function loadAreaWork(budget){
+  var more=false;
+  if(_areaPhase===0){ if(buildLandmarks(budget)) more=true; else _areaPhase=1; }
+  if(!more && _areaPhase===1){ if(buildVillages(budget)) more=true; else _areaPhase=2; }
+  if(!more && _areaPhase===2){ if(buildSettlements(budget)) more=true; else _areaPhase=3; }
+  if(!more && _areaPhase===3){ if(typeof loadAreaScenery==='function' && loadAreaScenery(budget)) more=true; else _areaPhase=4; }
+  if(prefabFlush(budget)) more=true;
+  if(!more){
+    if(typeof snapshotStatics==='function') snapshotStatics();
+    _areaPhase=0;
+  }
+  return more;
+}
+function loadAreaTick(){
+  if(typeof WORLD_READY==='undefined' || !WORLD_READY) return;
+  if(typeof manualSimulation!=='undefined' && manualSimulation) return;
+  if(!loadAreaFull() && typeof player!=='undefined' && player && player.group && state===ST.PLAY) loadAreaCover(player.group.position.x, player.group.position.z);
+  if(!loadAreaDirty) return;
+  if(loadAreaWork(12)) return;
+  loadAreaDirty=false;
+}
+loadAreaRead();
+syncLoadAreaUI();
+
+
 // SOURCE: src/ui/settings.js
 /* ---------------- v8.3 settings: doctrine % + scope steps + live counts ---------------- */
 var overlaySettings=null;
@@ -10863,6 +11827,13 @@ function toggleSettings(open){
     else if(state===ST.PAUSE) show(overlayPause);
   }
 }
+function bindLoadSlider(id){
+  var el=$(id); if(!el) return;
+  el.addEventListener('input', function(){ previewLoadArea(+el.value); });
+  el.addEventListener('change', function(){ setLoadArea(+el.value); });
+}
+bindLoadSlider('menu-load');
+bindLoadSlider('set-load');
 $('set-bg').addEventListener('input', updSettingsLabels);
 $('set-def').addEventListener('input', updSettingsLabels);
 $('btn-set-apply').addEventListener('click', function(){
@@ -11402,6 +12373,7 @@ function frame(now){
   var dt=Math.min((now-last)/1000, 0.05);
   last=now;
   if(manualSimulation)return;
+  if(typeof loadAreaTick==='function') loadAreaTick();
   if(hitStop>0){ hitStop-=dt; dt=0; }
   if(state===ST.PLAY || state===ST.REDEPLOY){
     update(dt);
@@ -11860,7 +12832,7 @@ function placeRelics(){
    a wayside cross, lanterns, and the special feature of §7.1 for
    the NV villages (orchard, apiary, salt pans, log bridge, sluice…).
    ============================================================ */
-function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
+function vFree(x,z,r){ if(insideSolid(x,z,r)) return false; if(nearDoor(x,z,r+1)) return false; var f=roadField(x,z); if(f.road&&f.d<f.road.w/2+r+0.8) return false; var rf=riverField(x,z,64); if(rf.river&&rf.d<riverHalfWidth(rf.river,z)*1.5+r) return false; return true; }
 /* a broadleaf tree: trunk, three tapered tiers that read as a round crown */
 function kitTree(kit,tx,tz,col,s,fir){
   var ty=groundH(tx,tz), C=MS(col,SURF.GRAIN), C2=MS(tintHex(col,0.12),SURF.GRAIN);
@@ -11935,16 +12907,21 @@ function yardGarden(kit,x,z,w,d,ry,crop){
   for(i=0;i<rows;i++){ var u=-w/2+(i+0.5)*(w/rows); kit.box(MS(i%2?crop:0x4a6a3a,SURF.GRAIN),0.6,0.32,d-0.5,x+u*c,y+0.2,z-u*s,ry); }
 }
 function villageYards(rows,v,K,rnd,kit){
+  var deadline=(typeof VILLAGE_TEND!=='undefined')?VILLAGE_TEND:0;
+  var job=v._yard||(v._yard={ri:0,hi:0});
   var reg=v.region||'wallachian', fir=(reg==='carpathian'||reg==='moldavian'), crop=(reg==='wallachian'||reg==='battlefield')?0x6a8a3a:0xb4a15a, n=0;
-  rows.forEach(function(row){
-    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; }); if(!hs.length) return;
+  for(; job.ri<rows.length; job.ri++){
+    var row=rows[job.ri];
+    var hs=row.houses.slice().sort(function(a,b){ return a.u-b.u; });
+    if(!hs.length){ job.hi=0; continue; }
     var axis=row.axis, side=row.side, cross=row.cross;
     var P=(axis==='x')?function(u,vv){ return [u, cross+side*vv]; }:function(u,vv){ return [cross+side*vv, u]; };
     var faceHouse=(axis==='x')?(side>0?'N':'S'):(side>0?'W':'E');          /* looking back toward the street */
     var edges=[hs[0].u-hs[0].w/2-1.4], i;
     for(i=0;i<hs.length-1;i++) edges.push((hs[i].u+hs[i].w/2+hs[i+1].u-hs[i+1].w/2)/2);
     edges.push(hs[hs.length-1].u+hs[hs.length-1].w/2+1.4);
-    hs.forEach(function(h,i){
+    for(; job.hi<hs.length; job.hi++){
+      var h=hs[job.hi], i=job.hi;
       var u0=edges[i], u1=edges[i+1], vF=3.0, vWall=5.2+h.d, vBack=vWall+10+rnd()*3.5;
       var gw=h.doorW+1.9, g0=h.u-gw/2, g1=h.u+gw/2;
       yardFence(P(u0,vF),P(g0,vF)); yardFence(P(g1,vF),P(u1,vF));
@@ -11971,24 +12948,36 @@ function villageYards(rows,v,K,rnd,kit){
         else { if((p=spot(2.0))) yardTree(kit,p[0],p[1],K,rnd,fir); }
       }
       n++;
-    });
-  });
-  return n;
+      if(deadline && performance.now()>=deadline){ job.hi++; return true; }
+    }
+    job.hi=0;
+  }
+  v._yard=null;
+  return false;
 }
-function buildVillages(){
-  VILLAGES.forEach(function(v, vi){
-    var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
-    siteBegin('sat:'+v.name, X, Z, 120);
-    var SC=K.street;
-    townPlaza(X, Z, 12, SC);
-    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
-    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
-    var rows=[], curRow=null;
-    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
-             onBuilt:function(h){ curRow.houses.push(h); }};
-    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
-    row('x', X-50, X-12, Z, 1); row('x', X+12, X+50, Z, 1); row('x', X-50, X-12, Z, -1); row('x', X+12, X+50, Z, -1);
-    row('z', Z+28, Z+52, X, 1); row('z', Z-52, Z-28, X, -1); row('z', Z+28, Z+52, X, -1); row('z', Z-52, Z-28, X, 1);
+var _villageI=0, VILLAGE_TEND=0;
+function finishVillageYard(v){
+  var h=v._vy;
+  if(villageYards(h.rows, v, h.K, h.rnd, h.kit)) return true;
+  vTreeRing(h.X, h.Z, 10, 62, h.rnd, h.K.tree, 1); vTreeRing(h.X, h.Z, 8, 74, h.rnd, h.K.tree, 1.2);
+  siteEnd();
+  registerLore({key:'village'+h.vi, x:h.X, z:h.Z, r:34, icon:'V',
+    name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,
+    story:'Craftsmen, fields and quiet days. A village pays tribute to whoever holds the land it stands on — take the zone and its workers earn gold for your crown. Guard them: wolves and soldiers ask no permission.'});
+  v._vy=null;
+  return false;
+}
+function villageResume(v){
+  var h=v._hold, deadline=(typeof VILLAGE_TEND!=='undefined')?VILLAGE_TEND:0;
+  for(; h.ri<h.specs.length; h.ri++){
+    if(deadline && h.ri && performance.now()>=deadline) return true;
+    var rw=h.specs[h.ri];
+    h.row(rw[0], rw[1], rw[2], rw[3], rw[4]);
+  }
+  return false;
+}
+function villageFinish(v){
+  var h=v._hold, K=h.K, rnd=h.rnd, X=h.X, Z=h.Z, kit=h.kit, rows=h.rows, vi=h.vi, i;
     /* the church of the kit */
     var cs=vSlot(X,Z,5);
     if(K.church==='lemn') rblBisericaLemn({x:cs[0], z:cs[1], door:'S', name:'Biserica de lemn din '+v.name});
@@ -12025,13 +13014,42 @@ function buildVillages(){
     propFence(X-48, Z+30, X-30, Z+30, 1.0); propFence(X-48, Z+30, X-48, Z+44, 1.0);
     propTroita(X+8, Z-10, 0.2);
     torchPost(X-6, Z-6, 2.4); torchPost(X+6, Z-6, 2.4);
-    villageYards(rows, v, K, rnd, kit);
-    vTreeRing(X, Z, 10, 62, rnd, K.tree, 1); vTreeRing(X, Z, 8, 74, rnd, K.tree, 1.2);
-    siteEnd();
-    registerLore({key:'village'+vi, x:X, z:Z, r:34, icon:'V',
-      name:'Satul '+v.name+(v.id&&v.id.indexOf('NV')===0?' ('+v.id+')':''), sub:'Free village — '+(WORLD_REGIONS[v.region]?WORLD_REGIONS[v.region].name:v.region)+' — kit '+v.kit,
-      story:'Craftsmen, fields and quiet days. A village pays tribute to whoever holds the land it stands on — take the zone and its workers earn gold for your crown. Guard them: wolves and soldiers ask no permission.'});
-  });
+  v._vy={rows:rows, K:K, rnd:rnd, kit:kit, X:X, Z:Z, vi:vi};
+  v._hold=null;
+  if(VILLAGE_TEND && performance.now()>=VILLAGE_TEND) return true;
+  if(finishVillageYard(v)) return true;
+  return false;
+}
+function buildVillages(budget){
+  var tEnd=budget?performance.now()+budget:1e15, start=_villageI;
+  VILLAGE_TEND=tEnd;
+  for(; _villageI<VILLAGES.length; _villageI++){
+    var v=VILLAGES[_villageI], vi=_villageI;
+    if(v._vy){ if(finishVillageYard(v)) return true; continue; }
+    if(v._hold){ if(villageResume(v)) return true; if(villageFinish(v)) return true; continue; }
+    if(budget && _villageI>start && performance.now()>=tEnd) return true;
+    if(v._area) continue;
+    if(typeof inLoadArea==='function' && !inLoadArea(v.x, v.z)) continue;
+    v._area=1;
+    var K=RBL_KITS[v.kit]||RBL_KITS.VA, rnd=srand(vi*7919+11), X=v.x, Z=v.z, i, kit=cellKit(X,Z);
+    siteBegin('sat:'+v.name, X, Z, 120);
+    var SC=K.street;
+    townPlaza(X, Z, 12, SC);
+    townStreet(X-54, Z, X+54, Z, 5, SC); townStreet(X, Z-56, X, Z+56, 4.5, SC);
+    /* houses stand 5.2 u back from the street centreline, each in its own fenced yard (villageYards) */
+    var rows=[], curRow=null;
+    var HO={rnd:rnd, wall:K.wall, roofCol:K.roof, roof:K.roofKind, style:K.style, timberFrame:K.timberFrame, plinth:K.plinth, h:3.3, w:[5.5,7.5], d:[4.6,6.2], porch:true, prispa:K.prispa||0, band:K.band, off:4.6, interior:function(k){ return K.style==='log'?'loghouse':'house'; },
+             onBuilt:function(h){ curRow.houses.push(h); }};
+    function row(axis,u0,u1,cross,side){ curRow={axis:axis, side:side, cross:cross, houses:[]}; rows.push(curRow); houseRow(axis,u0,u1,cross,side,HO); }
+    v._hold={ri:0, rows:rows, row:row, K:K, rnd:rnd, X:X, Z:Z, kit:kit, vi:vi, specs:[
+      ['x', X-50, X-12, Z, 1], ['x', X+12, X+50, Z, 1], ['x', X-50, X-12, Z, -1], ['x', X+12, X+50, Z, -1],
+      ['z', Z+28, Z+52, X, 1], ['z', Z-52, Z-28, X, -1], ['z', Z+28, Z+52, X, -1], ['z', Z-52, Z-28, X, 1]
+    ]};
+    if(villageResume(v)) return true;
+    if(villageFinish(v)) return true;
+  }
+  _villageI=0;
+  return false;
 }
 
 
@@ -12337,6 +13355,7 @@ function spawnChests(){ for(var i=0;i<14;i++) placeChest(); }
 // SOURCE: src/system/debug.js
 /* ---------------- debug / test hook ---------------- */
 window.__game={
+  ready:false,
   begin:function(fac, role){
     selectedFaction=fac; selectedRole=role; curFaction=fac; beginCampaign();
   },
@@ -12487,6 +13506,7 @@ window.__game={
   /* direct eval inside the game closure — diagnostics only (tests, harnesses) */
   ev:function(src){ return eval(src); },
   bootTimes:function(){ return BOOT_TIMES; },
+  loadArea:function(){ return {index:loadAreaIndex, name:LOAD_AREA_STEPS[loadAreaIndex].name, r:loadAreaRadius(), full:!!loadAreaFull(), centers:LOAD_CENTERS.length, sceneryLater:(typeof SCENERY_LATER!=='undefined'?SCENERY_LATER.length/11:0)}; },
   memStats:function(){ var tri=0, triInst=0, meshes=0, inst=0, verts=0; scene.traverse(function(o){ if(o.isMesh&&o.geometry&&o.geometry.attributes.position){ var g=o.geometry, n=g.index?g.index.count/3:g.attributes.position.count/3; meshes++; if(o.isInstancedMesh){ inst++; triInst+=n*o.count; } else { tri+=n; verts+=g.attributes.position.count; } } }); return {meshes:meshes, instanced:inst, tris:Math.round(tri), trisInstanced:Math.round(triInst), verts:verts}; },
   fpInfo:function(){ var wd=null;
     if(fpWeapon){ var wp=new THREE.Vector3(); fpWeapon.getWorldPosition(wp); var pj=wp.clone().project(camera);
@@ -12560,35 +13580,128 @@ if(manualSimulation){
 
 
 // SOURCE: src/system/boot.js
-
-/* boot: build towns + reset world */
+/* boot: raise the world, then open the menu.
+   The player path yields every few dozen milliseconds so a slow Mac, a
+   Windows laptop or this machine can paint the menu and keep the tab
+   responsive. The land, the counts and the draw are unchanged — the work
+   is only sliced. ?test=1 stays one synchronous pass so the browser tests
+   still see a finished world at page load. */
 validateCharacters();
 resetEconomy();
 resetZones();
 if(typeof resetBattleTracking!=='undefined') resetBattleTracking();
-function bootStep(name,fn){ var t0=performance.now(); fn(); BOOT_TIMES[name]=Math.round(performance.now()-t0); }
-bootStep('towns', function(){ FAC_KEYS.forEach(buildTown); });
-bootStep('landmarks', buildLandmarks);
-bootStep('villages', buildVillages);
-bootStep('flags', buildFlags);
-bootStep('beacons', buildBeacons);
-bootStep('roads', buildRoads);
-bootStep('districts', buildDistricts);
-bootStep('settlements', buildSettlements);
-bootStep('prefabs', prefabFlush);        /* countryside prefabs → one InstancedMesh per prefab per cell */
-bootStep('relics', placeRelics);
-bootStep('kits', flushCellKits);
-bootStep('statics', snapshotStatics);
-cullTick();
-loadDoctrineCfg();
-// try restore save (optional persistence)
-if(typeof tryRestoreSave!=='undefined'){
-  try{ tryRestoreSave(); }catch(e){}
+var WORLD_READY=false, BOOT_ACC={}, BOOT_SLICE_MAX=0, BOOT_SLICES=[], _townI=0, TOWN_BUDGET=0, TOWN_TEND=0, _townHold=null;
+function closeHeldTown(){
+  if(!_townHold) return;
+  var h=_townHold; _townHold=null;
+  townData[h.f]=h.td;
+  siteEnd();
+  registerTownLore(h.f);
 }
-spawnWildlife();
-spawnChests();
-toMenu();
-requestAnimationFrame(frame);
+function bootStep(name, fn){
+  var t0=performance.now();
+  var more=fn();
+  var dt=performance.now()-t0;
+  BOOT_ACC[name]=(BOOT_ACC[name]||0)+dt;
+  BOOT_TIMES[name]=Math.round(BOOT_ACC[name]);
+  if(dt>BOOT_SLICE_MAX) BOOT_SLICE_MAX=dt;
+  if(dt>=80) BOOT_SLICES.push(name+':'+Math.round(dt));
+  return !!more;
+}
+function bootTowns(budget){
+  TOWN_BUDGET=budget||0;
+  TOWN_TEND=budget?performance.now()+budget:0;
+  var start=_townI;
+  for(;;){
+    if(_townI>=FAC_KEYS.length){ _townI=0; return false; }
+    /* a town already in progress must resume before the clock can skip it */
+    if(budget && _townI>start && !_townHold && performance.now()>=TOWN_TEND) return true;
+    var _tf=FAC_KEYS[_townI], _tt=performance.now();
+    var more=buildTown(_tf);
+    if(performance.now()-_tt>=80) BOOT_SLICES.push('town-'+_tf+':'+Math.round(performance.now()-_tt));
+    if(more) return true;
+    _townI++;
+    if(budget && performance.now()>=TOWN_TEND) return true;
+  }
+}
+function setBootStatus(label, done, total){
+  var pct=Math.max(0, Math.min(99, Math.round(done/total*100)));
+  var el=document.getElementById('load-status');
+  if(el) el.textContent=label+'… '+pct+'%'+(typeof LOAD_AREA_STEPS!=='undefined'?' · '+LOAD_AREA_STEPS[loadAreaIndex].name:'');
+  var bar=document.getElementById('load-meter-i');
+  if(bar) bar.style.width=pct+'%';
+  var meter=document.getElementById('load-meter');
+  if(meter) meter.setAttribute('aria-valuenow', String(pct));
+}
+function finishBoot(){
+  cullTick();
+  loadDoctrineCfg();
+  if(typeof tryRestoreSave!=='undefined'){
+    try{ tryRestoreSave(); }catch(e){}
+  }
+  spawnWildlife();
+  spawnChests();
+  WORLD_READY=true;
+  if(window.__game) window.__game.ready=true;
+  var btn=document.getElementById('btn-begin');
+  if(btn){ btn.disabled=false; btn.textContent='Take the Throne'; }
+  var st=document.getElementById('load-status');
+  if(st) st.textContent='';
+  var meter=document.getElementById('load-meter');
+  if(meter) meter.style.display='none';
+  toMenu();
+  requestAnimationFrame(frame);
+}
+function bootQueue(budget){
+  return [
+    ['terrain', function(){ return buildGround(budget); }, 'Laying the ground'],
+    ['scenery', function(){ return buildField(budget); }, 'Planting the forests'],
+    ['towns', function(){ return bootTowns(budget); }, 'Raising the towns'],
+    ['landmarks', function(){ return buildLandmarks(budget); }, 'Placing the named sites'],
+    ['villages', function(){ return buildVillages(budget); }, 'Building the villages'],
+    ['flags', function(){ buildFlags(); }, 'Raising the banners'],
+    ['beacons', function(){ buildBeacons(); }, 'Lighting the beacons'],
+    ['roads', function(){ return buildRoads(budget); }, 'Paving the roads'],
+    ['districts', function(){ return buildDistricts(budget); }, 'Marking the farmsteads'],
+    ['settlements', function(){ return buildSettlements(budget); }, 'Raising the hamlets'],
+    ['prefabs', function(){ return prefabFlush(budget); }, 'Furnishing the houses'],
+    ['relics', function(){ placeRelics(); }, 'Hiding the relics'],
+    ['kits', function(){ flushCellKits(); }, 'Finishing the roofs'],
+    ['statics', function(){ snapshotStatics(); }, 'Opening the gates']
+  ];
+}
+if(typeof manualSimulation!=='undefined' && manualSimulation){
+  var syncSteps=bootQueue(0), si;
+  for(si=0; si<syncSteps.length; si++){
+    var guard=0;
+    while(bootStep(syncSteps[si][0], syncSteps[si][1])){
+      if(++guard>100000) throw Error('boot did not finish '+syncSteps[si][0]);
+    }
+  }
+  finishBoot();
+} else {
+  var yieldSteps=bootQueue(48), yi=0, ySub=0;
+  var btn0=document.getElementById('btn-begin');
+  if(btn0){ btn0.disabled=true; btn0.textContent='Raising the land…'; }
+  setBootStatus('The kingdoms are waking', 0, yieldSteps.length);
+  function bootPump(){
+    if(yi>=yieldSteps.length){ finishBoot(); return; }
+    setTimeout(function(){
+      var step=yieldSteps[yi], more=false;
+      try{ more=bootStep(step[0], step[1]); }
+      catch(err){
+        console.error(err);
+        var el=document.getElementById('load-status');
+        if(el) el.textContent='The land could not be raised. Reload the page.';
+        return;
+      }
+      if(more) ySub++; else { yi++; ySub=0; }
+      if(yi<yieldSteps.length) setBootStatus(yieldSteps[Math.min(yi, yieldSteps.length-1)][2], yi+Math.min(0.85, ySub*0.03), yieldSteps.length);
+      bootPump();
+    }, 0);
+  }
+  setTimeout(bootPump, 0);
+}
 
 })();
 </script>

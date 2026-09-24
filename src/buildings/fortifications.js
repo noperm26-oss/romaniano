@@ -120,10 +120,12 @@ function fortWall(o){
   return {len:L};
 }
 /* wall along a polyline with gaps: gaps=[{x,z,w}] */
-function fortWallRun(pts,opts,gaps,closed){
-  var i, out=[];
+function fortWallRun(pts,opts,gaps,closed,job){
+  var i, out=(job&&job.out)||[];
   var n=closed?pts.length:pts.length-1;
-  for(i=0;i<n;i++){
+  var start=job?(job.i||0):0;
+  for(i=start;i<n;i++){
+    if(job && job.deadline && i>start && performance.now()>=job.deadline){ job.i=i; job.out=out; job.more=true; return out; }
     var a=pts[i], b=pts[(i+1)%pts.length];
     var segs=[[a[0],a[1],b[0],b[1]]];
     (gaps||[]).forEach(function(g){
@@ -226,7 +228,8 @@ function palisade(pts,opts){
   var geo=new THREE.CylinderGeometry(0.42,0.5,1,6), tipGeo=new THREE.ConeGeometry(0.42,0.9,6), mat=M(0xffffff);
   function make(list,gm){
     var im=new THREE.InstancedMesh(gm, mat, list.length);
-    list.forEach(function(it,k){ im.setMatrixAt(k,it.m); im.setColorAt(k,new THREE.Color(it.c)); });
+    var _pc=new THREE.Color();
+    list.forEach(function(it,k){ im.setMatrixAt(k,it.m); im.setColorAt(k,_pc.setHex(it.c)); });
     im.instanceMatrix.needsUpdate=true; im.instanceColor.needsUpdate=true; im.castShadow=true; im.receiveShadow=true; im.frustumCulled=false;
     if(!PROP_PARENT){ var bb={x0:1e9,x1:-1e9,z0:1e9,z1:-1e9}; pts.forEach(function(p){ bb.x0=Math.min(bb.x0,p[0]); bb.x1=Math.max(bb.x1,p[0]); bb.z0=Math.min(bb.z0,p[1]); bb.z1=Math.max(bb.z1,p[1]); }); im.userData.cullBounds={x:(bb.x0+bb.x1)/2,z:(bb.z0+bb.z1)/2,r:Math.hypot(bb.x1-bb.x0,bb.z1-bb.z0)/2+20}; }
     parent.add(im);

@@ -11,15 +11,16 @@
    fields and an orchard beyond.
    ============================================================ */
 var SETTLEMENTS=[],settlementStats={buildings:0,hamlets:0,chunks:0,zones:0,yards:0},settlementRoadGrid=new Map();
+function settlementRoadKey(gx,gz){ return (gx+1024)*4096+(gz+1024); }
 function settlementRoadNear(x,z,r){
   var gx=Math.floor(x/32),gz=Math.floor(z/32);
   for(var dx=-1;dx<=1;dx++)for(var dz=-1;dz<=1;dz++){
-    var pts=settlementRoadGrid.get((gx+dx)+':'+(gz+dz))||[];
+    var pts=settlementRoadGrid.get(settlementRoadKey(gx+dx,gz+dz))||[];
     for(var i=0;i<pts.length;i++)if(Math.hypot(x-pts[i][0],z-pts[i][1])<r)return true;
   }return false;
 }
 function hamletWater(x,z){
-  var rf=riverField(x,z); if(rf.river && rf.d<rf.river.hw*1.5+40) return true;
+  var rf=riverField(x,z,120); if(rf.river && rf.d<rf.river.hw*1.5+40) return true;
   for(var i=0;i<LAKES.length;i++){ var L=LAKES[i]; if((x-L.x)*(x-L.x)+(z-L.z)*(z-L.z)<Math.pow(L.r+50,2)) return true; }
   for(var m=0;m<MOATS.length;m++){ if(moatDist(MOATS[m],x,z)<MOATS[m].w+40) return true; }
   return false;
@@ -44,19 +45,37 @@ var HAMLET_KINDS={
 function hamletPick(list,rnd){ var t=0,i; for(i=0;i<list.length;i++) t+=list[i][1]; var r=rnd()*t; for(i=0;i<list.length;i++){ r-=list[i][1]; if(r<=0) return list[i][0]; } return list[0][0]; }
 function hamletVariants(type){ return type==='cottage'||type==='house'?3:type==='farm'?2:1; }
 
-function buildSettlements(){
-  (window.__roadPts||[]).forEach(function(p){var key=Math.floor(p[0]/32)+':'+Math.floor(p[1]/32);if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
-  var batch=createBuildingBatch(),covered=new Set();
-  HAMLETS.forEach(function(H){
-    if(nearTown(H.x,H.z,30)||nearSite(H.x,H.z,30)||hamletWater(H.x,H.z)) return;
-    var n=buildHamlet(batch,H);
-    if(!n) return;
-    covered.add(H.zi); settlementStats.hamlets++; settlementStats.buildings+=n;
+var _setJob=null, _setRoads=0, _setCovered=null;
+function buildSettlements(budget){
+  var tEnd=budget?performance.now()+budget:1e15;
+  if(!_setJob){
+    if(!_setRoads){
+      (window.__roadPts||[]).forEach(function(p){var key=settlementRoadKey(Math.floor(p[0]/32),Math.floor(p[1]/32));if(!settlementRoadGrid.has(key))settlementRoadGrid.set(key,[]);settlementRoadGrid.get(key).push(p);});
+      _setRoads=1;
+    }
+    if(!_setCovered) _setCovered=new Set();
+    _setJob={i:0, batch:null, covered:_setCovered};
+  }
+  var j=_setJob;
+  for(; j.i<HAMLETS.length; j.i++){
+    if(budget && performance.now()>=tEnd && j.i>0) return true;
+    var H=HAMLETS[j.i];
+    if(H._area) continue;
+    if(typeof inLoadArea==='function' && !inLoadArea(H.x, H.z)) continue;
+    H._area=1;
+    if(nearTown(H.x,H.z,30)||nearSite(H.x,H.z,30)||hamletWater(H.x,H.z)) continue;
+    if(!j.batch) j.batch=createBuildingBatch();
+    var n=buildHamlet(j.batch,H);
+    if(!n) continue;
+    j.covered.add(H.zi); settlementStats.hamlets++; settlementStats.buildings+=n;
     var regionLabel=WORLD_REGIONS[H.region]?WORLD_REGIONS[H.region].name:H.region;
     SETTLEMENTS.push({x:H.x,z:H.z,zi:H.zi,region:H.region,name:VNAMES[H.zi%VNAMES.length]+' — '+regionLabel+' cătun '+(H.q+1),buildings:n});
     window.__contentZi[H.zi]=1;
-  });
-  settlementStats.zones=covered.size;settlementStats.chunks=batch.finish();
+  }
+  settlementStats.zones=j.covered.size;
+  if(j.batch) settlementStats.chunks+=j.batch.finish();
+  _setJob=null;
+  return false;
 }
 /* ---- one hamlet: lane, yards, houses, the lane-end building, well, troiță, fields, orchard ----
    Built in lane coordinates (u along the lane, v across it) and turned onto the map, so half the hamlets

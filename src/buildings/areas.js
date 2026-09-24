@@ -8,15 +8,7 @@
    Every wall collides, every door opens into a furnished room, every
    free-standing solid registers its collider (NO-CLIP LAW G1–G8).
    ============================================================ */
-/* nearest road with the closest point — used to orient buildings toward the road and to push props off it */
-function roadNearest(x,z){
-  var gx=Math.floor(x/ROAD_CELL), gz=Math.floor(z/ROAD_CELL), best=1e9, br=null, bx=x, bz=z;
-  for(var ix=-2;ix<=2;ix++) for(var iz=-2;iz<=2;iz++){ var arr=ROAD_GRID.get((gx+ix)+':'+(gz+iz)); if(!arr) continue;
-    for(var i=0;i<arr.length;i++){ var R=ROADS[Math.floor(arr[i]/100000)], pi=arr[i]%100000, a=R.pts[pi], b=R.pts[pi+1];
-      var dx=b[0]-a[0], dz=b[1]-a[1], L2=dx*dx+dz*dz, t=L2>0?clamp(((x-a[0])*dx+(z-a[1])*dz)/L2,0,1):0, px=a[0]+dx*t, pz=a[1]+dz*t, d=Math.hypot(px-x,pz-z);
-      if(d<best){ best=d; br=R; bx=px; bz=pz; } } }
-  return {d:best, road:br, px:bx, pz:bz};
-}
+/* nearest road (roadNearest) lives in geography.js — used to orient buildings toward the road and to push props off it */
 function offRoad(x,z,margin){
   var n=roadNearest(x,z); if(!n.road) return {x:x,z:z};
   var need=n.road.w/2+margin; if(n.d>=need) return {x:x,z:z};

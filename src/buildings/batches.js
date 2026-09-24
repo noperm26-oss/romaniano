@@ -1,10 +1,10 @@
 /* Spatially bounded instancing for yard clutter (fences, garden rows, fields, trees). Nearby regions draw, distant regions cost no draw calls. */
 function createBuildingBatch(){
-  var buckets=new Map(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),pos=new THREE.Vector3(),scale=new THREE.Vector3();
+  var buckets=new Map(),matrix=new THREE.Matrix4(),quat=new THREE.Quaternion(),pos=new THREE.Vector3(),scale=new THREE.Vector3(),BATCH_Y=new THREE.Vector3(0,1,0);
   function add(kind,x,y,z,w,h,d,color,rotation){
     var key=Math.floor((x+WORLD.half)/375)+':'+Math.floor((z+WORLD.half)/375)+':'+kind;
     if(!buckets.has(key))buckets.set(key,{kind:kind,x:Math.floor((x+WORLD.half)/375),z:Math.floor((z+WORLD.half)/375),items:[]});
-    pos.set(x,y,z);scale.set(w,h,d);quat.setFromAxisAngle(new THREE.Vector3(0,1,0),rotation||0);matrix.compose(pos,quat,scale);
+    pos.set(x,y,z);scale.set(w,h,d);quat.setFromAxisAngle(BATCH_Y,rotation||0);matrix.compose(pos,quat,scale);
     buckets.get(key).items.push({matrix:matrix.clone(),color:color});
   }
   function finish(){
@@ -13,7 +13,8 @@ function createBuildingBatch(){
     var material=M(0xffffff);
     buckets.forEach(function(b){
       var mesh=new THREE.InstancedMesh(geos[b.kind],material,b.items.length);
-      b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,new THREE.Color(item.color));});
+      var col=new THREE.Color();
+      b.items.forEach(function(item,i){mesh.setMatrixAt(i,item.matrix);mesh.setColorAt(i,col.setHex(item.color));});
       mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
       mesh.userData.cullBounds={x:(b.x+0.5)*375-WORLD.half,z:(b.z+0.5)*375-WORLD.half,r:285};
       mesh.name='settlement-chunk';mesh.frustumCulled=false;mesh.castShadow=true;mesh.receiveShadow=true;

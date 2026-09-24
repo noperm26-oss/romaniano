@@ -1,5 +1,5 @@
 /* ---------------- UI wiring ---------------- */
-$('btn-begin').addEventListener('click', function(){ Snd.init(); Snd.click(); toFaction(); });
+$('btn-begin').addEventListener('click', function(){ if(!WORLD_READY) return; Snd.init(); Snd.click(); toFaction(); });
 $('btn-back-fac').addEventListener('click', function(){ Snd.click(); toMenu(); });
 $('btn-back').addEventListener('click', function(){ Snd.click(); toFaction(); });
 $('btn-spawn').addEventListener('click', function(){
